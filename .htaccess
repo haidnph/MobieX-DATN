@@ -1,0 +1,14 @@
+RewriteEngine On
+
+RewriteRule ^(register|login|logout|forgot-password|reset-password)/?$ index.php?page=$1 [QSA,L,NC]
+
+# Accept both the MVC query URLs and the former static-page URLs.
+RewriteRule ^(?:index|home)(?:\.html?)?/?$ index.php?page=home [QSA,L,NC]
+RewriteRule ^products(?:\.html?)?/?$ index.php?page=products [QSA,L,NC]
+RewriteRule ^detail(?:\.html?)?/?$ index.php?page=detail [QSA,L,NC]
+RewriteRule ^checkout(?:\.html?)?/?$ index.php?page=checkout [QSA,L,NC]
+RewriteRule ^admin(?:\.html?)?/?$ index.php?page=admin [QSA,L,NC]
+
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
