@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Auth\CurrentUserController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\RegisterController;
@@ -26,3 +27,8 @@ Route::middleware('auth:sanctum')->post(
     '/auth/logout',
     LogoutController::class
 )->name('api.auth.logout');
+
+Route::middleware('auth:sanctum')->get(
+    '/me',
+    CurrentUserController::class
+)->name('api.me');
