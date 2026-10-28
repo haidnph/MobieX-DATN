@@ -17,12 +17,14 @@ Route::get('/health', function () {
 Route::post(
     '/auth/register',
     RegisterController::class
-)->name('api.auth.register');
+)->middleware('throttle:auth-register')
+    ->name('api.auth.register');
 
 Route::post(
     '/auth/login',
     LoginController::class
-)->name('api.auth.login');
+)->middleware('throttle:auth-login')
+    ->name('api.auth.login');
 
 Route::middleware('auth:sanctum')->post(
     '/auth/logout',
@@ -37,9 +39,11 @@ Route::middleware('auth:sanctum')->get(
 Route::post(
     '/auth/forgot-password',
     [PasswordResetController::class, 'sendResetLink']
-)->name('api.auth.password.email');
+)->middleware('throttle:auth-forgot-password')
+    ->name('api.auth.password.email');
 
 Route::post(
     '/auth/reset-password',
     [PasswordResetController::class, 'reset']
-)->name('api.auth.password.reset');
+)->middleware('throttle:auth-reset-password')
+    ->name('api.auth.password.reset');
