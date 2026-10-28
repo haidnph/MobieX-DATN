@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\CurrentUserController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
+use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\RegisterController;
 use Illuminate\Support\Facades\Route;
 
@@ -32,3 +33,13 @@ Route::middleware('auth:sanctum')->get(
     '/me',
     CurrentUserController::class
 )->name('api.me');
+
+Route::post(
+    '/auth/forgot-password',
+    [PasswordResetController::class, 'sendResetLink']
+)->name('api.auth.password.email');
+
+Route::post(
+    '/auth/reset-password',
+    [PasswordResetController::class, 'reset']
+)->name('api.auth.password.reset');
