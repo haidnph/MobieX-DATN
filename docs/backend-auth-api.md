@@ -52,7 +52,7 @@ Token được cấp khi đăng ký hoặc đăng nhập. Không gửi token tro
 | POST | `/api/auth/register` | Not required | 201 Created |
 | POST | `/api/auth/login` | Not required | 200 OK |
 | POST | `/api/auth/logout` | Bearer token | 200 OK |
-| GET | `/api/me` | Bearer token | 200 OK |
+| GET | `/api/me` | Bearer token + active account | 200 OK |
 | POST | `/api/auth/forgot-password` | Not required | 200 OK |
 | POST | `/api/auth/reset-password` | Not required | 200 OK |
 
@@ -104,12 +104,14 @@ POST /api/auth/register
 
 The returned token can be used to access protected endpoints.
 
-`expires_at` is the token's expiration timestamp in ISO 8601 UTC format. The example timestamp is illustrative; the actual value is calculated at token issuance.
+`expires_at` is the token's expiration timestamp in ISO 8601 UTC format. The example timestamp is illustrative; the actual value is calculated when the token is issued.
 
 ### Errors
 
 - `422 Unprocessable Entity`: validation failed, including duplicate email.
-- Validation errors are returned in Laravel's JSON validation response format.
+- `429 Too Many Requests`: the registration IP rate limit was exceeded.
+
+Validation errors are returned in Laravel's JSON validation response format.
 
 ## 4. Login
 
@@ -174,6 +176,8 @@ No request body is required.
 
 The current Bearer access token is revoked. Other tokens belonging to the same user are not revoked by this endpoint.
 
+Logout deliberately does not require the account to be active. An inactive user can still revoke their current token.
+
 ### Errors
 
 - `401 Unauthorized`: missing or invalid authentication, or a request without a revocable Sanctum Bearer token.
@@ -212,6 +216,7 @@ Only explicitly approved user fields are returned. Passwords and access tokens a
 ### Errors
 
 - `401 Unauthorized`: authentication is missing, invalid, revoked, or expired.
+- `403 Forbidden`: the authenticated user's account is inactive.
 
 ## 7. Forgot password
 
@@ -330,6 +335,7 @@ Invalid request fields also return HTTP `422` with Laravel validation errors.
 | 200 | Request succeeded |
 | 201 | Account created |
 | 401 | Authentication failed or is required |
+| 403 | Authenticated user is not allowed to access the endpoint, including an inactive account |
 | 422 | Validation failed or reset token is invalid/expired |
 | 429 | Too many requests; the applicable rate limit has been exceeded |
 
@@ -360,17 +366,16 @@ Run from the `backend/` directory:
 ```bash
 php artisan route:list --path=api/auth -vv
 php artisan route:list --path=api/me -vv
+php artisan schedule:list
 php artisan test
+vendor/bin/pint --test
 ```
 
-The Auth implementation has been verified locally with 26 passing tests and 144 assertions at the time this document was prepared.
-
-Run the test suite again after changing the implementation or API contract.
+Run the test suite again after changing the implementation or API contract. Use the latest test output as the source of truth for the number of passing tests and assertions.
 
 ## 12. Rate limiting
 
-The public authentication endpoints have independent rate limits
-for IP addresses and, where applicable, normalized email addresses.
+The public authentication endpoints have independent rate limits for IP addresses and, where applicable, normalized email addresses.
 
 | Endpoint | Limit |
 |---|---|
@@ -379,41 +384,27 @@ for IP addresses and, where applicable, normalized email addresses.
 | `POST /api/auth/forgot-password` | 3 requests per email per 15 minutes, plus 10 requests per IP per hour |
 | `POST /api/auth/reset-password` | 5 requests per email per 15 minutes, plus 10 requests per IP per 15 minutes |
 
-Email-based login throttling counts failed authentication attempts.
-A successful login clears that email's failed-attempt counter.
-The separate IP-based login limit still applies.
+Email-based login throttling counts failed authentication attempts. A successful login clears that email's failed-attempt counter. The separate IP-based login limit still applies.
 
-Email values are trimmed and normalized to lowercase before their
-rate-limit keys are generated. Email and IP identifiers are hashed
-using HMAC-SHA256 with the application key. Raw email addresses,
-passwords, and reset tokens are not used as rate-limit keys.
+Email values are trimmed and normalized to lowercase before their rate-limit keys are generated. Email and IP identifiers are hashed using HMAC-SHA256 with the application key. Raw email addresses, passwords, and reset tokens are not used as rate-limit keys.
 
-When a limit is exceeded, the endpoint returns HTTP `429 Too Many
-Requests`. Clients should respect the `Retry-After` response header
-when it is present.
+When a limit is exceeded, the endpoint returns HTTP `429 Too Many Requests`. Clients should respect the `Retry-After` response header when it is present.
 
-These are initial hardening thresholds. Review them with the frontend
-team before production deployment.
+These are initial hardening thresholds. Review them with the frontend team before production deployment.
 
 ## 13. Bearer token expiration and pruning
 
 ### Token lifetime
 
-Bearer tokens issued by registration and login expire 30 days after
-issuance by default.
+Bearer tokens issued by registration and login expire 30 days after issuance by default.
 
-The lifetime is configured by `AUTH_TOKEN_EXPIRATION_DAYS` in the
-environment. The default value is `30`.
+The lifetime is configured by `AUTH_TOKEN_EXPIRATION_DAYS` in the environment. The default value is `30`.
 
-The registration and login responses include `data.expires_at`,
-an ISO 8601 UTC timestamp that identifies when the issued token expires.
+The registration and login responses include `data.expires_at`, an ISO 8601 UTC timestamp that identifies when the issued token expires.
 
-Clients should treat the token as unusable at or after this time.
-Protected endpoints return `401 Unauthorized` when a token is expired,
-invalid, or revoked.
+Clients should treat the token as unusable at or after this time. Protected endpoints return `401 Unauthorized` when a token is expired, invalid, or revoked.
 
-The current implementation does not provide a refresh-token flow.
-When a token expires, the user must log in again to obtain a new token.
+The current implementation does not provide a refresh-token flow. When a token expires, the user must log in again to obtain a new token.
 
 ### Expired-token cleanup
 
@@ -423,9 +414,7 @@ Sanctum's pruning command is scheduled to run daily:
 php artisan sanctum:prune-expired --hours=24
 ```
 
-The command removes tokens that have been expired for at least
-24 hours. Expired tokens are rejected by authentication middleware
-even before their database records are removed.
+The command removes tokens that have been expired for at least 24 hours. Expired tokens are rejected by authentication middleware even before their database records are removed.
 
 ### Verify the scheduler
 
@@ -441,12 +430,24 @@ For local development, the scheduler can be run in the foreground:
 php artisan schedule:work
 ```
 
-In production, configure the server's scheduler to invoke Laravel
-every minute:
+In production, configure the server's scheduler to invoke Laravel every minute:
 
 ```cron
 * * * * * cd /path/to/MobieX-DATN/backend && php artisan schedule:run >> /dev/null 2>&1
 ```
 
-Replace `/path/to/MobieX-DATN/backend` with the actual absolute path
-of the deployed backend directory.
+Replace `/path/to/MobieX-DATN/backend` with the actual absolute path of the deployed backend directory.
+
+## 14. Active-account protection
+
+The `active` middleware checks the authenticated user's `is_active` state before allowing access to endpoints that require an active account.
+
+For the current Auth API:
+
+- `GET /api/me` requires both `auth:sanctum` and `active`.
+- An active user with a valid token can access `/api/me`.
+- An inactive user with an otherwise valid token receives `403 Forbidden` from `/api/me`.
+- Login rejects inactive accounts with `401 Unauthorized`, using the same authentication error response as invalid credentials.
+- `POST /api/auth/logout` intentionally does not use the `active` middleware. An inactive user can still revoke their current token.
+
+Future business endpoints that require an active account should use the same middleware convention. Logout must remain accessible to authenticated inactive users so they can revoke their own tokens.
