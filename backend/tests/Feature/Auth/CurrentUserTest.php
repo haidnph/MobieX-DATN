@@ -87,7 +87,7 @@ class CurrentUserTest extends TestCase
         );
 
         $this->withToken($token->plainTextToken)
-            ->getJson('/api/me?user_id=' . $otherUser->getKey())
+            ->getJson('/api/me?user_id='.$otherUser->getKey())
             ->assertOk()
             ->assertJsonPath(
                 'data.user.id',

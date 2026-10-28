@@ -26,12 +26,13 @@ class TokenExpirationTest extends TestCase
         $this->travelTo(now()->startOfSecond());
 
         $expectedExpiresAt = now()->addDays(30);
+        $password = 'StrongPass12345';
 
         $response = $this->postJson('/api/auth/register', [
             'name' => 'Test Customer',
             'email' => 'customer@example.com',
-            'password' => 'StrongPass123',
-            'password_confirmation' => 'StrongPass123',
+            'password' => $password,
+            'password_confirmation' => $password,
         ]);
 
         $response->assertCreated()
@@ -53,7 +54,7 @@ class TokenExpirationTest extends TestCase
     {
         $this->travelTo(now()->startOfSecond());
 
-        $user = User::factory()->create([
+        User::factory()->create([
             'email' => 'customer@example.com',
             'password' => 'StrongPass123',
         ]);
@@ -98,10 +99,8 @@ class TokenExpirationTest extends TestCase
             ->getJson('/api/me')
             ->assertOk();
 
-        // Move the test clock beyond the token's expiry.
         $this->travelTo($expiresAt->copy()->addSecond());
 
-        // Ensure the next request authenticates the token again.
         Auth::forgetGuards();
 
         $this->withToken($issuedToken->plainTextToken)

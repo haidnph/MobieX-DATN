@@ -103,11 +103,13 @@ class PasswordResetTest extends TestCase
             'password' => 'OldPassword123',
         ]);
 
+        $password = 'NewPassword12345';
+
         $this->postJson('/api/auth/reset-password', [
             'email' => $user->email,
             'token' => 'invalid-token',
-            'password' => 'NewPassword123',
-            'password_confirmation' => 'NewPassword123',
+            'password' => $password,
+            'password_confirmation' => $password,
         ])->assertUnprocessable()
             ->assertJsonPath(
                 'message',
@@ -115,7 +117,10 @@ class PasswordResetTest extends TestCase
             );
 
         $this->assertTrue(
-            Hash::check('OldPassword123', $user->fresh()->password)
+            Hash::check(
+                'OldPassword123',
+                $user->fresh()->password
+            )
         );
     }
 
@@ -138,11 +143,13 @@ class PasswordResetTest extends TestCase
                 'created_at' => $expiredAt,
             ]);
 
+        $password = 'NewPassword12345';
+
         $this->postJson('/api/auth/reset-password', [
             'email' => $user->email,
             'token' => $token,
-            'password' => 'NewPassword123',
-            'password_confirmation' => 'NewPassword123',
+            'password' => $password,
+            'password_confirmation' => $password,
         ])->assertUnprocessable()
             ->assertJsonPath(
                 'message',
@@ -150,7 +157,10 @@ class PasswordResetTest extends TestCase
             );
 
         $this->assertTrue(
-            Hash::check('OldPassword123', $user->fresh()->password)
+            Hash::check(
+                'OldPassword123',
+                $user->fresh()->password
+            )
         );
     }
 
@@ -165,12 +175,13 @@ class PasswordResetTest extends TestCase
         $user->createToken('mobile-device');
 
         $token = Password::createToken($user);
+        $newPassword = 'NewPassword12345';
 
         $this->postJson('/api/auth/reset-password', [
             'email' => $user->email,
             'token' => $token,
-            'password' => 'NewPassword123',
-            'password_confirmation' => 'NewPassword123',
+            'password' => $newPassword,
+            'password_confirmation' => $newPassword,
         ])->assertOk()
             ->assertJsonPath(
                 'message',
@@ -178,7 +189,10 @@ class PasswordResetTest extends TestCase
             );
 
         $this->assertTrue(
-            Hash::check('NewPassword123', $user->fresh()->password)
+            Hash::check(
+                $newPassword,
+                $user->fresh()->password
+            )
         );
 
         $this->assertDatabaseMissing('password_reset_tokens', [
@@ -188,11 +202,13 @@ class PasswordResetTest extends TestCase
         $this->assertDatabaseCount('personal_access_tokens', 0);
 
         // A reset token must only work once.
+        $anotherPassword = 'AnotherPassword12345';
+
         $this->postJson('/api/auth/reset-password', [
             'email' => $user->email,
             'token' => $token,
-            'password' => 'AnotherPassword123',
-            'password_confirmation' => 'AnotherPassword123',
+            'password' => $anotherPassword,
+            'password_confirmation' => $anotherPassword,
         ])->assertUnprocessable();
 
         // The old password must no longer work.
@@ -204,7 +220,7 @@ class PasswordResetTest extends TestCase
         // The new password must work with the existing login endpoint.
         $this->postJson('/api/auth/login', [
             'email' => $user->email,
-            'password' => 'NewPassword123',
+            'password' => $newPassword,
         ])->assertOk()
             ->assertJsonPath('message', 'Login successful.');
     }
@@ -214,8 +230,72 @@ class PasswordResetTest extends TestCase
         $this->postJson('/api/auth/reset-password', [
             'email' => 'customer@example.com',
             'token' => 'any-token',
-            'password' => 'NewPassword123',
-            'password_confirmation' => 'DifferentPassword123',
+            'password' => 'NewPassword12345',
+            'password_confirmation' => 'DifferentPassword12345',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['password']);
+    }
+
+    public function test_reset_password_rejects_password_below_15_characters(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'customer@example.com',
+        ]);
+
+        $token = Password::createToken($user);
+        $password = 'StrongPass1234'; // 14 characters.
+
+        $this->postJson('/api/auth/reset-password', [
+            'email' => $user->email,
+            'token' => $token,
+            'password' => $password,
+            'password_confirmation' => $password,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['password']);
+    }
+
+    public function test_reset_password_accepts_a_64_character_password_and_hashes_it(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'customer@example.com',
+        ]);
+
+        $token = Password::createToken($user);
+        $password = str_repeat('A', 64);
+
+        $this->postJson('/api/auth/reset-password', [
+            'email' => $user->email,
+            'token' => $token,
+            'password' => $password,
+            'password_confirmation' => $password,
+        ])->assertOk()
+            ->assertJsonPath(
+                'message',
+                'Password reset successful.'
+            );
+
+        $this->assertTrue(
+            Hash::check($password, $user->fresh()->password)
+        );
+    }
+
+    public function test_reset_password_rejects_unicode_password_exceeding_bcrypt_byte_limit(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'customer@example.com',
+        ]);
+
+        $token = Password::createToken($user);
+        $password = str_repeat('ắ', 25);
+
+        $this->assertSame(25, mb_strlen($password, 'UTF-8'));
+        $this->assertSame(75, strlen($password));
+
+        $this->postJson('/api/auth/reset-password', [
+            'email' => $user->email,
+            'token' => $token,
+            'password' => $password,
+            'password_confirmation' => $password,
         ])->assertUnprocessable()
             ->assertJsonValidationErrors(['password']);
     }

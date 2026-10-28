@@ -35,7 +35,7 @@ class AppServiceProvider extends ServiceProvider
                     '/'
                 );
 
-                return $frontendUrl . '/reset-password?' .
+                return $frontendUrl.'/reset-password?'.
                     http_build_query([
                         'token' => $token,
                         'email' => $user->getEmailForPasswordReset(),
