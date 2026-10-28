@@ -1,4 +1,3 @@
-
 # MobieX-DATN — Backend Auth API
 
 Version: 1.0  
@@ -327,6 +326,7 @@ Invalid request fields also return HTTP `422` with Laravel validation errors.
 | 201 | Account created |
 | 401 | Authentication failed or is required |
 | 422 | Validation failed or reset token is invalid/expired |
+| 429 | Too many requests; the applicable rate limit has been exceeded |
 
 Validation responses follow Laravel's JSON validation format. Clients should handle field errors rather than relying only on the message text.
 
@@ -361,3 +361,31 @@ php artisan test
 The Auth implementation has been verified locally with 26 passing tests and 144 assertions at the time this document was prepared.
 
 Run the test suite again after changing the implementation or API contract.
+
+## 12. Rate limiting
+
+The public authentication endpoints have independent rate limits
+for IP addresses and, where applicable, normalized email addresses.
+
+| Endpoint | Limit |
+|---|---|
+| `POST /api/auth/register` | 5 requests per IP per hour |
+| `POST /api/auth/login` | 5 failed attempts per normalized email per 5 minutes, plus 30 requests per IP per minute |
+| `POST /api/auth/forgot-password` | 3 requests per email per 15 minutes, plus 10 requests per IP per hour |
+| `POST /api/auth/reset-password` | 5 requests per email per 15 minutes, plus 10 requests per IP per 15 minutes |
+
+Email-based login throttling counts failed authentication attempts.
+A successful login clears that email's failed-attempt counter.
+The separate IP-based login limit still applies.
+
+Email values are trimmed and normalized to lowercase before their
+rate-limit keys are generated. Email and IP identifiers are hashed
+using HMAC-SHA256 with the application key. Raw email addresses,
+passwords, and reset tokens are not used as rate-limit keys.
+
+When a limit is exceeded, the endpoint returns HTTP `429 Too Many
+Requests`. Clients should respect the `Retry-After` response header
+when it is present.
+
+These are initial hardening thresholds. Review them with the frontend
+team before production deployment.
