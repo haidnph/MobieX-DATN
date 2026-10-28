@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Models\User;
 use App\Support\AuthRateLimitKey;
+use App\Support\AuthTokenExpiration;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
@@ -26,7 +27,7 @@ class LoginController extends Controller
             $credentials['email']
         );
 
-        // Block further attempts after five failures.
+        // Enforce the failed-login limit per normalized email.
         if (RateLimiter::tooManyAttempts(
             $failedAttemptsKey,
             self::MAX_FAILED_ATTEMPTS
@@ -48,8 +49,8 @@ class LoginController extends Controller
         )->first();
 
         /*
-         * Invalid credentials and inactive accounts use the same
-         * response to avoid revealing account status.
+         * Keep the same response for invalid credentials and
+         * inactive accounts to avoid revealing account status.
          */
         if (
             ! $user
@@ -70,13 +71,15 @@ class LoginController extends Controller
             ], 401);
         }
 
-        // A successful login clears only the account failure counter.
-        // The independent IP-based request limit remains in effect.
+        // Clear failed attempts after a successful login.
+        // The independent IP-based limit from Commit A remains active.
         RateLimiter::clear($failedAttemptsKey);
 
-        $token = $user
-            ->createToken('auth-token')
-            ->plainTextToken;
+        $issuedToken = $user->createToken(
+            'auth-token',
+            ['*'],
+            AuthTokenExpiration::expiresAt()
+        );
 
         return response()->json([
             'message' => 'Login successful.',
@@ -87,8 +90,12 @@ class LoginController extends Controller
                     'email' => $user->email,
                     'phone' => $user->phone,
                 ],
-                'token' => $token,
+                'token' => $issuedToken->plainTextToken,
                 'token_type' => 'Bearer',
+                'expires_at' => $issuedToken
+                    ->accessToken
+                    ->expires_at
+                    ?->toISOString(),
             ],
         ], 200);
     }

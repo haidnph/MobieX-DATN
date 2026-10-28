@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Models\User;
+use App\Support\AuthTokenExpiration;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 
@@ -19,9 +20,11 @@ class RegisterController extends Controller
                     $request->validated()
                 );
 
-                $token = $user
-                    ->createToken('auth-token')
-                    ->plainTextToken;
+                $issuedToken = $user->createToken(
+                    'auth-token',
+                    ['*'],
+                    AuthTokenExpiration::expiresAt()
+                );
 
                 return response()->json([
                     'message' => 'Registration successful.',
@@ -32,8 +35,12 @@ class RegisterController extends Controller
                             'email' => $user->email,
                             'phone' => $user->phone,
                         ],
-                        'token' => $token,
+                        'token' => $issuedToken->plainTextToken,
                         'token_type' => 'Bearer',
+                        'expires_at' => $issuedToken
+                            ->accessToken
+                            ->expires_at
+                            ?->toISOString(),
                     ],
                 ], 201);
             }
