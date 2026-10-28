@@ -41,6 +41,6 @@ final class AuthRateLimitKey
                 $applicationKey
             );
 
-        return $scope . ':' . $digest;
+        return $scope.':'.$digest;
     }
 }

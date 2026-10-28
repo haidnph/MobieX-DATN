@@ -69,8 +69,8 @@ POST /api/auth/register
   "name": "Test Customer",
   "email": "customer@example.com",
   "phone": "0912345678",
-  "password": "StrongPass123",
-  "password_confirmation": "StrongPass123"
+  "password": "StrongPass12345",
+  "password_confirmation": "StrongPass12345"
 }
 ```
 
@@ -81,7 +81,9 @@ POST /api/auth/register
 - `name`: required, string, maximum 255 characters.
 - `email`: required, valid email, maximum 255 characters, unique.
 - `phone`: optional, string, maximum 20 characters.
-- `password`: required, minimum 8 characters and must match `password_confirmation`.
+- `password`: required, minimum 15 characters, maximum 64 characters, no more than 72 UTF-8 bytes, and must match `password_confirmation`.
+
+The password policy is described in section 15.
 
 ### Success — 201 Created
 
@@ -108,8 +110,8 @@ The returned token can be used to access protected endpoints.
 
 ### Errors
 
-- `422 Unprocessable Entity`: validation failed, including duplicate email.
-- `429 Too Many Requests`: the registration IP rate limit was exceeded.
+- `422 Unprocessable Entity`: validation failed, including duplicate email or password policy violations.
+- `429 Too Many Requests`: registration IP rate limit exceeded.
 
 Validation errors are returned in Laravel's JSON validation response format.
 
@@ -124,7 +126,7 @@ POST /api/auth/login
 ```json
 {
   "email": "customer@example.com",
-  "password": "StrongPass123"
+  "password": "StrongPass12345"
 }
 ```
 
@@ -152,6 +154,8 @@ POST /api/auth/login
 - `401 Unauthorized`: invalid credentials or an inactive account.
 - `422 Unprocessable Entity`: missing or invalid email/password input.
 - `429 Too Many Requests`: login rate limit exceeded.
+
+The login endpoint verifies the password against the stored hash. The new minimum password policy applies when setting or changing a password, not when checking an existing credential at login.
 
 The current implementation uses the same authentication error message for incorrect credentials and inactive accounts.
 
@@ -286,8 +290,8 @@ POST /api/auth/reset-password
 {
   "email": "customer@example.com",
   "token": "<reset_token>",
-  "password": "NewPassword123",
-  "password_confirmation": "NewPassword123"
+  "password": "NewPassword12345",
+  "password_confirmation": "NewPassword12345"
 }
 ```
 
@@ -297,7 +301,9 @@ The `token` is the reset token received through the reset link. It is not the Sa
 
 - `email`: required, valid email, maximum 255 characters.
 - `token`: required string.
-- `password`: required, minimum 8 characters, and must match `password_confirmation`.
+- `password`: required, minimum 15 characters, maximum 64 characters, no more than 72 UTF-8 bytes, and must match `password_confirmation`.
+
+Register and reset password use the same password policy.
 
 ### Success — 200 OK
 
@@ -326,7 +332,7 @@ HTTP `422 Unprocessable Entity`
 }
 ```
 
-Invalid request fields also return HTTP `422` with Laravel validation errors.
+Invalid request fields and password policy violations also return HTTP `422` with Laravel validation errors.
 
 ## 9. Common HTTP status codes
 
@@ -336,7 +342,7 @@ Invalid request fields also return HTTP `422` with Laravel validation errors.
 | 201 | Account created |
 | 401 | Authentication failed or is required |
 | 403 | Authenticated user is not allowed to access the endpoint, including an inactive account |
-| 422 | Validation failed or reset token is invalid/expired |
+| 422 | Validation failed, password policy rejected, or reset token is invalid/expired |
 | 429 | Too many requests; the applicable rate limit has been exceeded |
 
 Validation responses follow Laravel's JSON validation format. Clients should handle field errors rather than relying only on the message text.
@@ -369,9 +375,12 @@ php artisan route:list --path=api/me -vv
 php artisan schedule:list
 php artisan test
 vendor/bin/pint --test
+composer audit
 ```
 
-Run the test suite again after changing the implementation or API contract. Use the latest test output as the source of truth for the number of passing tests and assertions.
+Run the test suite after changing the implementation or API contract. Use the latest test output as the source of truth for the number of passing tests and assertions.
+
+Test suites may use SQLite in-memory through PHPUnit configuration. Verify MySQL migrations separately in the development database before integration.
 
 ## 12. Rate limiting
 
@@ -451,3 +460,28 @@ For the current Auth API:
 - `POST /api/auth/logout` intentionally does not use the `active` middleware. An inactive user can still revoke their current token.
 
 Future business endpoints that require an active account should use the same middleware convention. Logout must remain accessible to authenticated inactive users so they can revoke their own tokens.
+
+## 15. Password policy
+
+Register and reset password share a single validation rule.
+
+| Requirement | Policy |
+|---|---|
+| Minimum length | 15 characters |
+| Maximum length | 64 characters |
+| Maximum encoded length | 72 UTF-8 bytes with the current bcrypt hasher |
+| Confirmation | Required and must match |
+| Character composition | No mandatory uppercase, lowercase, digit, or symbol rules |
+| Password storage | Hashed through the `User` model's hashed cast |
+
+The 15-character minimum is selected because MFA is not currently implemented. Long passphrases and Unicode characters are permitted, subject to the byte limit imposed by the current password hashing configuration.
+
+The application currently relies on Laravel's default bcrypt hashing driver. Bcrypt has a 72-byte input limit in common implementations. Therefore, passwords exceeding 72 UTF-8 bytes are rejected explicitly instead of being truncated.
+
+A 64-character ASCII passphrase is accepted. Some multibyte Unicode passwords shorter than 64 characters may exceed 72 bytes and will be rejected under this policy. This limitation must be revisited if the project adopts a hashing implementation that safely supports longer inputs.
+
+No password composition requirements are imposed by this rule. The policy is applied identically to account registration and password reset.
+
+Password policy changes should be coordinated with the frontend so that registration and reset forms communicate the same minimum, maximum, confirmation, and byte-limit requirements.
+
+Password changes do not automatically alter the Bearer token expiration policy. Successful password reset continues to revoke all existing Sanctum API tokens, requiring the user to sign in again.

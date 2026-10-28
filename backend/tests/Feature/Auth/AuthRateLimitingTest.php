@@ -16,10 +16,10 @@ class AuthRateLimitingTest extends TestCase
             $this->withServerVariables([
                 'REMOTE_ADDR' => '203.0.113.10',
             ])->postJson('/api/auth/register', [
-                'name' => 'Test Customer ' . $attempt,
-                'email' => 'customer' . $attempt . '@example.com',
-                'password' => 'StrongPass123',
-                'password_confirmation' => 'StrongPass123',
+                'name' => 'Test Customer '.$attempt,
+                'email' => 'customer'.$attempt.'@example.com',
+                'password' => 'StrongPass12345',
+                'password_confirmation' => 'StrongPass12345',
             ])->assertCreated();
         }
 
@@ -28,8 +28,8 @@ class AuthRateLimitingTest extends TestCase
         ])->postJson('/api/auth/register', [
             'name' => 'Sixth Customer',
             'email' => 'customer6@example.com',
-            'password' => 'StrongPass123',
-            'password_confirmation' => 'StrongPass123',
+            'password' => 'StrongPass12345',
+            'password_confirmation' => 'StrongPass12345',
         ])->assertStatus(429);
 
         $this->assertDatabaseCount('users', 5);
@@ -51,7 +51,6 @@ class AuthRateLimitingTest extends TestCase
             ])->assertUnauthorized();
         }
 
-        // Email case and IP changes must not bypass the account limit.
         $this->withServerVariables([
             'REMOTE_ADDR' => '198.51.100.11',
         ])->postJson('/api/auth/login', [
@@ -118,7 +117,7 @@ class AuthRateLimitingTest extends TestCase
             $this->withServerVariables([
                 'REMOTE_ADDR' => '203.0.113.20',
             ])->postJson('/api/auth/forgot-password', [
-                'email' => 'unknown' . $attempt . '@example.com',
+                'email' => 'unknown'.$attempt.'@example.com',
             ])->assertOk();
         }
 
@@ -134,8 +133,8 @@ class AuthRateLimitingTest extends TestCase
         $payload = [
             'token' => 'invalid-reset-token',
             'email' => 'customer@example.com',
-            'password' => 'StrongPass123',
-            'password_confirmation' => 'StrongPass123',
+            'password' => 'StrongPass12345',
+            'password_confirmation' => 'StrongPass12345',
         ];
 
         for ($attempt = 1; $attempt <= 5; $attempt++) {
@@ -158,9 +157,9 @@ class AuthRateLimitingTest extends TestCase
                 'REMOTE_ADDR' => '203.0.113.30',
             ])->postJson('/api/auth/reset-password', [
                 'token' => 'invalid-reset-token',
-                'email' => 'customer' . $attempt . '@example.com',
-                'password' => 'StrongPass123',
-                'password_confirmation' => 'StrongPass123',
+                'email' => 'customer'.$attempt.'@example.com',
+                'password' => 'StrongPass12345',
+                'password_confirmation' => 'StrongPass12345',
             ])->assertUnprocessable();
         }
 
@@ -169,8 +168,8 @@ class AuthRateLimitingTest extends TestCase
         ])->postJson('/api/auth/reset-password', [
             'token' => 'invalid-reset-token',
             'email' => 'another-customer@example.com',
-            'password' => 'StrongPass123',
-            'password_confirmation' => 'StrongPass123',
+            'password' => 'StrongPass12345',
+            'password_confirmation' => 'StrongPass12345',
         ])->assertStatus(429);
     }
 }

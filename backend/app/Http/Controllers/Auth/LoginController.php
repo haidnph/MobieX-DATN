@@ -33,8 +33,7 @@ class LoginController extends Controller
             self::MAX_FAILED_ATTEMPTS
         )) {
             return response()->json([
-                'message' =>
-                'Too many login attempts. Please try again later.',
+                'message' => 'Too many login attempts. Please try again later.',
             ], 429)->header(
                 'Retry-After',
                 (string) RateLimiter::availableIn(
@@ -66,8 +65,7 @@ class LoginController extends Controller
             );
 
             return response()->json([
-                'message' =>
-                'The provided credentials are incorrect.',
+                'message' => 'The provided credentials are incorrect.',
             ], 401);
         }
 
