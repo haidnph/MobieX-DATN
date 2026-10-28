@@ -26,12 +26,22 @@ Route::post(
 )->middleware('throttle:auth-login')
     ->name('api.auth.login');
 
+/*
+ * Logout intentionally does not use the "active" middleware.
+ * Inactive users must still be able to revoke their own token.
+ */
 Route::middleware('auth:sanctum')->post(
     '/auth/logout',
     LogoutController::class
 )->name('api.auth.logout');
 
-Route::middleware('auth:sanctum')->get(
+/*
+ * GET /api/me requires both authentication and an active account.
+ */
+Route::middleware([
+    'auth:sanctum',
+    'active',
+])->get(
     '/me',
     CurrentUserController::class
 )->name('api.me');
