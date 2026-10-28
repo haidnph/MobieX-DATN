@@ -96,12 +96,15 @@ POST /api/auth/register
       "phone": "0912345678"
     },
     "token": "<access_token>",
-    "token_type": "Bearer"
+    "token_type": "Bearer",
+    "expires_at": "2026-11-27T10:00:00.000000Z"
   }
 }
 ```
 
 The returned token can be used to access protected endpoints.
+
+`expires_at` is the token's expiration timestamp in ISO 8601 UTC format. The example timestamp is illustrative; the actual value is calculated at token issuance.
 
 ### Errors
 
@@ -136,7 +139,8 @@ POST /api/auth/login
       "phone": "0912345678"
     },
     "token": "<access_token>",
-    "token_type": "Bearer"
+    "token_type": "Bearer",
+    "expires_at": "2026-11-27T10:00:00.000000Z"
   }
 }
 ```
@@ -145,6 +149,7 @@ POST /api/auth/login
 
 - `401 Unauthorized`: invalid credentials or an inactive account.
 - `422 Unprocessable Entity`: missing or invalid email/password input.
+- `429 Too Many Requests`: login rate limit exceeded.
 
 The current implementation uses the same authentication error message for incorrect credentials and inactive accounts.
 
@@ -206,7 +211,7 @@ Only explicitly approved user fields are returned. Passwords and access tokens a
 
 ### Errors
 
-- `401 Unauthorized`: authentication is missing or invalid.
+- `401 Unauthorized`: authentication is missing, invalid, revoked, or expired.
 
 ## 7. Forgot password
 
@@ -389,3 +394,59 @@ when it is present.
 
 These are initial hardening thresholds. Review them with the frontend
 team before production deployment.
+
+## 13. Bearer token expiration and pruning
+
+### Token lifetime
+
+Bearer tokens issued by registration and login expire 30 days after
+issuance by default.
+
+The lifetime is configured by `AUTH_TOKEN_EXPIRATION_DAYS` in the
+environment. The default value is `30`.
+
+The registration and login responses include `data.expires_at`,
+an ISO 8601 UTC timestamp that identifies when the issued token expires.
+
+Clients should treat the token as unusable at or after this time.
+Protected endpoints return `401 Unauthorized` when a token is expired,
+invalid, or revoked.
+
+The current implementation does not provide a refresh-token flow.
+When a token expires, the user must log in again to obtain a new token.
+
+### Expired-token cleanup
+
+Sanctum's pruning command is scheduled to run daily:
+
+```bash
+php artisan sanctum:prune-expired --hours=24
+```
+
+The command removes tokens that have been expired for at least
+24 hours. Expired tokens are rejected by authentication middleware
+even before their database records are removed.
+
+### Verify the scheduler
+
+Run from the `backend/` directory:
+
+```bash
+php artisan schedule:list
+```
+
+For local development, the scheduler can be run in the foreground:
+
+```bash
+php artisan schedule:work
+```
+
+In production, configure the server's scheduler to invoke Laravel
+every minute:
+
+```cron
+* * * * * cd /path/to/MobieX-DATN/backend && php artisan schedule:run >> /dev/null 2>&1
+```
+
+Replace `/path/to/MobieX-DATN/backend` with the actual absolute path
+of the deployed backend directory.
