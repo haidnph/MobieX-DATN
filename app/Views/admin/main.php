@@ -559,11 +559,11 @@
         // inventory, coupons, promotions, reviews, users.
         ?>
 
-        <?php include __DIR__ . '/extra/inventory.php'; ?>
-        <?php include __DIR__ . '/extra/coupons.php'; ?>
-        <?php include __DIR__ . '/extra/promotions.php'; ?>
-        <?php include __DIR__ . '/extra/reviews.php'; ?>
-        <?php include __DIR__ . '/extra/users.php'; ?>
+        <?php include __DIR__ . '/inventory/inventory.php'; ?>
+        <?php include __DIR__ . '/coupons/coupons.php'; ?>
+        <?php include __DIR__ . '/promotions/promotions.php'; ?>
+        <?php include __DIR__ . '/review/reviews.php'; ?>
+        <?php include __DIR__ . '/users/users.php'; ?>
 
       </div>
     </main>
