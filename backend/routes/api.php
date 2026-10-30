@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\PermissionController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\UserRoleController;
+use App\Http\Controllers\Admin\UserStatusController;
 use App\Http\Controllers\Auth\CurrentUserController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
@@ -130,4 +131,11 @@ Route::prefix('admin')
         )
             ->whereNumber('user')
             ->name('users.roles.destroy');
+
+        Route::patch(
+            '/users/{user}/status',
+            [UserStatusController::class, 'update'],
+        )
+            ->whereNumber('user')
+            ->name('users.status.update');
     });
