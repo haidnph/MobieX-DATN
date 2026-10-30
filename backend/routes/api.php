@@ -123,4 +123,11 @@ Route::prefix('admin')
         )
             ->whereNumber('user')
             ->name('users.roles.store');
+
+        Route::delete(
+            '/users/{user}/roles/{roleSlug}',
+            [UserRoleController::class, 'destroy'],
+        )
+            ->whereNumber('user')
+            ->name('users.roles.destroy');
     });
