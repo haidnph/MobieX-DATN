@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\CurrentUserController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
@@ -57,3 +58,24 @@ Route::post(
     [PasswordResetController::class, 'reset']
 )->middleware('throttle:auth-reset-password')
     ->name('api.auth.password.reset');
+
+Route::prefix('admin')
+    ->name('api.admin.')
+    ->middleware([
+        'auth:sanctum',
+        'active',
+        'permission:users.view',
+    ])
+    ->group(function (): void {
+        Route::get(
+            '/users',
+            [UserController::class, 'index'],
+        )->name('users.index');
+
+        Route::get(
+            '/users/{user}',
+            [UserController::class, 'show'],
+        )
+            ->whereNumber('user')
+            ->name('users.show');
+    });
