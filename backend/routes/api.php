@@ -1,5 +1,9 @@
 <?php
 
+use App\Http\Controllers\Admin\PermissionController;
+use App\Http\Controllers\Admin\RoleController;
+use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\UserRoleController;
 use App\Http\Controllers\Auth\CurrentUserController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
@@ -30,18 +34,13 @@ Route::post(
 )->middleware('throttle:auth-login')
     ->name('api.auth.login');
 
-/*
- * Logout intentionally does not use the "active" middleware.
- * Inactive users must still be able to revoke their own token.
- */
+
 Route::middleware('auth:sanctum')->post(
     '/auth/logout',
     LogoutController::class
 )->name('api.auth.logout');
 
-/*
- * GET /api/me requires both authentication and an active account.
- */
+
 Route::middleware([
     'auth:sanctum',
     'active',
@@ -85,3 +84,57 @@ Route::get('/product-variants/{id}', [ProductVariantController::class, 'show']);
 Route::put('/product-variants/{id}', [ProductVariantController::class, 'update']);
 // API xóa biến thể sản phẩm
 Route::delete('/product-variants/{id}', [ProductVariantController::class, 'destroy']);
+
+Route::prefix('admin')
+    ->name('api.admin.')
+    ->middleware([
+        'auth:sanctum',
+        'active',
+        'permission:users.view',
+    ])
+    ->group(function (): void {
+        Route::get(
+            '/roles',
+            [RoleController::class, 'index'],
+        )->name('roles.index');
+
+        Route::get(
+            '/permissions',
+            [PermissionController::class, 'index'],
+        )->name('permissions.index');
+
+        Route::get(
+            '/users',
+            [UserController::class, 'index'],
+        )->name('users.index');
+
+        Route::get(
+            '/users/{user}',
+            [UserController::class, 'show'],
+        )
+            ->whereNumber('user')
+            ->name('users.show');
+    });
+
+Route::prefix('admin')
+    ->name('api.admin.')
+    ->middleware([
+        'auth:sanctum',
+        'active',
+        'permission:users.manage',
+    ])
+    ->group(function (): void {
+        Route::post(
+            '/users/{user}/roles',
+            [UserRoleController::class, 'store'],
+        )
+            ->whereNumber('user')
+            ->name('users.roles.store');
+
+        Route::delete(
+            '/users/{user}/roles/{roleSlug}',
+            [UserRoleController::class, 'destroy'],
+        )
+            ->whereNumber('user')
+            ->name('users.roles.destroy');
+    });

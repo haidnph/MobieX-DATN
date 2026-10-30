@@ -391,9 +391,12 @@
 <span class="font-label-spec text-label-spec text-secondary uppercase tracking-widest block">Real Buyer Feedback</span>
 <h2 class="font-headline-lg text-headline-lg text-on-surface font-bold">Hardware Ratings &amp; Telemetry Audits</h2>
 </div>
-<button class="px-space-md py-space-sm bg-primary-container text-on-primary-container font-headline-sm text-headline-sm rounded-lg hover:bg-primary transition-all self-start md:self-auto shadow-md">
-          Write a Hardware Review
-        </button>
+<a
+    href="?page=reviews&product_id=1"
+    class="px-space-md py-space-sm bg-primary-container text-on-primary-container font-headline-sm text-headline-sm rounded-lg hover:bg-primary transition-all self-start md:self-auto shadow-md"
+>
+    ★ Viết đánh giá sản phẩm
+</a>
 </div>
 <!-- Rating Score Overview Pod -->
 <div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter-desktop p-space-lg rounded-xl bg-surface-container-low mb-space-lg shadow-xl items-center">

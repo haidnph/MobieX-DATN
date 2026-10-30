@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Rbac;
 
-use App\Http\Middleware\EnsurePermission;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
@@ -25,7 +24,7 @@ class EnsurePermissionMiddlewareTest extends TestCase
         )->middleware([
             'auth:sanctum',
             'active',
-            EnsurePermission::class.':'.$requiredPermissions,
+            'permission:'.$requiredPermissions,
         ]);
     }
 
@@ -189,7 +188,7 @@ class EnsurePermissionMiddlewareTest extends TestCase
             ]),
         )->middleware([
             'auth:sanctum',
-            EnsurePermission::class.':users.view',
+            'permission:users.view',
         ]);
 
         $response = $this->getJson('/__test/rbac/permission-defense');
