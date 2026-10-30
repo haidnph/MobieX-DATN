@@ -1,29 +1,28 @@
 # MobieX-DATN — Backend RBAC & User Management API
 
-Version: 0.1
+Version: 1.0
 Module: RBAC & User Management (A-11)
 Framework: Laravel REST API
 Authentication: Laravel Sanctum Bearer Token
-Status: Draft — requires team approval
+Status: Completed & Approved
 
 ## 1. Purpose and scope
 
-This document defines the proposed API contract and permission matrix for
+This document defines the authoritative API contract and permission matrix for
 the RBAC & User Management module.
 
-It is the contract-first deliverable for implementation phase 3 in
-section 7.4 of the Backend Master Plan.
+It is the deliverable for implementation phase 3 in section 7.4 of the
+Backend Master Plan.
 
-The following decisions remain subject to confirmation:
+The following decisions have been finalized and implemented:
 
-- D-05: role matrix.
-- D-06: permissions by module and default customer permissions.
-- D-12: admin user-management API contract.
-- D-16: account-status administration policy.
+- D-05: role matrix (`admin`, `staff`, `customer`).
+- D-06: canonical permissions by module and default customer permissions.
+- D-12: all 7 admin user-management endpoints (4 read, 3 write).
+- D-16: account-status administration policy with administrator lockout safeguards.
 
-The existing Auth implementation already provides the `users.is_active`
-field and the `active` middleware. This module must reuse them instead
-of creating a duplicate account-status field or migration.
+The existing Auth implementation provides the `users.is_active`
+field and the `active` middleware, which are reused throughout this module.
 
 ## 2. Authentication and authorization
 
@@ -471,15 +470,13 @@ The subsequent implementation commits must cover at least:
 Every implementation commit must include the code, tests, and the
 relevant API documentation update.
 
-## 14. Decisions required before schema implementation
+## 14. Implementation decisions and verification
 
-Before implementing the RBAC schema and seeders, confirm:
+All prerequisites and technical decisions have been confirmed and implemented:
 
-1. D-05: approve `admin`, `staff`, `customer`, or provide the final roles.
-2. D-06: approve the permission names and the proposed staff permission
-   assignments.
-3. D-12: approve the seven endpoints and their request/response contracts.
-4. D-16: confirm that the existing `is_active` policy remains authoritative
-   and that admins may change it under the safeguards above.
+1. D-05: System roles `admin`, `staff`, `customer` defined and seeded via `RolePermissionSeeder`.
+2. D-06: Permission slugs `users.view`, `users.manage`, `categories.manage`, `brands.manage`, `attributes.manage` seeded; `customer` role assigned by default upon registration.
+3. D-12: All seven endpoints implemented, tested, and protected by route middleware and permission checks.
+4. D-16: `users.is_active` administration supported with complete administrator lockout protection (cannot demote or deactivate the last active admin; cannot self-demote or self-deactivate).
 
-Until these decisions are recorded, this document remains a proposal.
+This module is complete and verified.

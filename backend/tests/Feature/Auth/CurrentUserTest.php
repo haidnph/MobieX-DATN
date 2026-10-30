@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -17,6 +18,18 @@ class CurrentUserTest extends TestCase
             'email' => 'customer@example.com',
             'phone' => '0912345678',
         ]);
+
+        $customerRole = Role::factory()->create([
+            'name' => 'Customer',
+            'slug' => 'customer',
+        ]);
+        $staffRole = Role::factory()->create([
+            'name' => 'Staff',
+            'slug' => 'staff',
+        ]);
+
+        $user->assignRole($customerRole);
+        $user->assignRole($staffRole);
 
         $token = $user->createToken('current-user-test');
 
@@ -38,6 +51,16 @@ class CurrentUserTest extends TestCase
                 'data.user.phone',
                 '0912345678'
             )
+            ->assertJsonPath('data.user.roles', [
+                [
+                    'slug' => 'customer',
+                    'name' => 'Customer',
+                ],
+                [
+                    'slug' => 'staff',
+                    'name' => 'Staff',
+                ],
+            ])
             ->assertJsonStructure([
                 'message',
                 'data' => [
@@ -46,13 +69,19 @@ class CurrentUserTest extends TestCase
                         'name',
                         'email',
                         'phone',
+                        'roles' => [
+                            '*' => [
+                                'slug',
+                                'name',
+                            ],
+                        ],
                     ],
                 ],
             ]);
 
         // Only explicitly approved user fields may be exposed.
         $this->assertSame(
-            ['id', 'name', 'email', 'phone'],
+            ['id', 'name', 'email', 'phone', 'roles'],
             array_keys($response->json('data.user'))
         );
 

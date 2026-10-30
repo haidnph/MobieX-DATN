@@ -1,8 +1,8 @@
 # MobieX-DATN — Backend Auth API
 
-Version: 1.0  
-Module: Authentication (C-01)  
-Framework: Laravel REST API  
+Version: 1.0
+Module: Authentication (C-01)
+Framework: Laravel REST API
 Authentication: Laravel Sanctum Bearer Token
 
 ## 1. Overview
@@ -108,6 +108,8 @@ The returned token can be used to access protected endpoints.
 
 `expires_at` is the token's expiration timestamp in ISO 8601 UTC format. The example timestamp is illustrative; the actual value is calculated when the token is issued.
 
+Every successfully registered account is assigned the seeded `customer` role. This role has no administrative permissions by default.
+
 ### Errors
 
 - `422 Unprocessable Entity`: validation failed, including duplicate email or password policy violations.
@@ -207,7 +209,13 @@ Authorization: Bearer <access_token>
       "id": 1,
       "name": "Test Customer",
       "email": "customer@example.com",
-      "phone": "0912345678"
+      "phone": "0912345678",
+      "roles": [
+        {
+          "slug": "customer",
+          "name": "Customer"
+        }
+      ]
     }
   }
 }
@@ -215,7 +223,7 @@ Authorization: Bearer <access_token>
 
 The user is resolved from the authenticated token. The endpoint does not use a client-provided `user_id` to select the account.
 
-Only explicitly approved user fields are returned. Passwords and access tokens are not included.
+Only explicitly approved user fields are returned. `roles` contains every role assigned to the authenticated user, represented by its stable slug and display name. Passwords and access tokens are not included.
 
 ### Errors
 

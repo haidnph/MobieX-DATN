@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\RegisterRequest;
+use App\Models\Role;
 use App\Models\User;
 use App\Support\AuthTokenExpiration;
 use Illuminate\Http\JsonResponse;
@@ -19,6 +20,13 @@ class RegisterController extends Controller
                 $user = User::create(
                     $request->validated()
                 );
+
+                $customerRole = Role::query()->firstOrCreate(
+                    ['slug' => 'customer'],
+                    ['name' => 'Customer'],
+                );
+
+                $user->assignRole($customerRole);
 
                 $issuedToken = $user->createToken(
                     'auth-token',

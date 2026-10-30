@@ -1,7 +1,7 @@
 # Admin Role and Permission Read Endpoints
 
-Module: RBAC & User Management  
-Framework: Laravel REST API  
+Module: RBAC & User Management
+Framework: Laravel REST API
 Authentication: Laravel Sanctum Bearer Token
 
 ## 1. Scope
@@ -62,3 +62,42 @@ Expected responses:
         ]
     }
 }
+```
+
+## 4. List permissions
+
+### Request
+
+`GET /api/admin/permissions`
+
+### Response
+
+```json
+{
+    "message": "Permissions retrieved successfully.",
+    "data": {
+        "permissions": [
+            {
+                "slug": "attributes.manage",
+                "name": "Manage attributes"
+            },
+            {
+                "slug": "brands.manage",
+                "name": "Manage brands"
+            },
+            {
+                "slug": "categories.manage",
+                "name": "Manage categories"
+            },
+            {
+                "slug": "users.manage",
+                "name": "Manage users"
+            },
+            {
+                "slug": "users.view",
+                "name": "View users"
+            }
+        ]
+    }
+}
+```
