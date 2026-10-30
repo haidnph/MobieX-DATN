@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\PermissionController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\UserRoleController;
 use App\Http\Controllers\Auth\CurrentUserController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
@@ -98,4 +99,28 @@ Route::prefix('admin')
         )
             ->whereNumber('user')
             ->name('users.show');
+    });
+
+/*
+ * Admin user management endpoints.
+ *
+ * All routes in this group require:
+ * - Sanctum authentication.
+ * - An active account.
+ * - The users.manage permission.
+ */
+Route::prefix('admin')
+    ->name('api.admin.')
+    ->middleware([
+        'auth:sanctum',
+        'active',
+        'permission:users.manage',
+    ])
+    ->group(function (): void {
+        Route::post(
+            '/users/{user}/roles',
+            [UserRoleController::class, 'store'],
+        )
+            ->whereNumber('user')
+            ->name('users.roles.store');
     });
