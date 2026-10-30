@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -222,5 +223,48 @@ class RegisterTest extends TestCase
             ->assertJsonValidationErrors(['password']);
 
         $this->assertDatabaseCount('users', 1);
+    }
+
+    public function test_registration_assigns_customer_role_when_customer_role_exists(): void
+    {
+        $role = Role::factory()->create([
+            'slug' => 'customer',
+            'name' => 'Customer',
+        ]);
+
+        $this->postJson('/api/auth/register', [
+            'name' => 'Role Customer',
+            'email' => 'role-customer@example.com',
+            'password' => 'StrongPass12345',
+            'password_confirmation' => 'StrongPass12345',
+        ])->assertCreated();
+
+        $user = User::where('email', 'role-customer@example.com')->firstOrFail();
+
+        $this->assertTrue($user->hasRole('customer'));
+        $this->assertDatabaseHas('role_user', [
+            'user_id' => $user->getKey(),
+            'role_id' => $role->getKey(),
+        ]);
+    }
+
+    public function test_registration_creates_and_assigns_customer_role_when_not_seeded(): void
+    {
+        $this->assertDatabaseMissing('roles', [
+            'slug' => 'customer',
+        ]);
+
+        $this->postJson('/api/auth/register', [
+            'name' => 'Default Role Customer',
+            'email' => 'default-role-customer@example.com',
+            'password' => 'StrongPass12345',
+            'password_confirmation' => 'StrongPass12345',
+        ])->assertCreated();
+
+        $role = Role::query()->where('slug', 'customer')->firstOrFail();
+        $user = User::where('email', 'default-role-customer@example.com')->firstOrFail();
+
+        $this->assertSame('Customer', $role->name);
+        $this->assertTrue($user->hasRole($role));
     }
 }
