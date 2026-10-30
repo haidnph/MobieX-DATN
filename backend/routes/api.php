@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Admin\PermissionController;
+use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\CurrentUserController;
 use App\Http\Controllers\Auth\LoginController;
@@ -59,6 +61,14 @@ Route::post(
 )->middleware('throttle:auth-reset-password')
     ->name('api.auth.password.reset');
 
+/*
+ * Admin user and RBAC read-only endpoints.
+ *
+ * All routes in this group require:
+ * - Sanctum authentication.
+ * - An active account.
+ * - The users.view permission.
+ */
 Route::prefix('admin')
     ->name('api.admin.')
     ->middleware([
@@ -67,6 +77,16 @@ Route::prefix('admin')
         'permission:users.view',
     ])
     ->group(function (): void {
+        Route::get(
+            '/roles',
+            [RoleController::class, 'index'],
+        )->name('roles.index');
+
+        Route::get(
+            '/permissions',
+            [PermissionController::class, 'index'],
+        )->name('permissions.index');
+
         Route::get(
             '/users',
             [UserController::class, 'index'],
