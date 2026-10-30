@@ -7,6 +7,10 @@ use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\RegisterController;
 use Illuminate\Support\Facades\Route;
 
+
+use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProductVariantController;
+
 Route::get('/health', function () {
     return response()->json([
         'status' => 'ok',
@@ -57,3 +61,27 @@ Route::post(
     [PasswordResetController::class, 'reset']
 )->middleware('throttle:auth-reset-password')
     ->name('api.auth.password.reset');
+
+
+// Quản lý điện thoại
+Route::get('/products', [ProductController::class, 'index'])
+    ->name('api.products.index');
+// API xem chi tiết sản phẩm
+Route::get('/products/{id}', [ProductController::class, 'show'])
+    ->name('api.products.show');
+// API thêm sản phẩm
+Route::post('/products', [ProductController::class, 'store'])
+    ->name('api.products.store');
+// API cập nhật sản phẩm
+Route::put('/products/{id}', [ProductController::class, 'update'])
+    ->name('api.products.update');
+// API xóa sản phẩm
+Route::delete('/products/{id}', [ProductController::class, 'destroy'])
+    ->name('api.products.destroy');
+// API quản lý biến thể sản phẩm
+Route::get('/product-variants', [ProductVariantController::class, 'index']);
+Route::post('/product-variants', [ProductVariantController::class, 'store']);
+Route::get('/product-variants/{id}', [ProductVariantController::class, 'show']);
+Route::put('/product-variants/{id}', [ProductVariantController::class, 'update']);
+// API xóa biến thể sản phẩm
+Route::delete('/product-variants/{id}', [ProductVariantController::class, 'destroy']);
