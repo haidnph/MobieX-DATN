@@ -156,6 +156,9 @@ class AdminUserControllerTest extends TestCase
 
         $this->getJson('/api/admin/users/1')
             ->assertForbidden();
+
+        $this->getJson('/api/admin/users/999999')
+            ->assertForbidden();
     }
 
     public function test_inactive_user_cannot_access_admin_user_endpoints(): void
@@ -168,6 +171,9 @@ class AdminUserControllerTest extends TestCase
             ->assertForbidden();
 
         $this->getJson('/api/admin/users/1')
+            ->assertForbidden();
+
+        $this->getJson('/api/admin/users/999999')
             ->assertForbidden();
     }
 
