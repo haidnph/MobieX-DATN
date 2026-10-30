@@ -1,0 +1,238 @@
+
+/* =====================================
+   MOBILEX - BANNER & FLASH SALE
+===================================== */
+
+#promotions {
+    scroll-margin-top: 24px;
+}
+
+.promotion-columns {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+}
+
+.promotion-block {
+    min-width: 0;
+    background: #101c30;
+    border: 1px solid #30415d;
+    border-radius: 13px;
+    padding: 20px;
+}
+
+.promotion-block h4 {
+    margin: 0 0 16px;
+    color: #eef3ff;
+    font-size: 16px;
+}
+
+.promotion-details {
+    border: 1px solid #344967;
+    border-radius: 9px;
+    background: #15243b;
+    margin: 12px 0;
+    overflow: hidden;
+}
+
+.promotion-details summary {
+    padding: 13px 14px;
+    cursor: pointer;
+    color: #9dc3ff;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.promotion-details[open] summary {
+    border-bottom: 1px solid #344967;
+}
+
+.promotion-form {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+}
+
+.promotion-form label {
+    display: grid;
+    gap: 6px;
+    font-size: 12px;
+    color: #b7c7df;
+}
+
+.promotion-form input:not([type="checkbox"]) {
+    width: 100%;
+    min-width: 0;
+    padding: 11px 12px;
+    border: 1px solid #3a4f6d;
+    border-radius: 8px;
+    background: #0d192a;
+    color: #f2f6ff;
+    font: inherit;
+}
+
+.promotion-form input:focus {
+    outline: 2px solid #78a6fb;
+    outline-offset: 1px;
+}
+
+.promo-date-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.promo-primary,
+.promo-secondary {
+    border: 0;
+    border-radius: 8px;
+    padding: 11px 15px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.promo-primary {
+    background: #4b82ed;
+    color: white;
+}
+
+.promo-primary:hover {
+    background: #6498ff;
+}
+
+.promo-secondary {
+    background: #264269;
+    color: #e2edff;
+}
+
+.promo-secondary:hover {
+    background: #365a89;
+}
+
+.promotion-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 0;
+    border-bottom: 1px solid #2b3e59;
+}
+
+.promotion-info {
+    min-width: 0;
+    flex: 1;
+}
+
+.promotion-info strong {
+    display: block;
+    overflow-wrap: anywhere;
+    color: #f2f6ff;
+    font-size: 13px;
+}
+
+.promotion-info small {
+    display: block;
+    margin-top: 5px;
+    line-height: 1.5;
+    color: #a5b5cf;
+    font-size: 11px;
+}
+
+.promotion-thumb {
+    width: 84px;
+    height: 52px;
+    flex-shrink: 0;
+    object-fit: cover;
+    border-radius: 7px;
+    background: #263b55;
+}
+
+.promo-products-caption {
+    font-size: 12px;
+    font-weight: 700;
+    color: #d9e7ff;
+}
+
+.promo-product-list {
+    max-height: 260px;
+    overflow-y: auto;
+    padding: 7px;
+    border: 1px solid #354966;
+    border-radius: 8px;
+}
+
+.promo-product-row {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px;
+    border-bottom: 1px solid #2b3b53;
+}
+
+.promo-product-row:last-child {
+    border-bottom: 0;
+}
+
+.promo-product-row span {
+    flex: 1;
+    min-width: 0;
+    line-height: 1.5;
+}
+
+.promo-product-row span small {
+    display: block;
+    color: #8197b6;
+}
+
+.promotion-form .promo-product-row input[type="number"] {
+    width: 130px;
+    flex-shrink: 0;
+}
+
+.promo-empty {
+    font-size: 12px;
+    color: #92a4c0;
+}
+
+.promotion-flash {
+    background: #164b3a;
+    color: #b2f0db;
+    border: 1px solid #327e64;
+    padding: 12px 15px;
+    border-radius: 8px;
+}
+
+.promotion-error {
+    background: #572b37;
+    color: #ffd3dc;
+    border: 1px solid #a24a64;
+    padding: 12px 15px;
+    border-radius: 8px;
+}
+
+@media (max-width: 1100px) {
+    .promotion-columns {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 520px) {
+    .promotion-block {
+        padding: 12px;
+    }
+
+    .promo-date-row {
+        grid-template-columns: 1fr;
+    }
+
+    .promo-product-row {
+        flex-wrap: wrap;
+    }
+
+    .promotion-form .promo-product-row input[type="number"] {
+        width: 100%;
+    }
+}
