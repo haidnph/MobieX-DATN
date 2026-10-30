@@ -676,9 +676,9 @@ $promoMoney = static function ($v): string { return number_format((float)$v,0,',
     <details class="promotion-details promotion-edit"><summary>Sửa banner #<?= (int)$b['id'] ?></summary>
      <form method="post" enctype="multipart/form-data" action="admin.php?section=promotions#promotions" class="promotion-form">
       <input type="hidden" name="_csrf" value="<?= $promoEsc(Csrf::token()) ?>"><input type="hidden" name="admin_action" value="promo_save_banner"><input type="hidden" name="id" value="<?= (int)$b['id'] ?>"><input type="hidden" name="image_path" value="<?= $promoEsc($b['image_path']) ?>">
-      <label>Tiêu đề<input name="title" required maxlength="180" value="<?= $promoEsc($b['title']) ?>"></label>
-      <label>Thay ảnh (để trống nếu giữ ảnh hiện tại)<input type="file" name="banner_image" accept="image/jpeg,image/png,image/webp"></label>
-      <label>Liên kết<input name="target_url" value="<?= $promoEsc($b['target_url']) ?>"></label>
+      <label>tieu de<input name="title" required maxlength="180" value="<?= $promoEsc($b['title']) ?>"></label>
+      <label>thay anh (để trống nếu giữ ảnh hiện tại)<input type="file" name="banner_image" accept="image/jpeg,image/png,image/webp"></label>
+      <label>lien ket<input name="target_url" value="<?= $promoEsc($b['target_url']) ?>"></label>
       <label>Thứ tự<input type="number" name="sort_order" value="<?= (int)$b['sort_order'] ?>"></label>
       <button class="promo-primary" type="submit">Lưu thay đổi</button>
      </form>
