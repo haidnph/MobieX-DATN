@@ -10,6 +10,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\Profile\ProfileController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/health', function () {
@@ -50,6 +51,28 @@ Route::middleware([
     '/me',
     CurrentUserController::class
 )->name('api.me');
+
+/*
+ * Profile endpoints.
+ *
+ * All routes require:
+ * - Sanctum authentication.
+ * - An active account.
+ */
+Route::middleware([
+    'auth:sanctum',
+    'active',
+])->group(function (): void {
+    Route::get(
+        '/profile',
+        [ProfileController::class, 'show'],
+    )->name('api.profile.show');
+
+    Route::patch(
+        '/profile',
+        [ProfileController::class, 'update'],
+    )->name('api.profile.update');
+});
 
 Route::post(
     '/auth/forgot-password',
