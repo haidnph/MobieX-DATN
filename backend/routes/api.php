@@ -72,6 +72,11 @@ Route::middleware([
         '/profile',
         [ProfileController::class, 'update'],
     )->name('api.profile.update');
+
+    Route::patch(
+        '/profile/password',
+        [ProfileController::class, 'changePassword'],
+    )->name('api.profile.password.update');
 });
 
 Route::post(
