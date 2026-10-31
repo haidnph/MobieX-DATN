@@ -1,6 +1,6 @@
 # MobieX-DATN — Backend Profile & Addresses API
 
-Version: 1.1
+Version: 1.2
 
 Module: Profile & Addresses (C-02)
 
@@ -8,7 +8,8 @@ Framework: Laravel REST API
 
 Authentication: Laravel Sanctum Bearer Token
 
-Status: In progress — Profile endpoints implemented; address endpoints pending
+Status: Profile endpoints and address schema implemented;
+address endpoints pending.
 
 ---
 
@@ -156,6 +157,7 @@ Example:
     }
 
 The endpoint always changes the password of the authenticated user.
+
 The client cannot provide a `user_id` to select another account.
 
 ### Validation
@@ -164,7 +166,7 @@ The client cannot provide a `user_id` to select another account.
 |---|---|
 | `current_password` | Required, string, must match the authenticated user's current password using the Sanctum guard |
 | `password` | Required, string, must satisfy the shared `PasswordPolicy`, and must be confirmed |
-| `password_confirmation` | Required by the `confirmed` rule; must exactly match `password` |
+| `password_confirmation` | Must exactly match `password` |
 
 The shared `PasswordPolicy` requires:
 
@@ -175,7 +177,9 @@ The shared `PasswordPolicy` requires:
 Unknown or unsupported fields are rejected.
 
 An incorrect current password or invalid new password returns 422.
-The password is stored as a hash through the `User` model's `hashed` cast.
+
+The password is stored as a hash through the `User` model's
+`hashed` cast.
 
 ### Success — 200 OK
 
@@ -187,16 +191,20 @@ The password is stored as a hash through the `User` model's `hashed` cast.
 
 After a successful password change:
 
-- The Bearer token used to make the request remains valid, so the client can continue its current session.
-- All other Sanctum personal access tokens belonging to the same user are revoked.
+- The Bearer token used to make the request remains valid.
+- All other Sanctum personal access tokens belonging to
+  the same user are revoked.
 - Tokens belonging to other users are not affected.
-- Password update and token revocation run in one database transaction.
+- Password update and token revocation run in one
+  database transaction.
 
 ### Errors
 
-- 401: unauthenticated, or the request does not use a Sanctum Bearer access token.
+- 401: unauthenticated, or the request does not use a
+  Sanctum Bearer access token.
 - 403: account is inactive.
-- 422: incorrect current password, invalid new password, mismatched confirmation, or unsupported fields.
+- 422: incorrect current password, invalid new password,
+  mismatched confirmation, or unsupported fields.
 
 ## 7. Ownership and security
 
@@ -206,14 +214,72 @@ Sanctum request.
 No client-provided `user_id` is used to select the
 profile being read or modified.
 
-Profile updates use validated fields only. Password changes
-validate the current password against the authenticated Sanctum
-user and only update that user's password.
+Profile updates use validated fields only.
 
-## 8. Address endpoints
+Password changes validate the current password against
+the authenticated Sanctum user and only update that
+user's password.
+
+## 8. Address data model
+
+### Table
+
+    user_addresses
+
+The table stores addresses owned by users.
+
+### Columns
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| `id` | BIGINT | No | Auto increment |
+| `user_id` | BIGINT | No | — |
+| `label` | VARCHAR(50) | Yes | NULL |
+| `full_name` | VARCHAR(255) | No | — |
+| `phone` | VARCHAR(20) | No | — |
+| `city` | VARCHAR(100) | No | — |
+| `district` | VARCHAR(100) | Yes | NULL |
+| `ward` | VARCHAR(100) | Yes | NULL |
+| `address_line` | VARCHAR(255) | No | — |
+| `is_default` | BOOLEAN | No | false |
+| `created_at` | TIMESTAMP | Yes | — |
+| `updated_at` | TIMESTAMP | Yes | — |
+
+### Relationships
+
+- A user has many addresses.
+- An address belongs to one user.
+- `user_id` references `users.id`.
+- Deleting a user cascades to their addresses.
+
+### Default address
+
+`is_default` is a boolean flag and defaults to `false`.
+
+The schema does not use a unique constraint on
+`(user_id, is_default)`, because a user may own multiple
+non-default addresses.
+
+The application-level rule allowing at most one default
+address per user will be enforced in a separate
+transactional implementation slice.
+
+The behavior when deleting a default address remains
+subject to D-14.
+
+### Ownership
+
+`user_id` is not mass assignable on the `UserAddress` model.
+
+Future address creation must obtain ownership from the
+authenticated user relationship.
+
+The API must not trust a client-provided `user_id`.
+
+## 9. Address endpoints
 
 Address endpoints will be documented alongside
 their implementation slices.
 
-No address endpoint is introduced by the current
-Profile API slices.
+The current schema commit does not introduce any
+address HTTP endpoint.
