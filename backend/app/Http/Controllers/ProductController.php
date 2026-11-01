@@ -7,12 +7,31 @@ use Illuminate\Http\Request;
 
 class ProductController extends Controller
 {
-    // API hiển thị danh sách điện thoại
-    public function index()
+    // API hiển thị danh sách điện thoại, hỗ trợ tìm kiếm
+    public function index(Request $request)
     {
-        $products = Product::with(['brand', 'category', 'variants'])
-            ->latest()
-            ->paginate(10);
+        $query = Product::with([
+            'brand',
+            'category',
+            'variants'
+        ]);
+
+        // Tìm kiếm theo tên sản phẩm hoặc slug
+        if ($request->filled('keyword')) {
+            $keyword = $request->keyword;
+
+            $query->where(function ($q) use ($keyword) {
+                $q->where('name', 'like', '%' . $keyword . '%')
+                    ->orWhere('slug', 'like', '%' . $keyword . '%');
+            });
+        }
+
+        // Lọc theo trạng thái sản phẩm
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        $products = $query->latest()->paginate(10);
 
         return response()->json([
             'status' => true,
@@ -26,7 +45,10 @@ class ProductController extends Controller
         $product = Product::with([
             'brand',
             'category',
-            'variants'
+            'images',
+            'variants.inventory',
+            'variants.images',
+            'variants.attributeValues.attribute'
         ])->find($id);
 
         if (!$product) {

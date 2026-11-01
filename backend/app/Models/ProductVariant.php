@@ -31,4 +31,14 @@ class ProductVariant extends Model
             'attribute_value_id'
         );
     }
+    public function inventory()
+    {
+        return $this->hasOne(Inventory::class, 'variant_id');
+    }
+
+    public function images()
+    {
+        return $this->hasMany(ProductImage::class, 'variant_id')
+            ->orderBy('sort_order');
+    }
 }

@@ -14,6 +14,11 @@ use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductVariantController;
+use App\Http\Controllers\Api\ProductImageController;
+use App\Http\Controllers\Api\InventoryController;
+use Illuminate\Support\Facades\Validator;
+
+use Illuminate\Support\Facades\Auth;
 
 Route::get('/health', function () {
     return response()->json([
@@ -84,6 +89,19 @@ Route::get('/product-variants/{id}', [ProductVariantController::class, 'show']);
 Route::put('/product-variants/{id}', [ProductVariantController::class, 'update']);
 // API xóa biến thể sản phẩm
 Route::delete('/product-variants/{id}', [ProductVariantController::class, 'destroy']);
+
+// API quản lý hình ảnh sản phẩm
+Route::get('/product-images', [ProductImageController::class, 'index']);
+Route::post('/product-images', [ProductImageController::class, 'store']);
+Route::put('/product-images/{id}', [ProductImageController::class, 'update']);
+Route::delete('/product-images/{id}', [ProductImageController::class, 'destroy']);
+
+// Tồn kho
+Route::get('/inventories', [InventoryController::class, 'index']);
+Route::post('/inventories/import', [InventoryController::class, 'import']);
+Route::post('/inventories/export', [InventoryController::class, 'export']);
+Route::get('/inventories/transactions', [InventoryController::class, 'transactions']);
+Route::get('/inventories/low-stock', [InventoryController::class, 'lowStock']);
 
 Route::prefix('admin')
     ->name('api.admin.')
