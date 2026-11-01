@@ -1,6 +1,6 @@
 # MobieX-DATN — Backend Profile & Addresses API
 
-Version: 1.2
+Version: 1.3
 
 Module: Profile & Addresses (C-02)
 
@@ -8,8 +8,8 @@ Framework: Laravel REST API
 
 Authentication: Laravel Sanctum Bearer Token
 
-Status: Profile endpoints and address schema implemented;
-address endpoints pending.
+Status: Profile, password change, address schema and address CRUD implemented;
+default address endpoint pending.
 
 ---
 
@@ -29,12 +29,6 @@ D-13:
   and RBAC information.
 - `GET /api/profile` provides editable profile details.
 
-Profile fields currently supported:
-
-- `name`
-- `email` (read-only)
-- `phone`
-
 ## 2. Authentication
 
 All endpoints require:
@@ -52,14 +46,27 @@ Expected HTTP status:
 | Missing or invalid authentication | 401 |
 | Inactive account | 403 |
 | Invalid request data | 422 |
+| Resource not found or not owned | 404 |
 
 ## 3. Endpoint summary
 
-| Method | Endpoint | Description | Success |
-|---|---|---|---:|
-| GET | `/api/profile` | Retrieve own profile | 200 |
-| PATCH | `/api/profile` | Update own profile | 200 |
-| PATCH | `/api/profile/password` | Change own password | 200 |
+### Profile
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/profile` | Retrieve own profile |
+| PATCH | `/api/profile` | Update own profile |
+| PATCH | `/api/profile/password` | Change own password |
+
+### Addresses
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/addresses` | List own addresses |
+| POST | `/api/addresses` | Create an address |
+| PATCH | `/api/addresses/{id}` | Update own address |
+| DELETE | `/api/addresses/{id}` | Delete own address |
+| PATCH | `/api/addresses/{id}/default` | Set default address (pending) |
 
 ## 4. Get profile
 
@@ -81,7 +88,7 @@ Expected HTTP status:
       }
     }
 
-Only explicitly approved fields are returned.
+Only approved profile fields are returned.
 
 Passwords, remember tokens, account activation flags,
 roles and access tokens are not included.
@@ -99,8 +106,6 @@ Example:
       "phone": "0987654321"
     }
 
-At least one editable field must be supplied.
-
 ### Validation
 
 | Field | Rules |
@@ -108,15 +113,9 @@ At least one editable field must be supplied.
 | `name` | Optional, string, required when supplied, max 255 |
 | `phone` | Optional, nullable, string, max 20 |
 
-Only `name` and `phone` can be updated through this endpoint.
+At least one editable field must be supplied.
 
-The following are not editable here:
-
-- `email`
-- `password`
-- `is_active`
-- `roles`
-- `user_id`
+Only `name` and `phone` can be updated.
 
 Unknown or unsupported fields are rejected.
 
@@ -136,12 +135,6 @@ Sending `phone` as `null` clears the existing phone number.
       }
     }
 
-### Errors
-
-- 401: unauthenticated.
-- 403: account is inactive.
-- 422: invalid or unsupported fields.
-
 ## 6. Change password
 
 ### Request
@@ -156,29 +149,22 @@ Example:
       "password_confirmation": "NewPassword12345"
     }
 
-The endpoint always changes the password of the authenticated user.
-
-The client cannot provide a `user_id` to select another account.
-
 ### Validation
 
-| Field | Rules |
-|---|---|
-| `current_password` | Required, string, must match the authenticated user's current password using the Sanctum guard |
-| `password` | Required, string, must satisfy the shared `PasswordPolicy`, and must be confirmed |
-| `password_confirmation` | Must exactly match `password` |
+- `current_password`: required and must match the
+  authenticated user's current password using Sanctum.
+- `password`: required, must satisfy PasswordPolicy
+  and must be confirmed.
+- `password_confirmation`: must match `password`.
 
-The shared `PasswordPolicy` requires:
+The shared PasswordPolicy requires:
 
 - Minimum 15 characters.
 - Maximum 64 characters.
-- Maximum 72 UTF-8 bytes with the current bcrypt hashing configuration.
+- Maximum 72 UTF-8 bytes with the current bcrypt
+  hashing configuration.
 
-Unknown or unsupported fields are rejected.
-
-An incorrect current password or invalid new password returns 422.
-
-The password is stored as a hash through the `User` model's
+The password is stored as a hash through the User model's
 `hashed` cast.
 
 ### Success — 200 OK
@@ -191,42 +177,18 @@ The password is stored as a hash through the `User` model's
 
 After a successful password change:
 
-- The Bearer token used to make the request remains valid.
+- The current Bearer token remains valid.
 - All other Sanctum personal access tokens belonging to
   the same user are revoked.
-- Tokens belonging to other users are not affected.
+- Tokens belonging to other users are unaffected.
 - Password update and token revocation run in one
   database transaction.
 
-### Errors
-
-- 401: unauthenticated, or the request does not use a
-  Sanctum Bearer access token.
-- 403: account is inactive.
-- 422: incorrect current password, invalid new password,
-  mismatched confirmation, or unsupported fields.
-
-## 7. Ownership and security
-
-The server obtains the user from the authenticated
-Sanctum request.
-
-No client-provided `user_id` is used to select the
-profile being read or modified.
-
-Profile updates use validated fields only.
-
-Password changes validate the current password against
-the authenticated Sanctum user and only update that
-user's password.
-
-## 8. Address data model
+## 7. Address data model
 
 ### Table
 
     user_addresses
-
-The table stores addresses owned by users.
 
 ### Columns
 
@@ -247,39 +209,250 @@ The table stores addresses owned by users.
 
 ### Relationships
 
-- A user has many addresses.
-- An address belongs to one user.
+- User has many addresses.
+- Address belongs to one user.
 - `user_id` references `users.id`.
 - Deleting a user cascades to their addresses.
 
 ### Default address
 
-`is_default` is a boolean flag and defaults to `false`.
+The `is_default` field defaults to `false`.
 
-The schema does not use a unique constraint on
-`(user_id, is_default)`, because a user may own multiple
-non-default addresses.
+The address CRUD endpoints do not allow clients to
+write `is_default`.
 
-The application-level rule allowing at most one default
-address per user will be enforced in a separate
-transactional implementation slice.
+Default address management will be implemented
+separately with transactional logic.
 
-The behavior when deleting a default address remains
-subject to D-14.
+## 8. List addresses
 
-### Ownership
+### Request
 
-`user_id` is not mass assignable on the `UserAddress` model.
+    GET /api/addresses
 
-Future address creation must obtain ownership from the
-authenticated user relationship.
+The endpoint returns only addresses belonging to
+the authenticated user.
 
-The API must not trust a client-provided `user_id`.
+Pagination uses Laravel's default pagination with
+15 records per page.
 
-## 9. Address endpoints
+Optional query parameter:
 
-Address endpoints will be documented alongside
-their implementation slices.
+    GET /api/addresses?page=2
 
-The current schema commit does not introduce any
-address HTTP endpoint.
+### Success — 200 OK
+
+    {
+      "data": [
+        {
+          "id": 1,
+          "label": "Home",
+          "full_name": "Test Customer",
+          "phone": "0912345678",
+          "city": "Ha Noi",
+          "district": "Cau Giay",
+          "ward": "Dich Vong",
+          "address_line": "123 Example Street",
+          "is_default": false,
+          "created_at": "2026-10-31T10:00:00.000000Z",
+          "updated_at": "2026-10-31T10:00:00.000000Z"
+        }
+      ],
+      "message": "Addresses retrieved successfully.",
+      "links": {},
+      "meta": {}
+    }
+
+The `links` and `meta` objects are generated by
+Laravel pagination.
+
+## 9. Create address
+
+### Request
+
+    POST /api/addresses
+
+Example:
+
+    {
+      "label": "Home",
+      "full_name": "Test Customer",
+      "phone": "0912345678",
+      "city": "Ha Noi",
+      "district": "Cau Giay",
+      "ward": "Dich Vong",
+      "address_line": "123 Example Street"
+    }
+
+### Validation
+
+| Field | Rules |
+|---|---|
+| `label` | Optional, nullable, string, max 50 |
+| `full_name` | Required, string, max 255 |
+| `phone` | Required, string, max 20 |
+| `city` | Required, string, max 100 |
+| `district` | Optional, nullable, string, max 100 |
+| `ward` | Optional, nullable, string, max 100 |
+| `address_line` | Required, string, max 255 |
+
+The following fields are not accepted:
+
+- `user_id`
+- `is_default`
+- Any unsupported field
+
+Ownership is assigned from the authenticated user's
+relationship, never from request input.
+
+New addresses default to `is_default = false`.
+
+### Success — 201 Created
+
+    {
+      "message": "Address created successfully.",
+      "data": {
+        "address": {
+          "id": 1,
+          "label": "Home",
+          "full_name": "Test Customer",
+          "phone": "0912345678",
+          "city": "Ha Noi",
+          "district": "Cau Giay",
+          "ward": "Dich Vong",
+          "address_line": "123 Example Street",
+          "is_default": false,
+          "created_at": "2026-10-31T10:00:00.000000Z",
+          "updated_at": "2026-10-31T10:00:00.000000Z"
+        }
+      }
+    }
+
+## 10. Update address
+
+### Request
+
+    PATCH /api/addresses/{id}
+
+Example:
+
+    {
+      "full_name": "Updated Customer",
+      "city": "Ho Chi Minh City",
+      "district": null,
+      "ward": null
+    }
+
+Only supplied fields are updated.
+
+### Validation
+
+The same field types and maximum lengths as
+address creation apply.
+
+When supplied:
+
+- `full_name`, `phone`, `city`, `address_line`
+  cannot be null or empty.
+- `label`, `district`, `ward` can be null.
+- At least one supported field must be supplied.
+
+The following are rejected:
+
+- `user_id`
+- `is_default`
+- Unsupported fields
+
+### Success — 200 OK
+
+    {
+      "message": "Address updated successfully.",
+      "data": {
+        "address": {
+          "id": 1,
+          "label": "Home",
+          "full_name": "Updated Customer",
+          "phone": "0912345678",
+          "city": "Ho Chi Minh City",
+          "district": null,
+          "ward": null,
+          "address_line": "123 Example Street",
+          "is_default": false,
+          "created_at": "2026-10-31T10:00:00.000000Z",
+          "updated_at": "2026-10-31T10:05:00.000000Z"
+        }
+      }
+    }
+
+## 11. Delete address
+
+### Request
+
+    DELETE /api/addresses/{id}
+
+An address can only be deleted by its owner.
+
+### Success — 200 OK
+
+    {
+      "message": "Address deleted successfully."
+    }
+
+The current CRUD implementation deletes the requested
+owned address without automatically promoting another
+address to default.
+
+The special rule for deleting a default address remains
+subject to D-14 and the dedicated default-address slice.
+
+## 12. Ownership and security
+
+Every address lookup for update and delete is scoped
+through the authenticated user's `addresses()` relationship.
+
+An address belonging to another user returns 404.
+
+The API does not reveal whether the address exists
+under another account.
+
+The `user_id` value is never taken from client input.
+
+The API Resource does not expose `user_id`.
+
+## 13. Error handling
+
+| Scenario | HTTP status |
+|---|---:|
+| Guest accesses address endpoints | 401 |
+| Inactive user accesses address endpoints | 403 |
+| Invalid or missing required fields | 422 |
+| Unsupported fields | 422 |
+| Empty PATCH request | 422 |
+| Address does not exist | 404 |
+| Address belongs to another user | 404 |
+
+Validation uses Laravel's standard JSON response:
+
+    {
+      "message": "The given data was invalid.",
+      "errors": {
+        "full_name": [
+          "The full name field is required."
+        ]
+      }
+    }
+
+## 14. Default address
+
+Pending implementation:
+
+    PATCH /api/addresses/{id}/default
+
+The default-address feature will:
+
+- Set an address as default.
+- Ensure at most one default address per user.
+- Use a database transaction when changing the default.
+- Test default-address deletion according to D-14.
+
+The current CRUD slice does not implement this endpoint.

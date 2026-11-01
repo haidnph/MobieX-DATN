@@ -13,16 +13,15 @@ class ProductVariantController extends Controller
     {
         $variants = ProductVariant::with([
             'product',
-            'attributeValues.attribute'
+            'attributeValues.attribute',
         ])->latest()->paginate(10);
 
         return response()->json([
             'status' => true,
             'message' => 'Lấy danh sách biến thể thành công',
-            'data' => $variants
+            'data' => $variants,
         ], 200);
     }
-
 
     // API thêm biến thể sản phẩm
     public function store(Request $request)
@@ -76,34 +75,35 @@ class ProductVariantController extends Controller
         // Lấy lại thông tin đầy đủ
         $variant->load([
             'product',
-            'attributeValues.attribute'
+            'attributeValues.attribute',
         ]);
 
         return response()->json([
             'status' => true,
             'message' => 'Thêm biến thể sản phẩm thành công',
-            'data' => $variant
+            'data' => $variant,
         ], 201);
     }
+
     // API xem chi tiết biến thể sản phẩm
     public function show($id)
     {
         $variant = ProductVariant::with([
             'product',
-            'attributeValues.attribute'
+            'attributeValues.attribute',
         ])->find($id);
 
-        if (!$variant) {
+        if (! $variant) {
             return response()->json([
                 'status' => false,
-                'message' => 'Không tìm thấy biến thể sản phẩm'
+                'message' => 'Không tìm thấy biến thể sản phẩm',
             ], 404);
         }
 
         return response()->json([
             'status' => true,
             'message' => 'Lấy chi tiết biến thể thành công',
-            'data' => $variant
+            'data' => $variant,
         ], 200);
     }
 
@@ -112,16 +112,16 @@ class ProductVariantController extends Controller
     {
         $variant = ProductVariant::find($id);
 
-        if (!$variant) {
+        if (! $variant) {
             return response()->json([
                 'status' => false,
-                'message' => 'Không tìm thấy biến thể sản phẩm'
+                'message' => 'Không tìm thấy biến thể sản phẩm',
             ], 404);
         }
 
         // Kiểm tra dữ liệu đầu vào
         $validated = $request->validate([
-            'sku' => 'sometimes|required|string|max:100|unique:product_variants,sku,' . $id,
+            'sku' => 'sometimes|required|string|max:100|unique:product_variants,sku,'.$id,
             'price' => 'sometimes|required|numeric|min:0',
             'compare_price' => 'nullable|numeric|min:0',
             'cost_price' => 'nullable|numeric|min:0',
@@ -183,17 +183,15 @@ class ProductVariantController extends Controller
         $variant->refresh();
         $variant->load([
             'product',
-            'attributeValues.attribute'
+            'attributeValues.attribute',
         ]);
 
         return response()->json([
             'status' => true,
             'message' => 'Cập nhật biến thể sản phẩm thành công',
-            'data' => $variant
+            'data' => $variant,
         ], 200);
     }
-
-
 
     // API xóa biến thể sản phẩm
     public function destroy($id)
@@ -206,11 +204,11 @@ class ProductVariantController extends Controller
                     ->lockForUpdate()
                     ->first();
 
-                if (!$variant) {
+                if (! $variant) {
                     return [
                         'status' => false,
                         'code' => 404,
-                        'message' => 'Không tìm thấy biến thể sản phẩm'
+                        'message' => 'Không tìm thấy biến thể sản phẩm',
                     ];
                 }
 
@@ -231,7 +229,7 @@ class ProductVariantController extends Controller
                     return [
                         'status' => false,
                         'code' => 409,
-                        'message' => 'Không thể xóa biến thể vì đang có dữ liệu liên quan'
+                        'message' => 'Không thể xóa biến thể vì đang có dữ liệu liên quan',
                     ];
                 }
 
@@ -251,19 +249,19 @@ class ProductVariantController extends Controller
                 return [
                     'status' => true,
                     'code' => 200,
-                    'message' => 'Xóa biến thể sản phẩm thành công'
+                    'message' => 'Xóa biến thể sản phẩm thành công',
                 ];
             });
 
             return response()->json([
                 'status' => $result['status'],
-                'message' => $result['message']
+                'message' => $result['message'],
             ], $result['code']);
         } catch (\Exception $e) {
             return response()->json([
                 'status' => false,
                 'message' => 'Xóa biến thể thất bại',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
