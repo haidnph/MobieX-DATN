@@ -31,6 +31,7 @@ class ProductVariant extends Model
             'attribute_value_id'
         );
     }
+
     public function inventory()
     {
         return $this->hasOne(Inventory::class, 'variant_id');

@@ -4,12 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Inventory;
+use App\Models\InventoryTransaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-
-use App\Models\InventoryTransaction;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Validator;
 
 class InventoryController extends Controller
 {
@@ -17,7 +15,7 @@ class InventoryController extends Controller
     public function index(Request $request)
     {
         $query = Inventory::with([
-            'variant.product'
+            'variant.product',
         ]);
 
         if ($request->filled('variant_id')) {
@@ -27,7 +25,7 @@ class InventoryController extends Controller
         return response()->json([
             'status' => true,
             'message' => 'Lấy danh sách tồn kho thành công',
-            'data' => $query->get()
+            'data' => $query->get(),
         ]);
     }
 
@@ -46,10 +44,10 @@ class InventoryController extends Controller
                 $validated['variant_id']
             )->lockForUpdate()->first();
 
-            if (!$inventory) {
+            if (! $inventory) {
                 return response()->json([
                     'status' => false,
-                    'message' => 'Không tìm thấy bản ghi tồn kho của biến thể này.'
+                    'message' => 'Không tìm thấy bản ghi tồn kho của biến thể này.',
                 ], 404);
             }
 
@@ -70,10 +68,11 @@ class InventoryController extends Controller
             return response()->json([
                 'status' => true,
                 'message' => 'Nhập kho thành công.',
-                'data' => $inventory->fresh()
+                'data' => $inventory->fresh(),
             ]);
         });
     }
+
     // Xuất kho
     public function export(Request $request)
     {
@@ -89,17 +88,17 @@ class InventoryController extends Controller
                 $validated['variant_id']
             )->lockForUpdate()->first();
 
-            if (!$inventory) {
+            if (! $inventory) {
                 return response()->json([
                     'status' => false,
-                    'message' => 'Không tìm thấy bản ghi tồn kho.'
+                    'message' => 'Không tìm thấy bản ghi tồn kho.',
                 ], 404);
             }
 
             if ($inventory->quantity < $validated['quantity']) {
                 return response()->json([
                     'status' => false,
-                    'message' => 'Số lượng tồn kho không đủ để xuất.'
+                    'message' => 'Số lượng tồn kho không đủ để xuất.',
                 ], 422);
             }
 
@@ -120,15 +119,16 @@ class InventoryController extends Controller
             return response()->json([
                 'status' => true,
                 'message' => 'Xuất kho thành công.',
-                'data' => $inventory->fresh()
+                'data' => $inventory->fresh(),
             ]);
         });
     }
+
     // Lịch sử giao dịch kho
     public function transactions(Request $request)
     {
         $query = InventoryTransaction::with([
-            'variant.product'
+            'variant.product',
         ])->orderBy('created_at', 'desc');
 
         if ($request->filled('variant_id')) {
@@ -142,14 +142,15 @@ class InventoryController extends Controller
         return response()->json([
             'status' => true,
             'message' => 'Lấy lịch sử giao dịch kho thành công.',
-            'data' => $query->get()
+            'data' => $query->get(),
         ]);
     }
+
     // Cảnh báo tồn kho thấp
     public function lowStock()
     {
         $inventories = Inventory::with([
-            'variant.product'
+            'variant.product',
         ])
             ->whereColumn('quantity', '<=', 'min_stock')
             ->get();
@@ -157,7 +158,7 @@ class InventoryController extends Controller
         return response()->json([
             'status' => true,
             'message' => 'Lấy danh sách tồn kho thấp thành công.',
-            'data' => $inventories
+            'data' => $inventories,
         ]);
     }
 }

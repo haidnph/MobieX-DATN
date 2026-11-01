@@ -13,7 +13,7 @@ class ProductController extends Controller
         $query = Product::with([
             'brand',
             'category',
-            'variants'
+            'variants',
         ]);
 
         // Tìm kiếm theo tên sản phẩm hoặc slug
@@ -21,8 +21,8 @@ class ProductController extends Controller
             $keyword = $request->keyword;
 
             $query->where(function ($q) use ($keyword) {
-                $q->where('name', 'like', '%' . $keyword . '%')
-                    ->orWhere('slug', 'like', '%' . $keyword . '%');
+                $q->where('name', 'like', '%'.$keyword.'%')
+                    ->orWhere('slug', 'like', '%'.$keyword.'%');
             });
         }
 
@@ -36,7 +36,7 @@ class ProductController extends Controller
         return response()->json([
             'status' => true,
             'message' => 'Lấy danh sách sản phẩm thành công',
-            'data' => $products
+            'data' => $products,
         ], 200);
     }
 
@@ -48,20 +48,20 @@ class ProductController extends Controller
             'images',
             'variants.inventory',
             'variants.images',
-            'variants.attributeValues.attribute'
+            'variants.attributeValues.attribute',
         ])->find($id);
 
-        if (!$product) {
+        if (! $product) {
             return response()->json([
                 'status' => false,
-                'message' => 'Không tìm thấy sản phẩm'
+                'message' => 'Không tìm thấy sản phẩm',
             ], 404);
         }
 
         return response()->json([
             'status' => true,
             'message' => 'Lấy chi tiết sản phẩm thành công',
-            'data' => $product
+            'data' => $product,
         ], 200);
     }
 
@@ -84,26 +84,27 @@ class ProductController extends Controller
         return response()->json([
             'status' => true,
             'message' => 'Thêm sản phẩm thành công',
-            'data' => $product
+            'data' => $product,
         ], 201);
     }
+
     // API cập nhật sản phẩm
     public function update(Request $request, $id)
     {
         // Tìm sản phẩm theo ID
         $product = Product::find($id);
 
-        if (!$product) {
+        if (! $product) {
             return response()->json([
                 'status' => false,
-                'message' => 'Không tìm thấy sản phẩm'
+                'message' => 'Không tìm thấy sản phẩm',
             ], 404);
         }
 
         // Kiểm tra dữ liệu đầu vào
         $validated = $request->validate([
             'name' => 'sometimes|required|string|max:255',
-            'slug' => 'sometimes|required|string|max:255|unique:products,slug,' . $id,
+            'slug' => 'sometimes|required|string|max:255|unique:products,slug,'.$id,
             'description' => 'nullable|string',
             'brand_id' => 'nullable|exists:brands,id',
             'category_id' => 'nullable|exists:categories,id',
@@ -116,19 +117,20 @@ class ProductController extends Controller
         return response()->json([
             'status' => true,
             'message' => 'Cập nhật sản phẩm thành công',
-            'data' => $product
+            'data' => $product,
         ], 200);
     }
+
     // API xóa sản phẩm
     public function destroy($id)
     {
         // Tìm sản phẩm theo ID
         $product = Product::find($id);
 
-        if (!$product) {
+        if (! $product) {
             return response()->json([
                 'status' => false,
-                'message' => 'Không tìm thấy sản phẩm'
+                'message' => 'Không tìm thấy sản phẩm',
             ], 404);
         }
 
@@ -137,7 +139,7 @@ class ProductController extends Controller
 
         return response()->json([
             'status' => true,
-            'message' => 'Xóa sản phẩm thành công'
+            'message' => 'Xóa sản phẩm thành công',
         ], 200);
     }
 }

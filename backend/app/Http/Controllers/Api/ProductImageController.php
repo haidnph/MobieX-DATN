@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\ProductVariant;
 use Illuminate\Http\Request;
@@ -40,7 +39,7 @@ class ProductImageController extends Controller
         ]);
 
         // Kiểm tra biến thể có thuộc sản phẩm được chọn không
-        if (!empty($validated['variant_id'])) {
+        if (! empty($validated['variant_id'])) {
             $variant = ProductVariant::findOrFail($validated['variant_id']);
 
             if ($variant->product_id != $validated['product_id']) {
@@ -53,7 +52,7 @@ class ProductImageController extends Controller
 
         return DB::transaction(function () use ($validated) {
             // Nếu ảnh mới là ảnh chính, bỏ ảnh chính cũ của sản phẩm
-            if (!empty($validated['is_primary'])) {
+            if (! empty($validated['is_primary'])) {
                 ProductImage::where('product_id', $validated['product_id'])
                     ->update(['is_primary' => false]);
             }
@@ -83,7 +82,7 @@ class ProductImageController extends Controller
 
         if (
             array_key_exists('variant_id', $validated)
-            && !empty($validated['variant_id'])
+            && ! empty($validated['variant_id'])
         ) {
             $variant = ProductVariant::findOrFail($validated['variant_id']);
 
@@ -96,7 +95,7 @@ class ProductImageController extends Controller
         }
 
         return DB::transaction(function () use ($image, $validated) {
-            if (!empty($validated['is_primary'])) {
+            if (! empty($validated['is_primary'])) {
                 ProductImage::where('product_id', $image->product_id)
                     ->where('id', '!=', $image->id)
                     ->update(['is_primary' => false]);

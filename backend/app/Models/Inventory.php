@@ -15,10 +15,8 @@ class Inventory extends Model
         'min_stock',
     ];
 
-    
     public $timestamps = false;
 
-   
     public function variant()
     {
         return $this->belongsTo(ProductVariant::class, 'variant_id');
