@@ -13,6 +13,15 @@ use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Profile\ProfileController;
 use Illuminate\Support\Facades\Route;
 
+
+use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProductVariantController;
+use App\Http\Controllers\Api\ProductImageController;
+use App\Http\Controllers\Api\InventoryController;
+use Illuminate\Support\Facades\Validator;
+
+use Illuminate\Support\Facades\Auth;
+
 Route::get('/health', function () {
     return response()->json([
         'status' => 'ok',
@@ -32,18 +41,13 @@ Route::post(
 )->middleware('throttle:auth-login')
     ->name('api.auth.login');
 
-/*
- * Logout intentionally does not use the "active" middleware.
- * Inactive users must still be able to revoke their own token.
- */
+
 Route::middleware('auth:sanctum')->post(
     '/auth/logout',
     LogoutController::class
 )->name('api.auth.logout');
 
-/*
- * GET /api/me requires both authentication and an active account.
- */
+
 Route::middleware([
     'auth:sanctum',
     'active',
@@ -91,14 +95,43 @@ Route::post(
 )->middleware('throttle:auth-reset-password')
     ->name('api.auth.password.reset');
 
-/*
- * Admin user and RBAC read-only endpoints.
- *
- * All routes in this group require:
- * - Sanctum authentication.
- * - An active account.
- * - The users.view permission.
- */
+
+// Quản lý điện thoại
+Route::get('/products', [ProductController::class, 'index'])
+    ->name('api.products.index');
+// API xem chi tiết sản phẩm
+Route::get('/products/{id}', [ProductController::class, 'show'])
+    ->name('api.products.show');
+// API thêm sản phẩm
+Route::post('/products', [ProductController::class, 'store'])
+    ->name('api.products.store');
+// API cập nhật sản phẩm
+Route::put('/products/{id}', [ProductController::class, 'update'])
+    ->name('api.products.update');
+// API xóa sản phẩm
+Route::delete('/products/{id}', [ProductController::class, 'destroy'])
+    ->name('api.products.destroy');
+// API quản lý biến thể sản phẩm
+Route::get('/product-variants', [ProductVariantController::class, 'index']);
+Route::post('/product-variants', [ProductVariantController::class, 'store']);
+Route::get('/product-variants/{id}', [ProductVariantController::class, 'show']);
+Route::put('/product-variants/{id}', [ProductVariantController::class, 'update']);
+// API xóa biến thể sản phẩm
+Route::delete('/product-variants/{id}', [ProductVariantController::class, 'destroy']);
+
+// API quản lý hình ảnh sản phẩm
+Route::get('/product-images', [ProductImageController::class, 'index']);
+Route::post('/product-images', [ProductImageController::class, 'store']);
+Route::put('/product-images/{id}', [ProductImageController::class, 'update']);
+Route::delete('/product-images/{id}', [ProductImageController::class, 'destroy']);
+
+// Tồn kho
+Route::get('/inventories', [InventoryController::class, 'index']);
+Route::post('/inventories/import', [InventoryController::class, 'import']);
+Route::post('/inventories/export', [InventoryController::class, 'export']);
+Route::get('/inventories/transactions', [InventoryController::class, 'transactions']);
+Route::get('/inventories/low-stock', [InventoryController::class, 'lowStock']);
+
 Route::prefix('admin')
     ->name('api.admin.')
     ->middleware([
@@ -130,14 +163,6 @@ Route::prefix('admin')
             ->name('users.show');
     });
 
-/*
- * Admin user management endpoints.
- *
- * All routes in this group require:
- * - Sanctum authentication.
- * - An active account.
- * - The users.manage permission.
- */
 Route::prefix('admin')
     ->name('api.admin.')
     ->middleware([
