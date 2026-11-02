@@ -1,23 +1,23 @@
+
 # Categories API
 
 ## Overview
 
-This document describes the public read endpoints for the MobieX
-category catalog.
+This document describes the category read and write endpoints.
 
 Base URL:
 
 `/api/categories`
-
-Authentication is not required for category read endpoints.
-
-Only categories with `status = true` are visible.
 
 ## 1. List categories
 
 ### Request
 
 `GET /api/categories`
+
+### Authentication
+
+Public endpoint.
 
 ### Behavior
 
@@ -26,102 +26,24 @@ Only categories with `status = true` are visible.
 - Default page size: 15 records.
 - Sorts by `sort_order ASC`, then `id ASC`.
 
-### Query parameters
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| page | integer | 1 | Pagination page |
-| tree | boolean | false | Return hierarchical tree when true |
-
-### Response
-
-HTTP 200
-
-```json
-{
-    "data": [
-        {
-            "id": 1,
-            "parent_id": null,
-            "name": "Phones",
-            "slug": "phones",
-            "description": null,
-            "image": null,
-            "sort_order": 1,
-            "status": true,
-            "created_at": "2026-11-02T10:00:00.000000Z",
-            "updated_at": "2026-11-02T10:00:00.000000Z"
-        }
-    ],
-    "links": {},
-    "meta": {},
-    "message": "Categories retrieved successfully."
-}
-```
-
-The `links` and `meta` properties are populated by Laravel pagination.
-
 ## 2. Retrieve category tree
 
 ### Request
 
 `GET /api/categories?tree=true`
 
+### Authentication
+
+Public endpoint.
+
 ### Behavior
 
 - Returns the complete visible category hierarchy.
 - Does not paginate.
 - Root categories have `parent_id = null`.
-- Child categories are nested under their parent.
-- Categories whose parent is hidden are not exposed as orphaned roots.
-- Children are ordered by `sort_order`, then `id`.
-
-### Response
-
-HTTP 200
-
-```json
-{
-    "data": [
-        {
-            "id": 1,
-            "parent_id": null,
-            "name": "Phones",
-            "slug": "phones",
-            "description": null,
-            "image": null,
-            "sort_order": 1,
-            "status": true,
-            "children": [
-                {
-                    "id": 2,
-                    "parent_id": 1,
-                    "name": "Smartphones",
-                    "slug": "smartphones",
-                    "description": null,
-                    "image": null,
-                    "sort_order": 1,
-                    "status": true,
-                    "children": [
-                        {
-                            "id": 3,
-                            "parent_id": 2,
-                            "name": "Android Phones",
-                            "slug": "android-phones",
-                            "description": null,
-                            "image": null,
-                            "sort_order": 1,
-                            "status": true,
-                            "children": []
-                        }
-                    ]
-                }
-            ]
-        }
-    ],
-    "message": "Categories retrieved successfully."
-}
-```
+- Children are nested under their parents.
+- Hidden categories are not included.
+- Categories with hidden or unavailable parents are not exposed as roots.
 
 ## 3. Retrieve category details
 
@@ -129,67 +51,204 @@ HTTP 200
 
 `GET /api/categories/{id}`
 
-### Behavior
+### Authentication
 
-Returns one visible category.
+Public endpoint.
 
-Hidden categories are treated as not found.
+### Responses
 
-### Response
+- 200: Category found and visible.
+- 404: Category does not exist or is hidden.
 
-HTTP 200
+## 4. Create category
+
+### Request
+
+`POST /api/categories`
+
+### Authentication
+
+Required.
+
+### Permissions
+
+`categories.manage`
+
+### Request body
 
 ```json
 {
-    "message": "Category retrieved successfully.",
+    "name": "Smartphones",
+    "slug": "smartphones",
+    "parent_id": null,
+    "description": "Smartphone categories",
+    "image": "categories/smartphones.jpg",
+    "sort_order": 1,
+    "status": true
+}
+```
+
+### Fields
+
+| Field | Type | Required | Rules |
+|---|---|---|---|
+| name | string | Yes | Maximum 255 characters |
+| slug | string | Yes | Maximum 255, globally unique |
+| parent_id | integer/null | No | Must reference an existing category |
+| description | string/null | No | Nullable |
+| image | string/null | No | Maximum 255 characters |
+| sort_order | integer | No | Minimum 0 |
+| status | boolean | No | Defaults to true in database |
+
+### Business validation
+
+- Slugs must be unique.
+- Root category names must be unique.
+- Nested category names may match other categories.
+- Unsupported fields are rejected.
+- `is_active` is not part of the current request contract.
+
+### Success response
+
+HTTP 201
+
+```json
+{
+    "message": "Category created successfully.",
     "data": {
         "category": {
             "id": 1,
             "parent_id": null,
-            "name": "Phones",
-            "slug": "phones",
-            "description": null,
-            "image": null,
+            "name": "Smartphones",
+            "slug": "smartphones",
+            "description": "Smartphone categories",
+            "image": "categories/smartphones.jpg",
             "sort_order": 1,
-            "status": true,
-            "created_at": "2026-11-02T10:00:00.000000Z",
-            "updated_at": "2026-11-02T10:00:00.000000Z"
+            "status": true
         }
     }
 }
 ```
 
-### Error responses
+## 5. Update category
+
+### Request
+
+`PATCH /api/categories/{id}`
+
+### Authentication
+
+Required.
+
+### Permissions
+
+`categories.manage`
+
+### Request body
+
+All fields are optional, but at least one supported field must be provided.
+
+Example:
+
+```json
+{
+    "name": "Android Smartphones",
+    "sort_order": 2
+}
+```
+
+### Business validation
+
+- Only submitted fields are updated.
+- Slug must remain globally unique.
+- Keeping the category's existing slug is allowed.
+- Root category names must remain unique.
+- Empty payloads are rejected.
+- Unsupported fields are rejected.
+- Nonexistent category IDs return 404.
+
+### Success response
+
+HTTP 200
+
+```json
+{
+    "message": "Category updated successfully.",
+    "data": {
+        "category": {
+            "id": 1,
+            "parent_id": null,
+            "name": "Android Smartphones",
+            "slug": "smartphones",
+            "sort_order": 2,
+            "status": true
+        }
+    }
+}
+```
+
+## 6. Authorization
+
+Category read endpoints are public.
+
+Category write endpoints require:
+
+- Sanctum authentication.
+- An active user account.
+- The `categories.manage` permission.
+
+The RBAC permission is already defined in RolePermissionSeeder.
+
+The current permission matrix grants category management to admin and staff.
+
+## 7. Error responses
 
 | HTTP status | Condition |
 |---|---|
+| 401 | User is unauthenticated |
+| 403 | User is inactive or lacks categories.manage |
 | 404 | Category does not exist |
-| 404 | Category is hidden |
+| 422 | Validation failure |
 
-## 4. Visibility and business rules
+Validation response follows Laravel's JSON validation format:
 
-The current schema uses the `status` boolean column.
+```json
+{
+    "message": "The given data was invalid.",
+    "errors": {
+        "slug": [
+            "The slug has already been taken."
+        ]
+    }
+}
+```
+
+## 8. Visibility and deletion decisions
+
+The current category schema uses the `status` boolean column.
 
 - `status = true`: visible.
 - `status = false`: hidden.
 
-The final D-07 decision about category and brand visibility/deletion
-must be confirmed separately.
+The final D-07 decision regarding category and brand visibility/deletion
+must be confirmed with the group.
 
-This read implementation does not introduce soft deletes.
+Soft deletes have not been introduced.
 
-## 5. Authorization
+The category deletion endpoint is not implemented in this release.
 
-The GET endpoints are public.
+## 9. Hierarchy protection
 
-Category write endpoints will require authentication, an active
-account, and the `categories.manage` permission.
+The parent_id field must reference an existing category.
 
-## 6. Implementation notes
+Self-parent and multi-level hierarchy cycle protection will be
+implemented in the next hierarchy-protection commit.
 
-- No products table or migration is created by this module.
-- The category tree is assembled from the existing parent_id
-  relationship.
-- Tree construction uses one category query to avoid N+1 queries.
-- Product-reference deletion guards belong to the category
-  deletion implementation and depend on the product schema.
+## 10. Product references
+
+This module does not create or own the products table.
+
+Product-reference deletion checks depend on the product schema
+being integrated by the Product/Stock owner.
+
+No product-reference deletion logic is implemented in this release.

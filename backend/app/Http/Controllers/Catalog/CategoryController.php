@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Catalog;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Catalog\StoreCategoryRequest;
+use App\Http\Requests\Catalog\UpdateCategoryRequest;
 use App\Http\Resources\Catalog\CategoryResource;
 use App\Models\Category;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -42,13 +44,9 @@ class CategoryController extends Controller
 
     /**
      * Retrieve a visible category by its ID.
-     *
-     * Hidden categories are treated as not found.
      */
-    public function show(
-        Request $request,
-        int $id,
-    ): JsonResponse {
+    public function show(Request $request, int $id): JsonResponse
+    {
         $category = Category::query()
             ->where('status', true)
             ->findOrFail($id);
@@ -58,6 +56,49 @@ class CategoryController extends Controller
             'data' => [
                 'category' => CategoryResource::make($category)
                     ->resolve($request),
+            ],
+        ]);
+    }
+
+    /**
+     * Create a category.
+     */
+    public function store(StoreCategoryRequest $request): JsonResponse
+    {
+        $category = Category::query()->create(
+            $request->validated(),
+        );
+
+        // Reload database-generated default values.
+        $category->refresh();
+
+        return response()->json([
+            'message' => 'Category created successfully.',
+            'data' => [
+                'category' => CategoryResource::make($category)
+                    ->resolve($request),
+            ],
+        ], 201);
+    }
+
+    /**
+     * Partially update an existing category.
+     */
+    public function update(
+        UpdateCategoryRequest $request,
+        int $id,
+    ): JsonResponse {
+        $category = Category::query()->findOrFail($id);
+
+        $category->fill($request->validated());
+        $category->save();
+
+        return response()->json([
+            'message' => 'Category updated successfully.',
+            'data' => [
+                'category' => CategoryResource::make(
+                    $category->refresh(),
+                )->resolve($request),
             ],
         ]);
     }
@@ -83,10 +124,9 @@ class CategoryController extends Controller
             ->get();
 
         $categoriesById = $categories->keyBy(
-            static fn(Category $category): int => (int) $category->getKey(),
+            static fn (Category $category): int => (int) $category->getKey(),
         );
 
-        // Initialize an empty children collection for every category.
         foreach ($categories as $category) {
             $category->setRelation(
                 'children',
@@ -96,7 +136,6 @@ class CategoryController extends Controller
 
         $roots = new EloquentCollection;
 
-        // Assemble the hierarchy without issuing additional queries.
         foreach ($categories as $category) {
             if ($category->parent_id === null) {
                 $roots->push($category);
@@ -108,7 +147,6 @@ class CategoryController extends Controller
                 (int) $category->parent_id,
             );
 
-            // Do not expose orphaned categories whose parent is hidden.
             if ($parent instanceof Category) {
                 $parent->getRelation('children')->push($category);
             }
