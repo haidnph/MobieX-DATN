@@ -42,9 +42,6 @@ Route::middleware('auth:sanctum')->post(
     LogoutController::class
 )->name('api.auth.logout');
 
-/*
- * GET /api/me requires both authentication and an active account.
- */
 Route::middleware([
     'auth:sanctum',
     'active',
@@ -56,9 +53,7 @@ Route::middleware([
 /*
  * Profile and address book endpoints.
  *
- * All routes require:
- * - Sanctum authentication.
- * - An active account.
+ * All routes require Sanctum authentication and an active account.
  */
 Route::middleware([
     'auth:sanctum',
@@ -91,6 +86,14 @@ Route::middleware([
         [AddressController::class, 'store'],
     )->name('api.addresses.store');
 
+    // Keep the specific action route before the generic update route.
+    Route::patch(
+        '/addresses/{id}/default',
+        [AddressController::class, 'setDefault'],
+    )
+        ->whereNumber('id')
+        ->name('api.addresses.default');
+
     Route::patch(
         '/addresses/{id}',
         [AddressController::class, 'update'],
@@ -106,6 +109,9 @@ Route::middleware([
         ->name('api.addresses.destroy');
 });
 
+/*
+ * Password reset endpoints.
+ */
 Route::post(
     '/auth/forgot-password',
     [PasswordResetController::class, 'sendResetLink']
@@ -120,11 +126,6 @@ Route::post(
 
 /*
  * Admin user and RBAC read-only endpoints.
- *
- * All routes require:
- * - Sanctum authentication.
- * - An active account.
- * - The users.view permission.
  */
 Route::prefix('admin')
     ->name('api.admin.')
@@ -159,11 +160,6 @@ Route::prefix('admin')
 
 /*
  * Admin user management endpoints.
- *
- * All routes require:
- * - Sanctum authentication.
- * - An active account.
- * - The users.manage permission.
  */
 Route::prefix('admin')
     ->name('api.admin.')

@@ -7,9 +7,11 @@ use App\Http\Requests\Addresses\StoreAddressRequest;
 use App\Http\Requests\Addresses\UpdateAddressRequest;
 use App\Http\Resources\AddressResource;
 use App\Models\User;
+use App\Models\UserAddress;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 
 class AddressController extends Controller
 {
@@ -39,8 +41,6 @@ class AddressController extends Controller
         /** @var User $user */
         $user = $request->user();
 
-        // Ownership is always assigned through the authenticated user's
-        // relationship. The client cannot choose user_id.
         $address = $user->addresses()->create(
             $request->validated(),
         );
@@ -64,8 +64,6 @@ class AddressController extends Controller
         /** @var User $user */
         $user = $request->user();
 
-        // Query through the authenticated user's relationship.
-        // An address owned by another user is treated as not found.
         $address = $user->addresses()->findOrFail($addressId);
 
         $address->fill($request->validated());
@@ -82,7 +80,63 @@ class AddressController extends Controller
     }
 
     /**
+     * Set an address as the authenticated user's default address.
+     */
+    public function setDefault(
+        Request $request,
+        int $addressId,
+    ): JsonResponse {
+        /** @var User $user */
+        $user = $request->user();
+
+        $address = DB::transaction(function () use (
+            $user,
+            $addressId,
+        ): UserAddress {
+            // Serialize default-address changes for the same user.
+            $lockedUser = User::query()
+                ->whereKey($user->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            // Only an address belonging to this user can be selected.
+            $address = $lockedUser->addresses()
+                ->whereKey($addressId)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            // Clear all existing default addresses.
+            $lockedUser->addresses()
+                ->where('is_default', true)
+                ->update([
+                    'is_default' => false,
+                ]);
+
+            // Reload because the bulk update bypasses Eloquent model state.
+            $address->refresh();
+
+            // Set the selected address as the only default.
+            $address->forceFill([
+                'is_default' => true,
+            ])->save();
+
+            return $address->refresh();
+        });
+
+        return response()->json([
+            'message' => 'Default address updated successfully.',
+            'data' => [
+                'address' => AddressResource::make($address)
+                    ->resolve($request),
+            ],
+        ]);
+    }
+
+    /**
      * Delete an address owned by the authenticated user.
+     *
+     * Deleting a default address does not automatically promote
+     * another address.
      */
     public function destroy(
         Request $request,
@@ -91,10 +145,22 @@ class AddressController extends Controller
         /** @var User $user */
         $user = $request->user();
 
-        // Never retrieve an address globally by ID.
-        $address = $user->addresses()->findOrFail($addressId);
+        DB::transaction(function () use (
+            $user,
+            $addressId,
+        ): void {
+            $lockedUser = User::query()
+                ->whereKey($user->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        $address->delete();
+            $address = $lockedUser->addresses()
+                ->whereKey($addressId)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $address->delete();
+        });
 
         return response()->json([
             'message' => 'Address deleted successfully.',
