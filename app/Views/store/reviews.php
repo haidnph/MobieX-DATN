@@ -24,6 +24,8 @@ html, body {
     color: #f4f7ff;
     font-family: Arial, sans-serif;
     min-height: 100%;
+    border: none;
+    background: none;
 }
 
 /* nếu layout tổng có thẻ main/container chung */
