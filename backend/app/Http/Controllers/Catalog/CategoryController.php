@@ -7,10 +7,13 @@ use App\Http\Requests\Catalog\StoreCategoryRequest;
 use App\Http\Requests\Catalog\UpdateCategoryRequest;
 use App\Http\Resources\Catalog\CategoryResource;
 use App\Models\Category;
+use App\Models\Product;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class CategoryController extends Controller
 {
@@ -104,14 +107,73 @@ class CategoryController extends Controller
     }
 
     /**
+     * Delete a category only when it has no dependencies.
+     *
+     * Deletion is performed inside a transaction.
+     *
+     * A category cannot be deleted when:
+     * - It has child categories.
+     * - Products reference it through category_id.
+     *
+     * The products reference is checked only when the products
+     * table and its category_id column exist.
+     */
+    public function destroy(int $id): JsonResponse
+    {
+        $conflictMessage = DB::transaction(
+            function () use ($id): ?string {
+                $category = Category::query()
+                    ->lockForUpdate()
+                    ->findOrFail($id);
+
+                // Hidden children must also prevent parent deletion.
+                if ($category->children()->exists()) {
+                    return 'Category cannot be deleted while it has child categories. Set status to false to hide it instead.';
+                }
+
+                $productsTable = (new Product)->getTable();
+
+                /*
+                 * D-15:
+                 * Do not query products when its schema has not
+                 * been integrated yet.
+                 *
+                 * Never create a placeholder products table here.
+                 */
+                if (Schema::hasTable($productsTable)) {
+                    // Fail safely if the expected reference column
+                    // has not been integrated into the product schema.
+                    if (! Schema::hasColumn($productsTable, 'category_id')) {
+                        return 'Category cannot be deleted safely because the products.category_id reference is unavailable.';
+                    }
+
+                    if ($category->products()->exists()) {
+                        return 'Category cannot be deleted while products reference it. Set status to false to hide it instead.';
+                    }
+                }
+
+                $category->delete();
+
+                return null;
+            },
+        );
+
+        if ($conflictMessage !== null) {
+            return response()->json([
+                'message' => $conflictMessage,
+            ], 409);
+        }
+
+        return response()->json([
+            'message' => 'Category deleted successfully.',
+        ]);
+    }
+
+    /**
      * Build a complete hierarchy from all visible categories.
      *
      * Categories are retrieved in one database query.
-     * Child relationships are assembled in memory to avoid N+1 queries
-     * and to support arbitrary hierarchy depth.
-     *
-     * A category is included in the tree only when it can be reached
-     * from a visible root through visible parent categories.
+     * Child relationships are assembled in memory to avoid N+1 queries.
      *
      * @return EloquentCollection<int, Category>
      */

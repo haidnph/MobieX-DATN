@@ -22,6 +22,12 @@ Route::get('/health', function () {
     ]);
 })->name('api.health');
 
+/*
+|--------------------------------------------------------------------------
+| Authentication
+|--------------------------------------------------------------------------
+*/
+
 Route::post(
     '/auth/register',
     RegisterController::class
@@ -52,8 +58,11 @@ Route::middleware([
 )->name('api.me');
 
 /*
- * Public category read endpoints.
- */
+|--------------------------------------------------------------------------
+| Public Category Read Endpoints
+|--------------------------------------------------------------------------
+*/
+
 Route::get(
     '/categories',
     [CategoryController::class, 'index'],
@@ -67,13 +76,17 @@ Route::get(
     ->name('api.categories.show');
 
 /*
- * Category write endpoints.
- *
- * Require:
- * - Sanctum authentication.
- * - An active account.
- * - categories.manage permission.
- */
+|--------------------------------------------------------------------------
+| Category Write Endpoints
+|--------------------------------------------------------------------------
+|
+| All category write endpoints require:
+| - Sanctum authentication.
+| - Active user account.
+| - categories.manage permission.
+|
+*/
+
 Route::middleware([
     'auth:sanctum',
     'active',
@@ -90,11 +103,24 @@ Route::middleware([
     )
         ->whereNumber('id')
         ->name('api.categories.update');
+
+    Route::delete(
+        '/categories/{id}',
+        [CategoryController::class, 'destroy'],
+    )
+        ->whereNumber('id')
+        ->name('api.categories.destroy');
 });
 
 /*
- * Profile and address book endpoints.
- */
+|--------------------------------------------------------------------------
+| Profile and Address Book
+|--------------------------------------------------------------------------
+|
+| All routes require Sanctum authentication and an active account.
+|
+*/
+
 Route::middleware([
     'auth:sanctum',
     'active',
@@ -126,6 +152,7 @@ Route::middleware([
         [AddressController::class, 'store'],
     )->name('api.addresses.store');
 
+    // Keep the specific action route before the generic update route.
     Route::patch(
         '/addresses/{id}/default',
         [AddressController::class, 'setDefault'],
@@ -149,8 +176,11 @@ Route::middleware([
 });
 
 /*
- * Password reset endpoints.
- */
+|--------------------------------------------------------------------------
+| Password Reset
+|--------------------------------------------------------------------------
+*/
+
 Route::post(
     '/auth/forgot-password',
     [PasswordResetController::class, 'sendResetLink']
@@ -164,8 +194,11 @@ Route::post(
     ->name('api.auth.password.reset');
 
 /*
- * Admin user and RBAC read-only endpoints.
- */
+|--------------------------------------------------------------------------
+| Admin User and RBAC Read-Only Endpoints
+|--------------------------------------------------------------------------
+*/
+
 Route::prefix('admin')
     ->name('api.admin.')
     ->middleware([
@@ -198,8 +231,11 @@ Route::prefix('admin')
     });
 
 /*
- * Admin user management endpoints.
- */
+|--------------------------------------------------------------------------
+| Admin User Management Endpoints
+|--------------------------------------------------------------------------
+*/
+
 Route::prefix('admin')
     ->name('api.admin.')
     ->middleware([
