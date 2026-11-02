@@ -1,20 +1,73 @@
+# ==========================================
+# Dependencies
+# ==========================================
 /vendor/
+/node_modules/
+
+# ==========================================
+# Environment files and secrets
+# Keep only the safe example template
+# ==========================================
 /.env
 /.env.*
 !/.env.example
 
-/.phpunit.cache/
-/.php-cs-fixer.cache
+# Composer authentication credentials
 /auth.json
 
+# ==========================================
+# Test and code formatter caches
+# ==========================================
+/.phpunit.cache/
+/.phpunit.result.cache
+/.php-cs-fixer.cache
+
+# ==========================================
+# Generated frontend assets
+# ==========================================
 /public/build/
 /public/hot
+/public/storage
 
+# ==========================================
+# Local database files
+# Do not commit local or test database data
+# ==========================================
+/database/*.sqlite
+/database/*.sqlite3
+/database/*.db
+
+# ==========================================
+# Laravel generated keys and logs
+# ==========================================
 /storage/*.key
-/storage/logs/*.log
-/storage/framework/cache/data/*
-/storage/framework/sessions/*
-/storage/framework/testing/*
-/storage/framework/views/*
+/storage/logs/*
+!/storage/logs/.gitignore
 
+# ==========================================
+# Laravel runtime cache and temporary files
+# Preserve directory placeholder files
+# ==========================================
+/storage/framework/cache/data/*
+!/storage/framework/cache/data/.gitignore
+
+/storage/framework/sessions/*
+!/storage/framework/sessions/.gitignore
+
+/storage/framework/testing/*
+!/storage/framework/testing/.gitignore
+
+/storage/framework/views/*
+!/storage/framework/views/.gitignore
+
+# ==========================================
+# Compiled Laravel bootstrap cache
+# ==========================================
 /bootstrap/cache/*.php
+!/bootstrap/cache/.gitignore
+
+# ==========================================
+# Local operating system files
+# ==========================================
+.DS_Store
+Thumbs.db
