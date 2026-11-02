@@ -1,6 +1,5 @@
 <?php
-// MobileX - AuthController. UTF-8 without BOM.
-// Keep this as the first line of the file (no characters before <?php).
+declare(strict_types=1);
 
 require_once __DIR__ . '/../Core/View.php';
 require_once __DIR__ . '/../Models/User.php';
@@ -17,7 +16,6 @@ final class AuthController
             'forgot-password' => ['auth/form.php', 'Quên mật khẩu'],
             'reset-password' => ['auth/form.php', 'Đặt lại mật khẩu'],
         ];
-
         if ($action === 'logout') {
             $this->logout();
             return;
@@ -28,15 +26,8 @@ final class AuthController
             return;
         }
 
-        $data = [
-            'action' => $action,
-            'csrf' => Csrf::token(),
-            'error' => null,
-            'message' => $this->takeFlash(),
-            'old' => [],
-        ];
-
-        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+        $data = ['action' => $action, 'csrf' => Csrf::token(), 'error' => null, 'message' => $this->takeFlash(), 'old' => []];
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!Csrf::valid($_POST['_csrf'] ?? null)) {
                 http_response_code(419);
                 $data['error'] = 'Phiên làm việc hết hạn. Vui lòng tải lại trang và thử lại.';
@@ -52,7 +43,6 @@ final class AuthController
         } elseif ($action === 'forgot-password' || $action === 'reset-password') {
             $data['message'] = 'Chức năng đặt lại mật khẩu cần cấu hình dịch vụ email trước khi sử dụng.';
         }
-
         View::render($routes[$action][0], 'MobileX | ' . $routes[$action][1], $data);
     }
 
@@ -61,43 +51,25 @@ final class AuthController
         $email = strtolower(trim((string) ($_POST['email'] ?? '')));
         $password = (string) ($_POST['password'] ?? '');
         $old = ['email' => $email, 'remember' => isset($_POST['remember'])];
-
         try {
             if ($action === 'register') {
                 $name = trim((string) ($_POST['name'] ?? ''));
-                if ($name === '' || mb_strlen($name) > 120 ||
-                    !filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($password) < 8) {
+                if ($name === '' || mb_strlen($name) > 120 || !filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($password) < 8) {
                     return ['error' => 'Vui lòng nhập tên, email hợp lệ và mật khẩu có ít nhất 8 ký tự.', 'old' => $old];
                 }
                 if (User::findByEmail($email)) {
                     return ['error' => 'Email này đã được đăng ký. Hãy đăng nhập hoặc dùng email khác.', 'old' => $old];
                 }
-
                 $id = User::create($name, $email, $password);
-                $created = User::findById($id);
-                if (!$created) {
-                    throw new RuntimeException('Không tìm thấy tài khoản vừa tạo.');
-                }
-                $account = [
-                    'id' => $id,
-                    'name' => $created['name'],
-                    'email' => $created['email'],
-                    'role' => 'customer',
-                ];
-                RememberLogin::forget();
+                $account = ['id' => $id, 'name' => $name, 'email' => $email];
                 $_SESSION['_flash'] = 'Tạo tài khoản thành công. Bạn đã đăng nhập.';
             } else {
                 $user = User::findByEmail($email);
-                if (!$user || !password_verify($password, (string) $user['password_hash'])) {
+                if (!$user || !password_verify($password, $user['password_hash'])) {
                     return ['error' => 'Email hoặc mật khẩu không chính xác.', 'old' => $old];
                 }
                 $id = (int) $user['id'];
-                $account = [
-                    'id' => $id,
-                    'name' => $user['name'],
-                    'email' => $user['email'],
-                    'role' => ($user['role'] ?? '') === 'admin' ? 'admin' : 'customer',
-                ];
+                $account = ['id' => $id, 'name' => $user['name'], 'email' => $user['email']];
                 if (isset($_POST['remember'])) {
                     RememberLogin::remember($id);
                 } else {
@@ -105,28 +77,18 @@ final class AuthController
                 }
                 $_SESSION['_flash'] = 'Đăng nhập thành công.';
             }
-
             session_regenerate_id(true);
             $_SESSION['user'] = $account;
-
-            return [
-                'redirect' => $account['role'] === 'admin'
-                    ? 'admin.php'
-                    : 'index.php?page=home',
-            ];
+            return ['redirect' => '?page=home'];
         } catch (PDOException $error) {
             error_log('MobileX authentication database error: ' . $error->getMessage());
-            return ['error' => 'Lỗi cơ sở dữ liệu. Kiểm tra MySQL và bảng users.', 'old' => $old];
-        } catch (RuntimeException $error) {
-            error_log('MobileX authentication error: ' . $error->getMessage());
-            return ['error' => 'Không thể hoàn tất đăng nhập hoặc đăng ký. Vui lòng thử lại.', 'old' => $old];
+            return ['error' => 'Chưa kết nối được cơ sở dữ liệu. Hãy kiểm tra cấu hình và bảng tài khoản.', 'old' => $old];
         }
     }
 
     private function logout(): void
     {
-        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST' ||
-            !Csrf::valid($_POST['_csrf'] ?? null)) {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !Csrf::valid($_POST['_csrf'] ?? null)) {
             http_response_code(405);
             return;
         }
@@ -134,12 +96,10 @@ final class AuthController
         $_SESSION = [];
         if (ini_get('session.use_cookies')) {
             $cookie = session_get_cookie_params();
-            setcookie(session_name(), '', time() - 42000,
-                $cookie['path'], $cookie['domain'], $cookie['secure'], $cookie['httponly']);
+            setcookie(session_name(), '', time() - 42000, $cookie['path'], $cookie['domain'], $cookie['secure'], $cookie['httponly']);
         }
         session_destroy();
-        header('Location: index.php?page=home');
-        exit;
+        header('Location: ?page=home');
     }
 
     private function takeFlash(): ?string
