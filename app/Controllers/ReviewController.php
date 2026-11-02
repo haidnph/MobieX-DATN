@@ -305,8 +305,8 @@ final class ReviewController
 
             } else {
 
-                echo '<p>Không thể tải đánh giá. '
-                    . 'Vui lòng thử lại sau.</p>';
+                echo '<p>Không thể tải đánh giá, '
+                    . 'Vui lòng thử lại sau?</p>';
             }
 
         } catch (InvalidArgumentException $e) {
