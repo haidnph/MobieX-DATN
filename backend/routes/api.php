@@ -53,15 +53,6 @@ Route::middleware([
 
 /*
  * Public category read endpoints.
- *
- * Only visible categories (status = true) are returned.
- *
- * GET /api/categories
- * GET /api/categories?tree=true
- * GET /api/categories/{id}
- *
- * Category write endpoints will be protected by RBAC
- * in the category write implementation.
  */
 Route::get(
     '/categories',
@@ -76,9 +67,33 @@ Route::get(
     ->name('api.categories.show');
 
 /*
- * Profile and address book endpoints.
+ * Category write endpoints.
  *
- * All routes require Sanctum authentication and an active account.
+ * Require:
+ * - Sanctum authentication.
+ * - An active account.
+ * - categories.manage permission.
+ */
+Route::middleware([
+    'auth:sanctum',
+    'active',
+    'permission:categories.manage',
+])->group(function (): void {
+    Route::post(
+        '/categories',
+        [CategoryController::class, 'store'],
+    )->name('api.categories.store');
+
+    Route::patch(
+        '/categories/{id}',
+        [CategoryController::class, 'update'],
+    )
+        ->whereNumber('id')
+        ->name('api.categories.update');
+});
+
+/*
+ * Profile and address book endpoints.
  */
 Route::middleware([
     'auth:sanctum',
@@ -111,7 +126,6 @@ Route::middleware([
         [AddressController::class, 'store'],
     )->name('api.addresses.store');
 
-    // Keep the specific action route before the generic update route.
     Route::patch(
         '/addresses/{id}/default',
         [AddressController::class, 'setDefault'],
