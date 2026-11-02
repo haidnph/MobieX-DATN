@@ -61,7 +61,8 @@ final class Reviews
         $offset = ($page - 1) * self::PAGE_SIZE;
 
         $sql = 'SELECT r.id, r.rating, r.content, r.status, r.created_at, r.moderation_reason, '
-            . 'u.name AS reviewer, p.name AS product_name' . $from . $filter
+            . 'u.name AS reviewer, p.name AS product_name, ' .
+            '(SELECT i.image_path FROM product_review_images i WHERE i.review_id = r.id ORDER BY i.id ASC LIMIT 1) AS image_path' . $from . $filter
             . " ORDER BY CASE WHEN r.status = 'pending' THEN 0 ELSE 1 END, r.created_at DESC, r.id DESC LIMIT :lim OFFSET :off";
         $stmt = $db->prepare($sql);
         foreach ($values as $key => $value) {
@@ -143,14 +144,30 @@ final class Reviews
         if (self::existing($userId, $productId)) {
             throw new RuntimeException('Bạn đã đánh giá sản phẩm này.');
         }
-        $stmt = Database::connection()->prepare(
-            "INSERT INTO product_reviews (user_id, product_id, rating, content, image_path, status)
-             VALUES (:user, :product, :rating, :content, :image, 'pending')"
-        );
-        $stmt->execute([
-            'user' => $userId, 'product' => $productId, 'rating' => $rating,
-            'content' => $comment, 'image' => $imagePath
-        ]);
+        $db = Database::connection();
+        $db->beginTransaction();
+        try {
+            // Schema chuẩn: ảnh nằm trong product_review_images, KHÔNG nằm trong product_reviews.
+            $stmt = $db->prepare(
+                "INSERT INTO product_reviews (user_id, product_id, rating, content, status)
+                 VALUES (:user, :product, :rating, :content, 'pending')"
+            );
+            $stmt->execute([
+                'user' => $userId, 'product' => $productId,
+                'rating' => $rating, 'content' => $comment,
+            ]);
+            $reviewId = (int) $db->lastInsertId();
+            if ($imagePath !== null) {
+                $imageStmt = $db->prepare(
+                    'INSERT INTO product_review_images (review_id, image_path) VALUES (:review, :path)'
+                );
+                $imageStmt->execute(['review' => $reviewId, 'path' => $imagePath]);
+            }
+            $db->commit();
+        } catch (Throwable $error) {
+            if ($db->inTransaction()) $db->rollBack();
+            throw $error;
+        }
     }
 
     // Client: chỉ cho khách xem các đánh giá được duyệt; alias comment cho view cũ.
@@ -158,7 +175,8 @@ final class Reviews
     {
         $stmt = Database::connection()->prepare(
             "SELECT r.id, r.rating, r.content, r.content AS comment,
-                    r.image_path, r.created_at, u.name
+                    (SELECT i.image_path FROM product_review_images i WHERE i.review_id = r.id ORDER BY i.id ASC LIMIT 1) AS image_path,
+                    r.created_at, u.name
              FROM product_reviews r
              JOIN users u ON u.id = r.user_id
              WHERE r.product_id = :product AND r.status = 'approved'
@@ -166,6 +184,14 @@ final class Reviews
         );
         $stmt->execute(['product' => $productId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public static function productName(int $productId): ?string
+    {
+        $stmt = Database::connection()->prepare('SELECT name FROM products WHERE id = ? LIMIT 1');
+        $stmt->execute([$productId]);
+        $name = $stmt->fetchColumn();
+        return $name === false ? null : (string)$name;
     }
 
     public static function productStats(int $productId): array
