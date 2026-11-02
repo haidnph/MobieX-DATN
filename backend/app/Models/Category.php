@@ -2,10 +2,15 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Category extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'parent_id',
         'name',
@@ -16,21 +21,46 @@ class Category extends Model
         'status',
     ];
 
-    // Một danh mục có nhiều sản phẩm
-    public function products()
+    /**
+     * Cast category attributes to their expected PHP types.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'sort_order' => 'integer',
+            'status' => 'boolean',
+        ];
+    }
+
+    /**
+     * A category can have many products.
+     *
+     * @return HasMany<Product, $this>
+     */
+    public function products(): HasMany
     {
         return $this->hasMany(Product::class);
     }
 
-    // Một danh mục có thể có nhiều danh mục con
-    public function children()
+    /**
+     * A category can have multiple child categories.
+     *
+     * @return HasMany<Category, $this>
+     */
+    public function children(): HasMany
     {
-        return $this->hasMany(Category::class, 'parent_id');
+        return $this->hasMany(self::class, 'parent_id');
     }
 
-    // Lấy danh mục cha
-    public function parent()
+    /**
+     * Retrieve the parent category.
+     *
+     * @return BelongsTo<Category, $this>
+     */
+    public function parent(): BelongsTo
     {
-        return $this->belongsTo(Category::class, 'parent_id');
+        return $this->belongsTo(self::class, 'parent_id');
     }
 }
