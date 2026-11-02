@@ -21,7 +21,6 @@ class UpdateCategoryRequest extends FormRequest
 
     public function authorize(): bool
     {
-        // Authentication and authorization are enforced by route middleware.
         return true;
     }
 
@@ -86,11 +85,8 @@ class UpdateCategoryRequest extends FormRequest
     }
 
     /**
-     * Reject unsupported fields, empty payloads and duplicate root names.
-     *
-     * The root-name validation considers the category's resulting
-     * parent_id, including the existing parent_id when it is omitted
-     * from the PATCH payload.
+     * Reject unsupported fields, empty payloads, duplicate root names
+     * and category hierarchy cycles.
      *
      * @return array<int, callable(Validator): void>
      */
@@ -100,6 +96,7 @@ class UpdateCategoryRequest extends FormRequest
             function (Validator $validator): void {
                 $input = $this->all();
 
+                // Reject fields outside the category API contract.
                 foreach (
                     array_diff(
                         array_keys($input),
@@ -112,6 +109,7 @@ class UpdateCategoryRequest extends FormRequest
                     );
                 }
 
+                // PATCH must contain at least one supported field.
                 $providedFields = array_intersect(
                     array_keys($input),
                     self::ALLOWED_FIELDS,
@@ -124,6 +122,8 @@ class UpdateCategoryRequest extends FormRequest
                     );
                 }
 
+                // Do not perform database-dependent validation
+                // when these fields already have validation errors.
                 if (
                     $validator->errors()->has('name')
                     || $validator->errors()->has('parent_id')
@@ -135,11 +135,41 @@ class UpdateCategoryRequest extends FormRequest
                     $this->route('id'),
                 );
 
-                // Let the controller return 404 if the category does not exist.
+                // The controller will handle the 404 response.
                 if (! $category instanceof Category) {
                     return;
                 }
 
+                /*
+                 * Hierarchy cycle protection.
+                 *
+                 * Only validate when parent_id is explicitly included
+                 * and is not NULL.
+                 */
+                if (
+                    array_key_exists('parent_id', $input)
+                    && $input['parent_id'] !== null
+                ) {
+                    $proposedParentId = (int) $input['parent_id'];
+
+                    if ($this->wouldCreateCycle(
+                        $category,
+                        $proposedParentId,
+                    )) {
+                        $validator->errors()->add(
+                            'parent_id',
+                            'The selected parent category would create a hierarchy cycle.',
+                        );
+
+                        return;
+                    }
+                }
+
+                /*
+                 * Determine the category's resulting parent_id.
+                 *
+                 * If parent_id is omitted, retain its existing parent.
+                 */
                 $effectiveParentId = array_key_exists(
                     'parent_id',
                     $input,
@@ -147,7 +177,7 @@ class UpdateCategoryRequest extends FormRequest
                     ? $input['parent_id']
                     : $category->parent_id;
 
-                // Nested category names are not subject to root-name uniqueness.
+                // Root-name uniqueness only applies to root categories.
                 if ($effectiveParentId !== null) {
                     return;
                 }
@@ -172,5 +202,54 @@ class UpdateCategoryRequest extends FormRequest
                 }
             },
         ];
+    }
+
+    /**
+     * Determine whether assigning the proposed parent creates a cycle.
+     *
+     * Starting from the proposed parent, traverse its ancestor chain.
+     *
+     * A cycle exists if:
+     * - The category being updated is encountered.
+     * - An already existing cycle is encountered in the ancestor chain.
+     *
+     * The parent_id map is retrieved in one query to avoid N+1 queries.
+     */
+    private function wouldCreateCycle(
+        Category $category,
+        int $proposedParentId,
+    ): bool {
+        $parentByCategoryId = Category::query()
+            ->pluck('parent_id', 'id')
+            ->all();
+
+        $categoryId = (int) $category->getKey();
+
+        $visited = [];
+
+        $currentAncestorId = $proposedParentId;
+
+        while (true) {
+            // The category cannot be its own parent.
+            if ($currentAncestorId === $categoryId) {
+                return true;
+            }
+
+            // Protect against an already corrupted hierarchy.
+            if (isset($visited[$currentAncestorId])) {
+                return true;
+            }
+
+            $visited[$currentAncestorId] = true;
+
+            $nextParentId = $parentByCategoryId[$currentAncestorId] ?? null;
+
+            // Reached a root category.
+            if ($nextParentId === null) {
+                return false;
+            }
+
+            $currentAncestorId = (int) $nextParentId;
+        }
     }
 }

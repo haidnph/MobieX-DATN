@@ -1,254 +1,79 @@
+## 11. Category Hierarchy Cycle Protection
 
-# Categories API
+Category hierarchy must not contain circular parent-child references.
 
-## Overview
+The API validates the proposed parent category before updating
+the category.
 
-This document describes the category read and write endpoints.
+### Validation rules
 
-Base URL:
+The following updates are rejected:
 
-`/api/categories`
+1. A category cannot be its own parent.
+2. A category cannot become a child of its direct child.
+3. A category cannot become a child of any descendant.
+4. An already cyclic ancestor chain cannot be extended through
+   another hierarchy update.
 
-## 1. List categories
+### Example: self-parent
 
-### Request
-
-`GET /api/categories`
-
-### Authentication
-
-Public endpoint.
-
-### Behavior
-
-- Returns visible categories only.
-- Uses Laravel pagination.
-- Default page size: 15 records.
-- Sorts by `sort_order ASC`, then `id ASC`.
-
-## 2. Retrieve category tree
-
-### Request
-
-`GET /api/categories?tree=true`
-
-### Authentication
-
-Public endpoint.
-
-### Behavior
-
-- Returns the complete visible category hierarchy.
-- Does not paginate.
-- Root categories have `parent_id = null`.
-- Children are nested under their parents.
-- Hidden categories are not included.
-- Categories with hidden or unavailable parents are not exposed as roots.
-
-## 3. Retrieve category details
-
-### Request
-
-`GET /api/categories/{id}`
-
-### Authentication
-
-Public endpoint.
-
-### Responses
-
-- 200: Category found and visible.
-- 404: Category does not exist or is hidden.
-
-## 4. Create category
-
-### Request
-
-`POST /api/categories`
-
-### Authentication
-
-Required.
-
-### Permissions
-
-`categories.manage`
-
-### Request body
+PATCH /api/categories/1
 
 ```json
 {
-    "name": "Smartphones",
-    "slug": "smartphones",
-    "parent_id": null,
-    "description": "Smartphone categories",
-    "image": "categories/smartphones.jpg",
-    "sort_order": 1,
-    "status": true
+    "parent_id": 1
 }
 ```
 
-### Fields
+Response:
 
-| Field | Type | Required | Rules |
-|---|---|---|---|
-| name | string | Yes | Maximum 255 characters |
-| slug | string | Yes | Maximum 255, globally unique |
-| parent_id | integer/null | No | Must reference an existing category |
-| description | string/null | No | Nullable |
-| image | string/null | No | Maximum 255 characters |
-| sort_order | integer | No | Minimum 0 |
-| status | boolean | No | Defaults to true in database |
-
-### Business validation
-
-- Slugs must be unique.
-- Root category names must be unique.
-- Nested category names may match other categories.
-- Unsupported fields are rejected.
-- `is_active` is not part of the current request contract.
-
-### Success response
-
-HTTP 201
-
-```json
-{
-    "message": "Category created successfully.",
-    "data": {
-        "category": {
-            "id": 1,
-            "parent_id": null,
-            "name": "Smartphones",
-            "slug": "smartphones",
-            "description": "Smartphone categories",
-            "image": "categories/smartphones.jpg",
-            "sort_order": 1,
-            "status": true
-        }
-    }
-}
-```
-
-## 5. Update category
-
-### Request
-
-`PATCH /api/categories/{id}`
-
-### Authentication
-
-Required.
-
-### Permissions
-
-`categories.manage`
-
-### Request body
-
-All fields are optional, but at least one supported field must be provided.
-
-Example:
-
-```json
-{
-    "name": "Android Smartphones",
-    "sort_order": 2
-}
-```
-
-### Business validation
-
-- Only submitted fields are updated.
-- Slug must remain globally unique.
-- Keeping the category's existing slug is allowed.
-- Root category names must remain unique.
-- Empty payloads are rejected.
-- Unsupported fields are rejected.
-- Nonexistent category IDs return 404.
-
-### Success response
-
-HTTP 200
-
-```json
-{
-    "message": "Category updated successfully.",
-    "data": {
-        "category": {
-            "id": 1,
-            "parent_id": null,
-            "name": "Android Smartphones",
-            "slug": "smartphones",
-            "sort_order": 2,
-            "status": true
-        }
-    }
-}
-```
-
-## 6. Authorization
-
-Category read endpoints are public.
-
-Category write endpoints require:
-
-- Sanctum authentication.
-- An active user account.
-- The `categories.manage` permission.
-
-The RBAC permission is already defined in RolePermissionSeeder.
-
-The current permission matrix grants category management to admin and staff.
-
-## 7. Error responses
-
-| HTTP status | Condition |
-|---|---|
-| 401 | User is unauthenticated |
-| 403 | User is inactive or lacks categories.manage |
-| 404 | Category does not exist |
-| 422 | Validation failure |
-
-Validation response follows Laravel's JSON validation format:
+HTTP 422
 
 ```json
 {
     "message": "The given data was invalid.",
     "errors": {
-        "slug": [
-            "The slug has already been taken."
+        "parent_id": [
+            "The selected parent category would create a hierarchy cycle."
         ]
     }
 }
 ```
 
-## 8. Visibility and deletion decisions
+### Example: multi-level cycle
 
-The current category schema uses the `status` boolean column.
+Initial hierarchy:
 
-- `status = true`: visible.
-- `status = false`: hidden.
+```text
+Phones (1)
+└── Smartphones (2)
+    └── Android (3)
+```
 
-The final D-07 decision regarding category and brand visibility/deletion
-must be confirmed with the group.
+Invalid request:
 
-Soft deletes have not been introduced.
+PATCH /api/categories/1
 
-The category deletion endpoint is not implemented in this release.
+```json
+{
+    "parent_id": 3
+}
+```
 
-## 9. Hierarchy protection
+The API rejects the request because category 3 is a descendant
+of category 1.
 
-The parent_id field must reference an existing category.
+### Valid hierarchy updates
 
-Self-parent and multi-level hierarchy cycle protection will be
-implemented in the next hierarchy-protection commit.
+Moving a category under an unrelated category is allowed,
+provided the resulting hierarchy does not contain a cycle.
 
-## 10. Product references
+Existing descendants remain attached to the moved category.
 
-This module does not create or own the products table.
+### Implementation
 
-Product-reference deletion checks depend on the product schema
-being integrated by the Product/Stock owner.
+The update validation retrieves the category parent map in
+one database query, then traverses the proposed parent's
+ancestor chain in memory.
 
-No product-reference deletion logic is implemented in this release.
+This prevents N+1 queries during cycle validation.
