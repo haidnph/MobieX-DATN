@@ -11,6 +11,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\Catalog\CategoryController;
 use App\Http\Controllers\Profile\ProfileController;
 use Illuminate\Support\Facades\Route;
 
@@ -49,6 +50,30 @@ Route::middleware([
     '/me',
     CurrentUserController::class
 )->name('api.me');
+
+/*
+ * Public category read endpoints.
+ *
+ * Only visible categories (status = true) are returned.
+ *
+ * GET /api/categories
+ * GET /api/categories?tree=true
+ * GET /api/categories/{id}
+ *
+ * Category write endpoints will be protected by RBAC
+ * in the category write implementation.
+ */
+Route::get(
+    '/categories',
+    [CategoryController::class, 'index'],
+)->name('api.categories.index');
+
+Route::get(
+    '/categories/{id}',
+    [CategoryController::class, 'show'],
+)
+    ->whereNumber('id')
+    ->name('api.categories.show');
 
 /*
  * Profile and address book endpoints.
