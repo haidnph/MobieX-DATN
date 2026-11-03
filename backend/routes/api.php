@@ -11,6 +11,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\Catalog\BrandController;
 use App\Http\Controllers\Catalog\CategoryController;
 use App\Http\Controllers\Profile\ProfileController;
 use Illuminate\Support\Facades\Route;
@@ -59,8 +60,12 @@ Route::middleware([
 
 /*
 |--------------------------------------------------------------------------
-| Public Category Read Endpoints
+| Public Catalog Read Endpoints
 |--------------------------------------------------------------------------
+|
+| Public users can retrieve visible categories and brands.
+| Hidden records are not exposed by these endpoints.
+|
 */
 
 Route::get(
@@ -74,6 +79,18 @@ Route::get(
 )
     ->whereNumber('id')
     ->name('api.categories.show');
+
+Route::get(
+    '/brands',
+    [BrandController::class, 'index'],
+)->name('api.brands.index');
+
+Route::get(
+    '/brands/{id}',
+    [BrandController::class, 'show'],
+)
+    ->whereNumber('id')
+    ->name('api.brands.show');
 
 /*
 |--------------------------------------------------------------------------
