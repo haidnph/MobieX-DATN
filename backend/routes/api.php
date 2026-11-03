@@ -131,6 +131,29 @@ Route::middleware([
 
 /*
 |--------------------------------------------------------------------------
+| Brand Management Endpoints
+|--------------------------------------------------------------------------
+|
+| All brand write endpoints require:
+| - Sanctum authentication.
+| - An active user account.
+| - brands.manage permission.
+|
+*/
+
+Route::middleware([
+    'auth:sanctum',
+    'active',
+    'permission:brands.manage',
+])->group(function (): void {
+    Route::post(
+        '/brands',
+        [BrandController::class, 'store'],
+    )->name('api.brands.store');
+});
+
+/*
+|--------------------------------------------------------------------------
 | Profile and Address Book
 |--------------------------------------------------------------------------
 |
