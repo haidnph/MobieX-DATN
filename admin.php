@@ -610,6 +610,11 @@ $statusNames = [
                           <td><strong><?= e($review['reviewer']) ?></strong><small><?= e($review['product_name']) ?></small></td>
                           <td><span class="review-stars"><?= str_repeat('★', max(0, min(5, (int)$review['rating']))) ?></span></td>
                           <td class="review-comment"><?= nl2br(e($review['content'])) ?>
+                          <?php if (!empty($review['image_path'])): ?>
+                              <a href="<?= e($review['image_path']) ?>" target="_blank" rel="noopener noreferrer" title="Xem ảnh khách gửi">
+                                  <img src="<?= e($review['image_path']) ?>" alt="Ảnh đánh giá" loading="lazy" style="display:block;width:88px;height:88px;object-fit:cover;border-radius:8px;margin:10px 0;">
+                              </a>
+                          <?php endif; ?>
                           <?php if (Reviews::flagged((string)$review['content'])): ?><small class="review-warning">⚠ Nghi chứa từ ngữ thô tục — cần kiểm tra</small><?php endif; ?>
                           <?php if (!empty($review['moderation_reason'])): ?><small>Lý do ẩn: <?= e($review['moderation_reason']) ?></small><?php endif; ?>
                           </td>
@@ -676,9 +681,9 @@ $promoMoney = static function ($v): string { return number_format((float)$v,0,',
     <details class="promotion-details promotion-edit"><summary>Sửa banner #<?= (int)$b['id'] ?></summary>
      <form method="post" enctype="multipart/form-data" action="admin.php?section=promotions#promotions" class="promotion-form">
       <input type="hidden" name="_csrf" value="<?= $promoEsc(Csrf::token()) ?>"><input type="hidden" name="admin_action" value="promo_save_banner"><input type="hidden" name="id" value="<?= (int)$b['id'] ?>"><input type="hidden" name="image_path" value="<?= $promoEsc($b['image_path']) ?>">
-      <label>tieu de<input name="title" required maxlength="180" value="<?= $promoEsc($b['title']) ?>"></label>
-      <label>thay anh (để trống nếu giữ ảnh hiện tại)<input type="file" name="banner_image" accept="image/jpeg,image/png,image/webp"></label>
-      <label>lien ket<input name="target_url" value="<?= $promoEsc($b['target_url']) ?>"></label>
+      <label>tiêu đề<input name="title" required maxlength="180" value="<?= $promoEsc($b['title']) ?>"></label>
+      <label>Thay ảnh (để trống nếu giữ ảnh hiện tại)<input type="file" name="banner_image" accept="image/jpeg,image/png,image/webp"></label>
+      <label>Liên kết<input name="target_url" value="<?= $promoEsc($b['target_url']) ?>"></label>
       <label>Thứ tự<input type="number" name="sort_order" value="<?= (int)$b['sort_order'] ?>"></label>
       <button class="promo-primary" type="submit">Lưu thay đổi</button>
      </form>
