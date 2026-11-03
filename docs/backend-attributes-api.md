@@ -1,4 +1,3 @@
-
 # Attributes API
 
 **Module:** A-03 — Attributes  
@@ -595,3 +594,71 @@ feature.
 
 Each commit must pass the full test suite and
 `git diff --check` before it is committed.
+
+## 13. Schema implementation — Commit 02
+
+The following tables are owned and implemented by the
+Attributes module:
+
+- attributes
+- attribute_values
+- attribute_category
+
+### Migration order
+
+1. create_attributes_table
+2. create_attribute_values_table
+3. create_attribute_category_table
+
+### Attributes constraints
+
+- Unique: uq_attributes_code
+- Index: idx_attributes_status_sort_id
+
+### Attribute values constraints
+
+- Unique: uq_attribute_values_attribute_value
+- Index: idx_attribute_values_visibility_sort
+- Foreign key: fk_attribute_values_attribute
+- ON DELETE CASCADE
+- ON UPDATE CASCADE
+
+### Category assignment constraints
+
+- Composite PK: pk_attribute_category
+- Index: idx_attribute_category_category_id
+- Foreign key: fk_attribute_category_attribute
+- Foreign key: fk_attribute_category_category
+- Both foreign keys use ON DELETE CASCADE.
+
+### Model relationships
+
+Attribute:
+
+- HasMany AttributeValue
+- BelongsToMany Category
+
+AttributeValue:
+
+- BelongsTo Attribute
+- BelongsToMany ProductVariant
+
+Category:
+
+- BelongsToMany Attribute
+
+### ProductVariant dependency
+
+The A-03 schema commit does not create products,
+product_variants or variant_attribute_values.
+
+The existing Eloquent relationship is preserved.
+
+ProductVariant database integration must be completed
+only after the product_variants table is available.
+
+The ProductVariant relationship must protect referenced
+AttributeValues against accidental physical deletion.
+
+The one-value-per-attribute rule is enforced at
+the application layer.
