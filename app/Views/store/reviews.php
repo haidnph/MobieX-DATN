@@ -8,6 +8,7 @@ $h = static function ($value) {
 };
 
 $product  = (int) ($product ?? 0);
+$productName = $productName ?? null;
 $reviews  = $reviews ?? [];
 $stats    = $stats ?? ['total' => 0, 'average' => 0];
 $user     = (int) ($user ?? 0);
@@ -24,8 +25,6 @@ html, body {
     color: #f4f7ff;
     font-family: Arial, sans-serif;
     min-height: 100%;
-    border: none;
-    background: none;
 }
 
 /* nếu layout tổng có thẻ main/container chung */
@@ -305,7 +304,7 @@ main,
             <h1 class="mx-title">Đánh giá & Bình luận</h1>
 
             <div class="mx-product">
-                Sản phẩm #<?= $h($product) ?>
+                <?= $h($productName ?: ('Sản phẩm #' . $product)) ?>
             </div>
 
             <div class="mx-rating">
