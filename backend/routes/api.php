@@ -62,10 +62,6 @@ Route::middleware([
 |--------------------------------------------------------------------------
 | Public Catalog Read Endpoints
 |--------------------------------------------------------------------------
-|
-| Public users can retrieve visible categories and brands.
-| Hidden records are not exposed by these endpoints.
-|
 */
 
 Route::get(
@@ -96,12 +92,6 @@ Route::get(
 |--------------------------------------------------------------------------
 | Category Write Endpoints
 |--------------------------------------------------------------------------
-|
-| All category write endpoints require:
-| - Sanctum authentication.
-| - Active user account.
-| - categories.manage permission.
-|
 */
 
 Route::middleware([
@@ -157,15 +147,19 @@ Route::middleware([
     )
         ->whereNumber('id')
         ->name('api.brands.update');
+
+    Route::delete(
+        '/brands/{id}',
+        [BrandController::class, 'destroy'],
+    )
+        ->whereNumber('id')
+        ->name('api.brands.destroy');
 });
 
 /*
 |--------------------------------------------------------------------------
 | Profile and Address Book
 |--------------------------------------------------------------------------
-|
-| All routes require Sanctum authentication and an active account.
-|
 */
 
 Route::middleware([
@@ -199,7 +193,6 @@ Route::middleware([
         [AddressController::class, 'store'],
     )->name('api.addresses.store');
 
-    // Keep the specific action route before the generic update route.
     Route::patch(
         '/addresses/{id}/default',
         [AddressController::class, 'setDefault'],
