@@ -150,6 +150,13 @@ Route::middleware([
         '/brands',
         [BrandController::class, 'store'],
     )->name('api.brands.store');
+
+    Route::patch(
+        '/brands/{id}',
+        [BrandController::class, 'update'],
+    )
+        ->whereNumber('id')
+        ->name('api.brands.update');
 });
 
 /*

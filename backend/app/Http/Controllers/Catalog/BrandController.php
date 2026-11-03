@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Catalog;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Catalog\StoreBrandRequest;
+use App\Http\Requests\Catalog\UpdateBrandRequest;
 use App\Http\Resources\Catalog\BrandResource;
 use App\Models\Brand;
 use Illuminate\Http\JsonResponse;
@@ -54,9 +55,6 @@ class BrandController extends Controller
 
     /**
      * Create a brand.
-     *
-     * The model's fillable attributes and the FormRequest's validated
-     * payload provide two layers of protection against mass assignment.
      */
     public function store(StoreBrandRequest $request): JsonResponse
     {
@@ -74,5 +72,30 @@ class BrandController extends Controller
                     ->resolve($request),
             ],
         ], 201);
+    }
+
+    /**
+     * Partially update an existing brand.
+     *
+     * Hidden brands can still be managed by ID so that administrators
+     * can update or reactivate them.
+     */
+    public function update(
+        UpdateBrandRequest $request,
+        int $id,
+    ): JsonResponse {
+        $brand = Brand::query()->findOrFail($id);
+
+        $brand->fill($request->validated());
+        $brand->save();
+
+        return response()->json([
+            'message' => 'Brand updated successfully.',
+            'data' => [
+                'brand' => BrandResource::make(
+                    $brand->refresh(),
+                )->resolve($request),
+            ],
+        ]);
     }
 }

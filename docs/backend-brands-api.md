@@ -11,10 +11,10 @@ endpoints for the product catalog.
 - Only brands with `status = true` are returned by public read endpoints.
 - Hidden brands are treated as nonexistent and return HTTP 404.
 - Public read endpoints do not require authentication.
-- All brand write endpoints require Sanctum authentication, an active account
-  and the `brands.manage` permission.
-- `status` is the visibility flag in the current schema. Do not send
-  `is_active` or `deleted_at` as substitutes.
+- All brand write endpoints require Sanctum authentication, an active
+  account and the `brands.manage` permission.
+- `status` is the visibility flag in the current schema.
+- Do not use `is_active` or `deleted_at` as substitutes.
 
 ## 1. List brands
 
@@ -139,7 +139,7 @@ HTTP `201 Created`
 }
 ```
 
-The timestamp values and generated ID are illustrative.
+The ID and timestamp values are illustrative.
 
 ### Error responses
 
@@ -153,13 +153,91 @@ The timestamp values and generated ID are illustrative.
 
 **PATCH** `/api/brands/{id}`
 
-Not implemented yet. It will support partial updates and preserve fields that
-are omitted from the request body.
+Partially updates an existing brand.
+
+### Authentication
+
+Required: Sanctum bearer token.
+
+### Permission
+
+`brands.manage`
+
+The authenticated account must also be active.
+
+### Request body
+
+All fields are optional, but at least one supported field must be provided.
+
+```json
+{
+  "name": "Samsung Electronics",
+  "slug": "samsung-electronics",
+  "logo": "brands/samsung.png",
+  "description": "Samsung Electronics smartphone brand.",
+  "status": true
+}
+```
+
+### Fields
+
+| Field | Type | Required | Rules |
+|---|---|---|---|
+| name | string | No | Maximum 255 characters; unique excluding the current brand |
+| slug | string | No | Maximum 255 characters; unique excluding the current brand |
+| logo | string/null | No | Nullable; maximum 255 characters |
+| description | string/null | No | Nullable string |
+| status | boolean | No | Controls visibility |
+
+When a field is omitted, its existing value is preserved.
+
+An explicitly supplied `null` clears `logo` or `description`.
+
+An empty request body is rejected.
+
+Unsupported fields are rejected. In particular, `id`, `is_active`,
+`deleted_at`, `created_at` and `updated_at` cannot be modified.
+
+Hidden brands can still be managed by ID. This allows administrators to
+update and reactivate a hidden brand.
+
+### Success response
+
+HTTP `200 OK`
+
+```json
+{
+  "message": "Brand updated successfully.",
+  "data": {
+    "brand": {
+      "id": 1,
+      "name": "Samsung Electronics",
+      "slug": "samsung-electronics",
+      "logo": "brands/samsung.png",
+      "description": "Samsung Electronics smartphone brand.",
+      "status": true,
+      "created_at": "2026-11-03T08:00:00.000000Z",
+      "updated_at": "2026-11-03T09:00:00.000000Z"
+    }
+  }
+}
+```
+
+### Error responses
+
+| Status | Meaning |
+|---|---|
+| `401 Unauthorized` | No authenticated user |
+| `403 Forbidden` | Inactive account or missing `brands.manage` permission |
+| `404 Not Found` | Brand does not exist |
+| `422 Unprocessable Content` | Invalid fields, duplicate name/slug, empty payload or unsupported fields |
 
 ## 4. Delete brand
 
 **DELETE** `/api/brands/{id}`
 
-Not implemented yet. The intended policy is to physically delete only when
-no products reference the brand. When deletion is unsafe, the API will return
-`409 Conflict` and the brand should be hidden by setting `status` to `false`.
+Not implemented yet.
+
+The intended policy is to physically delete only when no products reference
+the brand. When deletion is unsafe, the API will return `409 Conflict`
+and the brand should be hidden by setting `status` to `false`.
