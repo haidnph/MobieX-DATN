@@ -1,4 +1,3 @@
-
 # Brands API
 
 Base URL: `/api`
@@ -198,8 +197,8 @@ An empty request body is rejected.
 Unsupported fields are rejected. In particular, `id`, `is_active`,
 `deleted_at`, `created_at` and `updated_at` cannot be modified.
 
-Hidden brands can still be managed by ID. This allows administrators to
-update and reactivate a hidden brand.
+Hidden brands can still be managed by ID. This allows administrators
+to update and reactivate a hidden brand.
 
 ### Success response
 
@@ -236,8 +235,106 @@ HTTP `200 OK`
 
 **DELETE** `/api/brands/{id}`
 
-Not implemented yet.
+Deletes a brand only when referential integrity is preserved.
 
-The intended policy is to physically delete only when no products reference
-the brand. When deletion is unsafe, the API will return `409 Conflict`
-and the brand should be hidden by setting `status` to `false`.
+### Authentication
+
+Required: Sanctum bearer token.
+
+### Permission
+
+`brands.manage`
+
+The authenticated account must also be active.
+
+### Deletion policy
+
+The Brands module uses physical deletion instead of soft deletion.
+
+The `status` field is reserved for visibility:
+
+- `true`: visible to public read endpoints.
+- `false`: hidden from public read endpoints.
+
+A hidden brand can still be updated, reactivated or deleted by an
+authorized administrator.
+
+### Product reference protection
+
+The Product/Stock module owns the `products` table and its migration.
+
+The Brands module must never create a placeholder products table.
+
+When the products table does not exist, deletion is permitted because
+there are currently no records in that table that can reference the brand.
+
+When the products table exists, the following requirements apply:
+
+1. `products.brand_id` must exist.
+2. `products.brand_id` must reference `brands.id`.
+3. The foreign key must use `ON DELETE RESTRICT` or `ON DELETE NO ACTION`.
+4. No product may currently reference the brand.
+
+If any of these requirements cannot be verified, deletion is rejected
+with `409 Conflict`.
+
+The API also translates foreign-key violations reported by the database
+into a safe `409 Conflict` response.
+
+The Product/Stock migration owner must maintain the restrictive foreign
+key when integrating the products table.
+
+### Conflict handling
+
+When a product references a brand:
+
+```http
+HTTP/1.1 409 Conflict
+```
+
+```json
+{
+  "message": "Brand cannot be deleted while products reference it. Set status to false to hide the brand instead."
+}
+```
+
+To hide the brand instead:
+
+**PATCH** `/api/brands/{id}`
+
+```json
+{
+  "status": false
+}
+```
+
+### Success response
+
+HTTP `200 OK`
+
+```json
+{
+  "message": "Brand deleted successfully."
+}
+```
+
+### Error responses
+
+| Status | Meaning |
+|---|---|
+| `401 Unauthorized` | No authenticated user |
+| `403 Forbidden` | Inactive account or missing `brands.manage` permission |
+| `404 Not Found` | Brand does not exist |
+| `409 Conflict` | Product reference exists, Product schema is incomplete or a database foreign-key constraint prevents deletion |
+
+### Transaction and concurrency protection
+
+The deletion operation runs inside a database transaction.
+
+The target brand is locked using `lockForUpdate()`.
+
+The Product foreign key is required as the final protection against
+concurrent product creation and accidental deletion of referenced
+brands.
+
+The application must never bypass referential integrity constraints.
