@@ -3,7 +3,7 @@
 **Module:** A-03 — Attributes  
 **Branch:** `feature/catalog-attributes`  
 **Backend owner:** Kiên  
-**Status:** Contract accepted; Commit 02 schema, Commit 03 public read endpoints and Commit 04 attribute management endpoints implemented; Attribute Values and category assignments pending
+**Status:** Contract accepted; Commits 02–05 implemented and locally verified; category assignments pending
 
 ## 1. Overview
 
@@ -40,8 +40,13 @@ The existing ProductVariant code already references:
 - `variant_attribute_values`
 - `attribute_value_ids`
 
-However, the current develop branch does not contain migrations
-for the Attributes or ProductVariant-related tables.
+The current develop branch includes the three A-03 migrations for
+`attributes`, `attribute_values`, and `attribute_category` (Commit 02).
+
+No migration for `products`, `product_variants`, or
+`variant_attribute_values` is present in the Laravel migration chain.
+Those Product/Stock integration tables remain outside A-03's migration
+scope and must not be recreated by this module.
 
 The existing ProductVariant controller is not registered as
 an API route in `routes/api.php`.
@@ -352,10 +357,10 @@ PATCH:
 
 | Method | Endpoint | Description |
 |---|---|---|
-| GET | /api/attributes/{attributeId}/values | List values |
-| POST | /api/attributes/{attributeId}/values | Create value |
-| PATCH | /api/attributes/{attributeId}/values/{valueId} | Update value |
-| DELETE | /api/attributes/{attributeId}/values/{valueId} | Delete value |
+| GET | /api/attributes/{attribute}/values | List values |
+| POST | /api/attributes/{attribute}/values | Create value |
+| PATCH | /api/attributes/{attribute}/values/{value} | Update value |
+| DELETE | /api/attributes/{attribute}/values/{value} | Delete value |
 
 GET:
 
@@ -798,3 +803,87 @@ or pivot table.
 - Not-found behavior.
 
 All tests run using the configured test database.
+
+## 16. Attribute Values API implementation — Commit 05
+
+The Attribute Values API is implemented through
+`AttributeValueController` and reuses the existing
+`AttributeValueResource` and `AttributeValue` model.
+
+### 16.1. Routes and authorization
+
+| Method | Endpoint | Access |
+|---|---|---|
+| GET | `/api/attributes/{attribute}/values` | Public |
+| POST | `/api/attributes/{attribute}/values` | `auth:sanctum`, `active`, `permission:attributes.manage` |
+| PATCH | `/api/attributes/{attribute}/values/{value}` | `auth:sanctum`, `active`, `permission:attributes.manage` |
+| DELETE | `/api/attributes/{attribute}/values/{value}` | `auth:sanctum`, `active`, `permission:attributes.manage` |
+
+The implementation uses implicit Attribute model binding. PATCH and DELETE
+use scoped nested binding through `Attribute::values()`, so a value belonging
+to another attribute returns HTTP 404. Administrators may still manage
+hidden attributes and values by ID. Public listing returns HTTP 404 when the
+parent attribute is hidden or nonexistent.
+
+### 16.2. Listing
+
+- Return active values only (`status = true`).
+- Order by `sort_order ASC`, then `id ASC`.
+- Return all matching values; this endpoint is not paginated.
+- Use `AttributeValueResource` and the existing list response envelope.
+
+### 16.3. Create and update validation
+
+- `value` is required on create, string, maximum 255 characters.
+- `value` must be unique within the URL attribute. The same value may be
+  used under a different attribute.
+- PATCH is partial, requires at least one supported field, and rejects
+  unsupported fields.
+- `sort_order` is optional, integer, and at least zero.
+- `status` is optional boolean.
+- Omitted `sort_order` and `status` use database defaults on create;
+  explicitly supplied null values are rejected for these NOT NULL columns.
+- `color_code` is optional and nullable. Non-null values are accepted only
+  for attributes whose type is `color`.
+- Color codes use `#RGB` or `#RRGGBB` hexadecimal notation. This format is
+  the implementation's explicit interpretation of the contract's
+  "valid hexadecimal color code" requirement.
+- A null `color_code` remains accepted for non-color attributes, matching
+  the documented request example.
+
+### 16.4. Parent ownership and visibility
+
+- Create always associates the value through the bound parent Attribute;
+  clients cannot submit `attribute_id`.
+- Update and delete are scoped to the parent in the URL.
+- A value belonging to another parent returns HTTP 404.
+- Hidden values are omitted from public listing but remain manageable by ID.
+
+### 16.5. Safe deletion and ProductVariant dependency
+
+- When `variant_attribute_values` does not exist, the ProductVariant
+  integration schema is not present in this database and an otherwise
+  unreferenced value may be deleted.
+- When the pivot exists, it must contain `attribute_value_id` and a foreign
+  key to `attribute_values.id` using `RESTRICT` or `NO ACTION`.
+- If that column or restrictive foreign key cannot be verified, deletion
+  fails closed with HTTP 409.
+- If any ProductVariant references the value, deletion returns HTTP 409.
+- A database foreign-key violation from any other dependency is also
+  translated to HTTP 409.
+- Set `status = false` to hide a value that cannot be deleted.
+- No ProductVariant or pivot migration is created by Commit 05.
+
+### 16.6. Response conventions
+
+- List: HTTP 200, `message` and `data` collection.
+- Create: HTTP 201, `message` and `data.attribute_value`.
+- Update: HTTP 200, `message` and `data.attribute_value`.
+- Delete: HTTP 200, `message` only.
+- Validation: HTTP 422 using Laravel's standard JSON validation envelope.
+- Missing parent/value or a value under another parent: HTTP 404.
+- Unsafe or referenced deletion: HTTP 409.
+
+Feature coverage is in `AttributeValueApiTest` and includes public visibility,
+authorization, defaults, duplicate detection, color validation, nested
+ownership, partial updates, and ProductVariant reference protection.
