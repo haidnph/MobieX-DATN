@@ -3,7 +3,7 @@
 **Module:** A-03 — Attributes  
 **Branch:** `feature/catalog-attributes`  
 **Backend owner:** Kiên  
-**Status:** Contract accepted; Commits 02–05 implemented and locally verified; category assignments pending
+**Status:** Contract accepted; Commits 02–05 implemented and locally verified; Commit 06 implementation prepared for local verification
 
 ## 1. Overview
 
@@ -405,7 +405,11 @@ GET:
 
 - Public endpoint.
 - Return active attributes assigned directly to the category.
+- The category must exist and be visible; a hidden or nonexistent
+  category returns HTTP 404.
 - Do not inherit attributes from parent categories.
+- Order by `sort_order ASC`, then `id ASC`.
+- Return an empty `attributes` collection when no active assignments exist.
 
 PUT example:
 
@@ -417,13 +421,19 @@ Rules:
 
 - Requires Sanctum and `attributes.manage`.
 - Category must exist.
-- `attribute_ids` must be an array.
-- All IDs must exist.
+- Hidden categories remain manageable by an authorized administrator
+  through their IDs.
+- `attribute_ids` must be a JSON list.
+- All IDs must be positive integers and must exist.
 - Duplicate IDs are rejected.
-- Empty array removes all existing assignments.
+- Existing hidden attributes may be assigned by ID.
+- An empty array removes all existing assignments.
+- Unsupported payload fields are rejected.
 - Use a database transaction.
 - Use Eloquent `sync()` to replace assignments.
-- Return the resulting assignments.
+- Return all resulting assignments, including hidden attributes,
+  ordered by `sort_order ASC`, then `id ASC`.
+- Public GET continues to filter hidden attributes.
 
 ## 9. Response conventions
 
@@ -481,6 +491,32 @@ HTTP 200.
     {
       "message": "Attribute deleted successfully."
     }
+
+### Category attribute list
+
+HTTP 200.
+
+    {
+      "message": "Category attributes retrieved successfully.",
+      "data": {
+        "attributes": []
+      }
+    }
+
+### Category attribute replacement
+
+HTTP 200.
+
+    {
+      "message": "Category attributes updated successfully.",
+      "data": {
+        "attributes": []
+      }
+    }
+
+The returned collection reflects the final persisted assignments.
+The PUT response may include hidden attributes assigned by an administrator;
+the public GET endpoint excludes those hidden attributes.
 
 ### Validation errors
 
@@ -562,15 +598,27 @@ Do not introduce a new response envelope for this module.
 
 ### Category assignment tests
 
-- List direct assignments.
-- Assign multiple attributes.
+- Public GET without authentication.
+- List active attributes assigned directly.
+- Stable ordering.
+- Empty assignment collection.
+- Hidden category returns 404 on public GET.
+- Missing category returns 404.
+- Parent assignments are not inherited.
+- PUT requires authentication.
+- PUT requires active account.
+- PUT requires `attributes.manage`.
 - Replace existing assignments.
-- Remove all assignments.
-- Reject duplicate IDs.
-- Reject nonexistent category.
-- Reject nonexistent attribute.
-- No parent-to-child inheritance.
-- 401 and 403.
+- Repeating PUT is idempotent.
+- Empty array removes all assignments.
+- Hidden attributes can be assigned by ID.
+- Hidden category can be managed by ID.
+- Duplicate IDs are rejected.
+- Nonexistent attribute IDs are rejected.
+- Invalid ID types are rejected.
+- Associative arrays are rejected.
+- Unsupported fields are rejected.
+- Invalid payloads do not partially change assignments.
 
 ### ProductVariant integration tests
 
@@ -887,3 +935,172 @@ parent attribute is hidden or nonexistent.
 Feature coverage is in `AttributeValueApiTest` and includes public visibility,
 authorization, defaults, duplicate detection, color validation, nested
 ownership, partial updates, and ProductVariant reference protection.
+
+## 17. Category Attribute assignment implementation — Commit 06
+
+Category Attribute assignment endpoints are implemented through
+`CategoryAttributeController` and reuse the existing
+`Category::attributes()` relationship and `AttributeResource`.
+
+No migration, model, resource, seeder or permission is introduced.
+
+### 17.1. Routes
+
+| Method | Endpoint | Controller action |
+|---|---|---|
+| GET | `/api/categories/{categoryId}/attributes` | `CategoryAttributeController@index` |
+| PUT | `/api/categories/{categoryId}/attributes` | `CategoryAttributeController@sync` |
+
+### 17.2. Public GET
+
+- The endpoint does not require authentication.
+- The category must exist and have `status = true`; otherwise return HTTP 404.
+- Only attributes directly assigned through `attribute_category` are returned.
+- Only attributes with `status = true` are returned.
+- Parent category assignments are not inherited.
+- Results are ordered by `attributes.sort_order ASC`, then
+  `attributes.id ASC`.
+- The endpoint returns an empty `data.attributes` collection when no
+  active direct assignments exist.
+- The endpoint does not paginate its result.
+- The response uses `AttributeResource`.
+- Values are not loaded by this endpoint.
+
+### 17.3. PUT authorization
+
+The replacement endpoint requires:
+
+- `auth:sanctum`
+- `active`
+- `permission:attributes.manage`
+
+The existing RBAC permission is reused.
+
+No `categories.manage` permission is required for this endpoint because
+the operation belongs to the A-03 Attribute assignment contract.
+
+### 17.4. Request validation
+
+The request accepts only:
+
+    {
+      "attribute_ids": [1, 2, 3]
+    }
+
+Validation rules:
+
+- `attribute_ids` must be present.
+- `attribute_ids` must be an array.
+- `attribute_ids` must be a JSON list.
+- Every element must be a positive integer.
+- Every ID must exist in the `attributes` table.
+- Duplicate IDs are rejected.
+- Unsupported top-level fields are rejected.
+- An empty list is valid and removes all current assignments.
+
+Hidden attributes may be assigned because the management contract requires
+existing IDs; visibility is enforced separately by public GET.
+
+### 17.5. Replacement semantics and transaction safety
+
+The controller replaces assignments using Eloquent `sync()` inside a
+database transaction.
+
+The transaction:
+
+1. Locks selected Attribute rows in ascending ID order.
+2. Verifies that all selected IDs still exist.
+3. Locks the target Category row.
+4. Calls `Category::attributes()->sync($attributeIds)`.
+5. Retrieves the final persisted assignment collection.
+
+Locking selected Attribute rows protects the assignment operation against
+an Attribute deletion occurring between request validation and pivot sync.
+
+Locking the Category row serializes concurrent replacement requests for
+the same category on database engines that support row-level locking.
+
+If an Attribute disappears between validation and transaction execution,
+the request fails with HTTP 422 and no assignment replacement is committed.
+
+Database foreign keys remain the final integrity guarantee.
+
+### 17.6. Visibility and hidden records
+
+Public GET:
+
+- Does not return hidden categories.
+- Does not return hidden attributes.
+- Does not return inherited parent assignments.
+
+Authorized PUT:
+
+- Can manage a hidden Category by ID.
+- Can assign an existing hidden Attribute.
+- Returns the final assignment state, including hidden Attributes.
+
+A hidden Attribute assigned through PUT remains invisible in the public
+GET response.
+
+### 17.7. Response conventions
+
+GET returns HTTP 200:
+
+    {
+      "message": "Category attributes retrieved successfully.",
+      "data": {
+        "attributes": []
+      }
+    }
+
+PUT returns HTTP 200:
+
+    {
+      "message": "Category attributes updated successfully.",
+      "data": {
+        "attributes": []
+      }
+    }
+
+The `attributes` list contains the resulting direct assignments,
+ordered by `sort_order ASC`, then `id ASC`.
+
+### 17.8. Error handling
+
+| Status | Meaning |
+|---|---|
+| 200 | Assignments retrieved or replaced successfully |
+| 401 | Unauthenticated PUT request |
+| 403 | Inactive account or missing `attributes.manage` permission |
+| 404 | Category not found; public GET also hides inactive categories |
+| 422 | Missing/invalid array, duplicate IDs, nonexistent IDs, unsupported fields, or stale Attribute IDs |
+
+### 17.9. Feature Tests
+
+`CategoryAttributeAssignmentTest` covers:
+
+- Public GET access.
+- Direct assignment listing.
+- Stable ordering.
+- Empty assignment collection.
+- Hidden category visibility.
+- Missing category behavior.
+- No parent-to-child inheritance.
+- Authentication and permission enforcement.
+- Inactive account rejection.
+- Replacing assignments.
+- Idempotent replacement.
+- Empty array removal.
+- Assigning hidden attributes.
+- Managing hidden categories through authorized PUT.
+- Duplicate ID rejection.
+- Nonexistent ID rejection.
+- Invalid ID type and value rejection.
+- Associative array rejection.
+- Missing `attribute_ids`.
+- Unsupported fields.
+- Not-found behavior.
+- Ensuring invalid payloads do not partially replace existing assignments.
+
+All tests use the configured test database. No Product, ProductVariant,
+Stock or ProductVariant pivot schema is created by this commit.
