@@ -14,6 +14,7 @@ use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Catalog\AttributeController;
 use App\Http\Controllers\Catalog\AttributeValueController;
 use App\Http\Controllers\Catalog\BrandController;
+use App\Http\Controllers\Catalog\CategoryAttributeController;
 use App\Http\Controllers\Catalog\CategoryController;
 use App\Http\Controllers\Profile\ProfileController;
 use Illuminate\Support\Facades\Route;
@@ -78,6 +79,19 @@ Route::get(
     ->whereNumber('id')
     ->name('api.categories.show');
 
+/*
+ * Public Category Attribute assignments.
+ *
+ * Returns active attributes directly assigned to the category.
+ * No parent-to-child inheritance is performed.
+ */
+Route::get(
+    '/categories/{categoryId}/attributes',
+    [CategoryAttributeController::class, 'index'],
+)
+    ->whereNumber('categoryId')
+    ->name('api.categories.attributes.index');
+
 Route::get(
     '/brands',
     [BrandController::class, 'index'],
@@ -102,6 +116,12 @@ Route::get(
     ->whereNumber('id')
     ->name('api.attributes.show');
 
+/*
+|--------------------------------------------------------------------------
+| Public Attribute Value Read Endpoint
+|--------------------------------------------------------------------------
+*/
+
 Route::get(
     '/attributes/{attribute}/values',
     [AttributeValueController::class, 'index'],
@@ -111,10 +131,10 @@ Route::get(
 
 /*
 |--------------------------------------------------------------------------
-| Attribute Management Endpoints
+| Attribute and Category Attribute Management
 |--------------------------------------------------------------------------
 |
-| All attribute write endpoints require:
+| All write endpoints in this group require:
 | - Sanctum authentication.
 | - An active user account.
 | - attributes.manage permission.
@@ -126,6 +146,8 @@ Route::middleware([
     'active',
     'permission:attributes.manage',
 ])->group(function (): void {
+    // Attribute management
+
     Route::post(
         '/attributes',
         [AttributeController::class, 'store'],
@@ -144,6 +166,8 @@ Route::middleware([
     )
         ->whereNumber('id')
         ->name('api.attributes.destroy');
+
+    // AttributeValue management
 
     Route::post(
         '/attributes/{attribute}/values',
@@ -169,6 +193,15 @@ Route::middleware([
         ->whereNumber('value')
         ->scopeBindings()
         ->name('api.attributes.values.destroy');
+
+    // Replace all direct category attribute assignments.
+
+    Route::put(
+        '/categories/{categoryId}/attributes',
+        [CategoryAttributeController::class, 'sync'],
+    )
+        ->whereNumber('categoryId')
+        ->name('api.categories.attributes.sync');
 });
 
 /*
@@ -250,6 +283,7 @@ Route::middleware([
     'active',
 ])->group(function (): void {
     // Profile
+
     Route::get(
         '/profile',
         [ProfileController::class, 'show'],
@@ -266,6 +300,7 @@ Route::middleware([
     )->name('api.profile.password.update');
 
     // Address book
+
     Route::get(
         '/addresses',
         [AddressController::class, 'index'],
