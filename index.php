@@ -20,6 +20,7 @@ require_once __DIR__
 
 require_once __DIR__
     . '/app/Controllers/ReviewController.php';
+require_once __DIR__ . '/app/Controllers/CheckoutController.php';
 
 // Remember login
 require_once __DIR__
@@ -36,8 +37,10 @@ $slug = filter_input(
 
 $slug = strtolower(trim($slug));
 
-// Trang đánh giá
-if ($slug === 'reviews') {
+// Trang đặt hàng: xử lý POST và lưu đơn vào cùng DB với Admin
+if ($slug === 'checkout') {
+    (new CheckoutController())->handle();
+} elseif ($slug === 'reviews') {
 
     (new ReviewController())->handle();
 
