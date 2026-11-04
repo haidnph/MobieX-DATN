@@ -13,6 +13,7 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 
 require_once __DIR__ . '/app/Models/User.php';
 require_once __DIR__ . '/app/Models/Dashboard.php';
+require_once __DIR__ . '/app/Models/AdminOperations.php';
 require_once __DIR__ . '/app/Models/Reviews.php';
 require_once __DIR__ . '/app/Models/Promotions.php';
 require_once __DIR__ . '/app/Support/Csrf.php';
@@ -39,6 +40,36 @@ try {
     if (!$admin || ($admin['role'] ?? '') !== 'admin') {
         http_response_code(403);
         exit('403 - Ban khong co quyen truy cap Admin.');
+    }
+
+    // ACTIONS - recent orders & low-stock management
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' &&
+        in_array((string)($_POST['admin_action'] ?? ''), ['order_set_status', 'product_restock'], true)) {
+        if (!Csrf::valid($_POST['_csrf'] ?? null)) {
+            http_response_code(419);
+            exit('Phiên bảo mật hết hạn. Hãy tải lại trang.');
+        }
+        $action = (string)$_POST['admin_action'];
+        try {
+            if ($action === 'order_set_status') {
+                $id = filter_var($_POST['order_id'] ?? null, FILTER_VALIDATE_INT);
+                if (!$id) throw new InvalidArgumentException('ID đơn hàng không hợp lệ.');
+                AdminOperations::changeOrderStatus((int)$id, (string)($_POST['status'] ?? ''));
+                $_SESSION['_order_flash'] = 'Đã cập nhật trạng thái đơn hàng.';
+            } else {
+                $id = filter_var($_POST['product_id'] ?? null, FILTER_VALIDATE_INT);
+                $quantity = filter_var($_POST['quantity'] ?? null, FILTER_VALIDATE_INT);
+                if (!$id || !$quantity) throw new InvalidArgumentException('ID sản phẩm hoặc số lượng không hợp lệ.');
+                AdminOperations::restock((int)$id, (int)$quantity);
+                $_SESSION['_inventory_flash'] = 'Đã nhập thêm hàng thành công.';
+            }
+        } catch (Throwable $e) {
+            error_log('MobileX admin order/inventory: ' . $e->getMessage());
+            $_SESSION[$action === 'order_set_status' ? '_order_flash' : '_inventory_flash'] = $e instanceof InvalidArgumentException
+                ? $e->getMessage() : 'Lỗi cập nhật. Kiểm tra PHP error log.';
+        }
+        header('Location: admin.php#' . ($action === 'order_set_status' ? 'orders' : 'inventory'), true, 303);
+        exit;
     }
 
     // BANNER & FLASH SALE - xử lý trong chính admin.php.
@@ -178,6 +209,9 @@ function vnd($value): string {
 $stats = $data['stats'];
 $recent = $data['recent'];
 $lowStock = $data['low_stock'];
+$orderFlash = $_SESSION['_order_flash'] ?? null;
+$inventoryFlash = $_SESSION['_inventory_flash'] ?? null;
+unset($_SESSION['_order_flash'], $_SESSION['_inventory_flash']);
 
 $monthly = array_fill(0, 12, 0);
 
@@ -452,7 +486,8 @@ $statusNames = [
                 <div class="panel-title">
                     <div>
                         <h3>Đơn hàng gần đây</h3>
-                        <p>Danh sách đơn hàng mới nhất</p>
+                        <p>Danh sách 12 đơn hàng mới nhất; cập nhật trạng thái ngay tại đây</p>
+                        <?php if ($orderFlash): ?><p role="status" style="color:#9ee8b1;margin-top:8px"><?= e($orderFlash) ?></p><?php endif; ?>
                     </div>
                 </div>
 
@@ -466,6 +501,7 @@ $statusNames = [
                                 <th>Ngày đặt</th>
                                 <th>Giá trị</th>
                                 <th>Trạng thái</th>
+                                <th>Cập nhật</th>
                             </tr>
                         </thead>
 
@@ -494,12 +530,33 @@ $statusNames = [
                                         ) ?>
                                     </span>
                                 </td>
+                                <td>
+                                    <?php $nextStatuses = match ($order['status']) {
+                                        'pending' => ['confirmed' => 'Xác nhận', 'cancelled' => 'Hủy đơn'],
+                                        'confirmed' => ['shipping' => 'Đang giao', 'cancelled' => 'Hủy đơn'],
+                                        'shipping' => ['completed' => 'Hoàn thành', 'cancelled' => 'Hủy đơn'],
+                                        default => []
+                                    }; ?>
+                                    <?php if ($nextStatuses): ?>
+                                    <form method="post" action="admin.php#orders" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                                        <input type="hidden" name="_csrf" value="<?= e(Csrf::token()) ?>">
+                                        <input type="hidden" name="admin_action" value="order_set_status">
+                                        <input type="hidden" name="order_id" value="<?= (int)$order['id'] ?>">
+                                        <select name="status" required aria-label="Trạng thái đơn <?= e($order['order_code']) ?>" style="background:#172b48;color:white;padding:7px;border-radius:6px">
+                                            <?php foreach ($nextStatuses as $key => $label): ?>
+                                                <option value="<?= e($key) ?>"><?= e($label) ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                        <button type="submit" onclick="return confirm('Xác nhận cập nhật trạng thái đơn?')" style="background:#357be9;color:white;border:0;padding:7px 10px;border-radius:6px;cursor:pointer">Lưu</button>
+                                    </form>
+                                    <?php else: ?>—<?php endif; ?>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
 
                         <?php if (empty($recent)): ?>
                             <tr>
-                                <td colspan="5" class="empty">
+                                <td colspan="6" class="empty">
                                     Chưa có đơn hàng nào.
                                 </td>
                             </tr>
@@ -518,7 +575,8 @@ $statusNames = [
                 <div class="panel-title">
                     <div>
                         <h3>Cảnh báo tồn kho</h3>
-                        <p>Sản phẩm có số lượng dưới 5 chiếc</p>
+                        <p>Sản phẩm tồn kho từ 0 đến 4 chiếc; có thể nhập bổ sung</p>
+                        <?php if ($inventoryFlash): ?><p role="status" style="color:#9ee8b1;margin-top:8px"><?= e($inventoryFlash) ?></p><?php endif; ?>
                     </div>
 
                     <span class="warning-tag">
@@ -535,6 +593,7 @@ $statusNames = [
                                 <th>Sản phẩm</th>
                                 <th>Giá bán</th>
                                 <th>Tồn kho</th>
+                                <th>Nhập thêm</th>
                             </tr>
                         </thead>
 
@@ -556,12 +615,21 @@ $statusNames = [
                                         chiếc
                                     </span>
                                 </td>
+                                <td>
+                                    <form method="post" action="admin.php#inventory" style="display:flex;gap:6px;align-items:center">
+                                        <input type="hidden" name="_csrf" value="<?= e(Csrf::token()) ?>">
+                                        <input type="hidden" name="admin_action" value="product_restock">
+                                        <input type="hidden" name="product_id" value="<?= (int)$product['id'] ?>">
+                                        <input name="quantity" type="number" min="1" max="100000" value="5" required aria-label="Số lượng nhập thêm" style="width:76px;background:#172b48;color:white;padding:7px;border-radius:6px">
+                                        <button type="submit" style="background:#357be9;color:white;border:0;padding:7px 10px;border-radius:6px;cursor:pointer">Nhập</button>
+                                    </form>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
 
                         <?php if (empty($lowStock)): ?>
                             <tr>
-                                <td colspan="4" class="empty">
+                                <td colspan="5" class="empty">
                                     Không có sản phẩm sắp hết.
                                 </td>
                             </tr>
@@ -610,11 +678,6 @@ $statusNames = [
                           <td><strong><?= e($review['reviewer']) ?></strong><small><?= e($review['product_name']) ?></small></td>
                           <td><span class="review-stars"><?= str_repeat('★', max(0, min(5, (int)$review['rating']))) ?></span></td>
                           <td class="review-comment"><?= nl2br(e($review['content'])) ?>
-                          <?php if (!empty($review['image_path'])): ?>
-                              <a href="<?= e($review['image_path']) ?>" target="_blank" rel="noopener noreferrer" title="Xem ảnh khách gửi">
-                                  <img src="<?= e($review['image_path']) ?>" alt="Ảnh đánh giá" loading="lazy" style="display:block;width:88px;height:88px;object-fit:cover;border-radius:8px;margin:10px 0;">
-                              </a>
-                          <?php endif; ?>
                           <?php if (Reviews::flagged((string)$review['content'])): ?><small class="review-warning">⚠ Nghi chứa từ ngữ thô tục — cần kiểm tra</small><?php endif; ?>
                           <?php if (!empty($review['moderation_reason'])): ?><small>Lý do ẩn: <?= e($review['moderation_reason']) ?></small><?php endif; ?>
                           </td>
