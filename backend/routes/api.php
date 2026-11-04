@@ -12,6 +12,7 @@ use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Catalog\AttributeController;
+use App\Http\Controllers\Catalog\AttributeValueController;
 use App\Http\Controllers\Catalog\BrandController;
 use App\Http\Controllers\Catalog\CategoryController;
 use App\Http\Controllers\Profile\ProfileController;
@@ -101,6 +102,13 @@ Route::get(
     ->whereNumber('id')
     ->name('api.attributes.show');
 
+Route::get(
+    '/attributes/{attribute}/values',
+    [AttributeValueController::class, 'index'],
+)
+    ->whereNumber('attribute')
+    ->name('api.attributes.values.index');
+
 /*
 |--------------------------------------------------------------------------
 | Attribute Management Endpoints
@@ -136,6 +144,31 @@ Route::middleware([
     )
         ->whereNumber('id')
         ->name('api.attributes.destroy');
+
+    Route::post(
+        '/attributes/{attribute}/values',
+        [AttributeValueController::class, 'store'],
+    )
+        ->whereNumber('attribute')
+        ->name('api.attributes.values.store');
+
+    Route::patch(
+        '/attributes/{attribute}/values/{value}',
+        [AttributeValueController::class, 'update'],
+    )
+        ->whereNumber('attribute')
+        ->whereNumber('value')
+        ->scopeBindings()
+        ->name('api.attributes.values.update');
+
+    Route::delete(
+        '/attributes/{attribute}/values/{value}',
+        [AttributeValueController::class, 'destroy'],
+    )
+        ->whereNumber('attribute')
+        ->whereNumber('value')
+        ->scopeBindings()
+        ->name('api.attributes.values.destroy');
 });
 
 /*
