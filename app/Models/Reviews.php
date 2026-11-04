@@ -26,8 +26,8 @@ final class Reviews
             "SELECT COUNT(*) AS total,
                 COALESCE(SUM(status = 'pending'), 0) AS pending,
                 COALESCE(SUM(status = 'approved'), 0) AS approved,
-                COALESCE(SUM(status = 'hidden'), 0) AS hidden
-             FROM product_reviews"
+                COALESCE(SUM(status = 'rejected'), 0) AS hidden
+             FROM reviews"
         );
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: [
             'total' => 0, 'pending' => 0, 'approved' => 0, 'hidden' => 0
@@ -43,7 +43,7 @@ final class Reviews
 
         if (in_array($status, ['pending', 'approved', 'hidden'], true)) {
             $where[] = 'r.status = :status';
-            $values['status'] = $status;
+            $values['status'] = $status === 'hidden' ? 'rejected' : $status;
         }
         if ($search !== '') {
             $where[] = '(r.content LIKE :q1 OR p.name LIKE :q2 OR u.name LIKE :q3 OR u.email LIKE :q4)';
@@ -53,16 +53,16 @@ final class Reviews
         }
 
         $filter = $where ? ' WHERE ' . implode(' AND ', $where) : '';
-        $from = ' FROM product_reviews r JOIN users u ON u.id = r.user_id JOIN products p ON p.id = r.product_id ';
+        $from = ' FROM reviews r JOIN users u ON u.id = r.user_id JOIN products p ON p.id = r.product_id ';
         $countStmt = $db->prepare('SELECT COUNT(*) ' . $from . $filter);
         $countStmt->execute($values);
         $total = (int) $countStmt->fetchColumn();
         $page = max(1, $page);
         $offset = ($page - 1) * self::PAGE_SIZE;
 
-        $sql = 'SELECT r.id, r.rating, r.content, r.status, r.created_at, r.moderation_reason, '
-            . 'u.name AS reviewer, p.name AS product_name, ' .
-            '(SELECT i.image_path FROM product_review_images i WHERE i.review_id = r.id ORDER BY i.id ASC LIMIT 1) AS image_path' . $from . $filter
+        $sql = "SELECT r.id, r.rating, r.content, CASE WHEN r.status='rejected' THEN 'hidden' ELSE r.status END AS status, r.created_at, r.admin_reply AS moderation_reason, " .
+            'u.name AS reviewer, p.name AS product_name, ' .
+            '(SELECT i.image_url FROM review_images i WHERE i.review_id = r.id ORDER BY i.id ASC LIMIT 1) AS image_path' . $from . $filter
             . " ORDER BY CASE WHEN r.status = 'pending' THEN 0 ELSE 1 END, r.created_at DESC, r.id DESC LIMIT :lim OFFSET :off";
         $stmt = $db->prepare($sql);
         foreach ($values as $key => $value) {
@@ -85,19 +85,17 @@ final class Reviews
             throw new InvalidArgumentException('Lý do ẩn phải từ 1 đến 500 ký tự.');
         }
         $db = Database::connection();
-        $role = $db->prepare('SELECT role FROM users WHERE id = :id LIMIT 1');
-        $role->execute(['id' => $adminId]);
-        if ($role->fetchColumn() !== 'admin') {
+        $role = $db->prepare("SELECT 1 FROM role_user ru JOIN roles r ON r.id=ru.role_id WHERE ru.user_id=? AND r.slug='admin' LIMIT 1");
+        $role->execute([$adminId]);
+        if (!$role->fetchColumn()) {
             throw new RuntimeException('Tài khoản không có quyền Admin.');
         }
         $stmt = $db->prepare(
-            'UPDATE product_reviews SET status = :status, moderation_reason = :reason, '
-            . 'moderated_by = :admin, moderated_at = NOW() WHERE id = :id'
+            'UPDATE reviews SET status = :status, admin_reply = :reason, replied_at = NOW() WHERE id = :id'
         );
         $stmt->execute([
-            'status' => $status,
+            'status' => $status === 'hidden' ? 'rejected' : $status,
             'reason' => $status === 'hidden' ? $reason : null,
-            'admin' => $adminId,
             'id' => $reviewId
         ]);
         return $stmt->rowCount() > 0;
@@ -110,8 +108,9 @@ final class Reviews
         $stmt = Database::connection()->prepare(
             "SELECT 1 FROM orders o
              JOIN order_items oi ON oi.order_id = o.id
-             WHERE o.user_id = :user AND oi.product_id = :product
-               AND o.status IN ('completed', 'delivered') LIMIT 1"
+             JOIN product_variants v ON v.id = oi.product_variant_id
+             WHERE o.user_id = :user AND v.product_id = :product
+               AND o.order_status = 'DELIVERED' LIMIT 1"
         );
         $stmt->execute(['user' => $userId, 'product' => $productId]);
         return (bool) $stmt->fetchColumn();
@@ -121,7 +120,7 @@ final class Reviews
     {
         if ($userId < 1 || $productId < 1) return false;
         $stmt = Database::connection()->prepare(
-            'SELECT 1 FROM product_reviews WHERE user_id = ? AND product_id = ? LIMIT 1'
+            'SELECT 1 FROM reviews WHERE user_id = ? AND product_id = ? LIMIT 1'
         );
         $stmt->execute([$userId, $productId]);
         return (bool) $stmt->fetchColumn();
@@ -147,9 +146,9 @@ final class Reviews
         $db = Database::connection();
         $db->beginTransaction();
         try {
-            // Schema chuẩn: ảnh nằm trong product_review_images, KHÔNG nằm trong product_reviews.
+            // Schema chuẩn: ảnh nằm trong review_images, KHÔNG nằm trong reviews.
             $stmt = $db->prepare(
-                "INSERT INTO product_reviews (user_id, product_id, rating, content, status)
+                "INSERT INTO reviews (user_id, product_id, rating, content, status)
                  VALUES (:user, :product, :rating, :content, 'pending')"
             );
             $stmt->execute([
@@ -159,7 +158,7 @@ final class Reviews
             $reviewId = (int) $db->lastInsertId();
             if ($imagePath !== null) {
                 $imageStmt = $db->prepare(
-                    'INSERT INTO product_review_images (review_id, image_path) VALUES (:review, :path)'
+                    'INSERT INTO review_images (review_id, image_url) VALUES (:review, :path)'
                 );
                 $imageStmt->execute(['review' => $reviewId, 'path' => $imagePath]);
             }
@@ -175,9 +174,9 @@ final class Reviews
     {
         $stmt = Database::connection()->prepare(
             "SELECT r.id, r.rating, r.content, r.content AS comment,
-                    (SELECT i.image_path FROM product_review_images i WHERE i.review_id = r.id ORDER BY i.id ASC LIMIT 1) AS image_path,
+                    (SELECT i.image_url FROM review_images i WHERE i.review_id = r.id ORDER BY i.id ASC LIMIT 1) AS image_path,
                     r.created_at, u.name
-             FROM product_reviews r
+             FROM reviews r
              JOIN users u ON u.id = r.user_id
              WHERE r.product_id = :product AND r.status = 'approved'
              ORDER BY r.created_at DESC, r.id DESC LIMIT 100"
@@ -198,7 +197,7 @@ final class Reviews
     {
         $stmt = Database::connection()->prepare(
             "SELECT COUNT(*) AS total, COALESCE(ROUND(AVG(rating), 1), 0) AS average
-             FROM product_reviews WHERE product_id = ? AND status = 'approved'"
+             FROM reviews WHERE product_id = ? AND status = 'approved'"
         );
         $stmt->execute([$productId]);
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: ['total' => 0, 'average' => 0];
