@@ -11,6 +11,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\Catalog\AttributeController;
 use App\Http\Controllers\Catalog\BrandController;
 use App\Http\Controllers\Catalog\CategoryController;
 use App\Http\Controllers\Profile\ProfileController;
@@ -87,6 +88,18 @@ Route::get(
 )
     ->whereNumber('id')
     ->name('api.brands.show');
+
+Route::get(
+    '/attributes',
+    [AttributeController::class, 'index'],
+)->name('api.attributes.index');
+
+Route::get(
+    '/attributes/{id}',
+    [AttributeController::class, 'show'],
+)
+    ->whereNumber('id')
+    ->name('api.attributes.show');
 
 /*
 |--------------------------------------------------------------------------

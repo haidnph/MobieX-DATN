@@ -3,7 +3,7 @@
 **Module:** A-03 — Attributes  
 **Branch:** `feature/catalog-attributes`  
 **Backend owner:** Kiên  
-**Status:** Initial API and database contract
+**Status:** Contract accepted; Commit 02 schema and Commit 03 public read endpoints implemented; write endpoints pending
 
 ## 1. Overview
 
@@ -662,3 +662,26 @@ AttributeValues against accidental physical deletion.
 
 The one-value-per-attribute rule is enforced at
 the application layer.
+
+## 14. Attribute read API implementation — Commit 03
+
+The public read endpoints are implemented as follows:
+
+- `GET /api/attributes` returns visible attributes only (`status = true`).
+- The list uses Laravel pagination with a fixed default page size of 15.
+- Results are ordered by `sort_order ASC`, then `id ASC` for stable pagination.
+- `page` selects the requested pagination page.
+- `category_id` filters attributes assigned directly to the specified category.
+  Child categories do not inherit assignments from their parents.
+- `type` accepts the supported values `select` and `color`.
+- Invalid `category_id` or `type` filters return the standard JSON validation
+  response with HTTP 422.
+- List items do not include nested values.
+- `GET /api/attributes/{id}` returns a visible attribute and its visible
+  AttributeValues only, ordered by `sort_order ASC`, then `id ASC`.
+- A hidden or nonexistent attribute returns HTTP 404.
+- Both endpoints are public and do not require Sanctum authentication.
+
+The read API uses `AttributeResource` and `AttributeValueResource` and is
+covered by `AttributeReadTest`, including public access, visibility, ordering,
+pagination, category/type filtering, nested values, and not-found behavior.
