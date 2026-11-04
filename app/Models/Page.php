@@ -4,9 +4,9 @@ declare(strict_types=1);
 final class Page
 {
     private const ROUTES = [
-        'home' => ['view' => 'store/home.php', 'title' => 'MobileX | Trang chủ'],
-        'products' => ['view' => 'store/products.php', 'title' => 'MobileX | Sản phẩm'],
-        'detail' => ['view' => 'store/detail.php', 'title' => 'MobileX | Chi tiết sản phẩm'],
+        'home' => ['view' => 'store/home-live.php', 'title' => 'MobileX | Trang chủ'],
+        'products' => ['view' => 'store/catalog.php', 'title' => 'MobileX | Sản phẩm'],
+        'detail' => ['view' => 'store/product-detail.php', 'title' => 'MobileX | Chi tiết sản phẩm'],
         'checkout' => ['view' => 'store/checkout.php', 'title' => 'MobileX | Thanh toán'],
         'admin' => ['view' => 'admin/dashboard.php', 'title' => 'MobileX | Quản trị'],
     ];

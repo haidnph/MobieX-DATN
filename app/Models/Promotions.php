@@ -142,9 +142,11 @@ final class Promotions
     public static function activeBanners(): array
     {
         return self::db()->query("
-            SELECT id, title, image_path, target_url
-            FROM home_banners
+            SELECT id, title, image_url AS image_path, target_url
+            FROM banners
             WHERE is_active = 1
+              AND (start_at IS NULL OR start_at <= NOW())
+              AND (end_at IS NULL OR end_at >= NOW())
             ORDER BY sort_order ASC, id DESC
         ")->fetchAll(PDO::FETCH_ASSOC);
     }
@@ -428,27 +430,28 @@ final class Promotions
         $rows = self::db()->query("
             SELECT
                 p.id,
+                v.id AS variant_id,
                 p.name,
-                p.sku,
-                p.stock_quantity,
-                p.price AS original_price,
-                fp.sale_price,
+                v.sku,
+                i.available_quantity AS stock_quantity,
+                v.price AS original_price,
+                fi.sale_price,
                 f.name AS campaign_name,
-                f.ends_at,
-                GREATEST(0, TIMESTAMPDIFF(SECOND, NOW(), f.ends_at)) AS remaining_seconds
+                f.end_at AS ends_at,
+                GREATEST(0, TIMESTAMPDIFF(SECOND, NOW(), f.end_at)) AS remaining_seconds
             FROM flash_sales f
-            INNER JOIN flash_sale_products fp
-                ON fp.flash_sale_id = f.id
-            INNER JOIN products p
-                ON p.id = fp.product_id
-            WHERE f.is_active = 1
-              AND NOW() >= f.starts_at
-              AND NOW() < f.ends_at
-              AND p.stock_quantity > 0
-              AND p.is_active = 1
-              AND fp.sale_price > 0
-              AND fp.sale_price < p.price
-            ORDER BY fp.sale_price ASC, f.ends_at ASC
+            INNER JOIN flash_sale_items fi ON fi.flash_sale_id=f.id
+            INNER JOIN product_variants v ON v.id=fi.variant_id
+            INNER JOIN products p ON p.id=v.product_id
+            INNER JOIN inventories i ON i.variant_id=v.id
+            WHERE f.status='active'
+              AND NOW() >= f.start_at
+              AND NOW() < f.end_at
+              AND i.available_quantity > 0
+              AND p.status='active' AND v.status='active'
+              AND fi.sale_price > 0
+              AND fi.sale_price < v.price
+            ORDER BY fi.sale_price ASC, f.end_at ASC
         ")->fetchAll(PDO::FETCH_ASSOC);
         // Nếu các campaign trùng một sản phẩm, chọn giá sale thấp nhất.
         $unique = [];
