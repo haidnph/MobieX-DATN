@@ -38,12 +38,12 @@ final class Dashboard
             COUNT(*) AS total_orders
             FROM orders")->fetch(PDO::FETCH_ASSOC);
 
-        $recent = $db->query("SELECT o.order_code, o.total_amount, o.status, o.created_at,
+        $recent = $db->query("SELECT o.id, o.order_code, o.total_amount, o.status, o.created_at,
             COALESCE(u.name, 'Khách vãng lai') AS customer
             FROM orders o LEFT JOIN users u ON u.id = o.user_id
             ORDER BY o.created_at DESC, o.id DESC LIMIT 12")->fetchAll(PDO::FETCH_ASSOC);
 
-        $lowStock = $db->query("SELECT sku, name, price, stock_quantity
+        $lowStock = $db->query("SELECT id, sku, name, price, stock_quantity
             FROM products WHERE stock_quantity < 5
             ORDER BY stock_quantity ASC, name ASC LIMIT 50")->fetchAll(PDO::FETCH_ASSOC);
 
