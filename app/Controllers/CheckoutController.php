@@ -13,7 +13,7 @@ final class CheckoutController
             header('Location: index.php?page=login');
             exit;
         }
-        $data = ['products' => [], 'catalog' => [], 'subtotal' => 0, 'error' => null, 'message' => null, 'csrf' => Csrf::token()];
+        $data = ['products' => [], 'catalog' => [], 'shippingMethods' => [], 'addresses' => [], 'subtotal' => 0, 'error' => null, 'message' => null, 'csrf' => Csrf::token()];
         try {
             if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 if (!Csrf::valid($_POST['_csrf'] ?? null)) {
@@ -26,7 +26,9 @@ final class CheckoutController
                     $cart = $_SESSION['cart'] ?? [];
                     if ($action === 'remove') unset($cart[$productId]);
                     elseif ($action === 'add') {
-                        $next = (int)($cart[$productId] ?? 0) + 1;
+                        $addQuantity = filter_var($_POST['quantity'] ?? 1, FILTER_VALIDATE_INT, ['options'=>['min_range'=>1,'max_range'=>99]]);
+                        if(!$addQuantity) throw new InvalidArgumentException('Số lượng thêm vào giỏ không hợp lệ.');
+                        $next = (int)($cart[$productId] ?? 0) + (int)$addQuantity;
                         Checkout::assertAvailableQuantity((int)$productId, $next);
                         $cart[$productId] = $next;
                     }
@@ -48,13 +50,16 @@ final class CheckoutController
                     header('Content-Type: application/json; charset=utf-8');
                     echo json_encode(['discount' => $discount, 'message' => $discount > 0 ? 'Mã hợp lệ.' : 'Mã không hợp lệ hoặc chưa đạt giá trị đơn tối thiểu.']); return;
                 }
+                $paymentMethod=(string)($_POST['payment_method']??'COD');
                 $code = Checkout::placeCart((int)$_SESSION['user']['id'], $_SESSION['cart'] ?? [], [
                     'name' => trim((string)($_POST['shipping_name'] ?? '')), 'phone' => trim((string)($_POST['shipping_phone'] ?? '')),
                     'address' => trim((string)($_POST['shipping_address'] ?? '')), 'shipping' => (string)($_POST['shipping_method'] ?? 'standard'),
-                    'payment' => (string)($_POST['payment_method'] ?? 'COD'), 'coupon' => trim((string)($_POST['coupon'] ?? '')),
+                    'city' => trim((string)($_POST['shipping_city'] ?? '')), 'district' => trim((string)($_POST['shipping_district'] ?? '')), 'ward' => trim((string)($_POST['shipping_ward'] ?? '')),
+                    'payment' => $paymentMethod, 'coupon' => trim((string)($_POST['coupon'] ?? '')),
                 ]);
                 unset($_SESSION['cart'], $_SESSION['_cart_subtotal']);
                 $_SESSION['_checkout_success'] = 'Đặt hàng thành công! Mã đơn: ' . $code . '. Đơn đang chờ xác nhận.';
+                if($paymentMethod!=='COD'){header('Location: index.php?page=payment&code='.rawurlencode($code));exit;}
                 header('Location: index.php?page=checkout');
                 exit;
             }
@@ -76,6 +81,8 @@ final class CheckoutController
         unset($_SESSION['_checkout_success']);
         try {
             $data['catalog'] = Checkout::availableProducts();
+            $data['shippingMethods'] = Checkout::shippingMethods();
+            $data['addresses'] = Checkout::savedAddresses((int)$_SESSION['user']['id']);
             $data['products'] = Checkout::cartProducts($_SESSION['cart'] ?? []);
             $data['subtotal'] = array_reduce($data['products'], static fn(float $sum, array $p): float => $sum + (float)$p['price'] * (int)$p['quantity'], 0.0);
             $_SESSION['_cart_subtotal'] = $data['subtotal'];
