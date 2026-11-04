@@ -425,7 +425,7 @@ final class Promotions
 
     public static function liveFlashProducts(): array
     {
-        return self::db()->query("
+        $rows = self::db()->query("
             SELECT
                 p.id,
                 p.name,
@@ -434,7 +434,8 @@ final class Promotions
                 p.price AS original_price,
                 fp.sale_price,
                 f.name AS campaign_name,
-                f.ends_at
+                f.ends_at,
+                GREATEST(0, TIMESTAMPDIFF(SECOND, NOW(), f.ends_at)) AS remaining_seconds
             FROM flash_sales f
             INNER JOIN flash_sale_products fp
                 ON fp.flash_sale_id = f.id
@@ -444,7 +445,19 @@ final class Promotions
               AND NOW() >= f.starts_at
               AND NOW() < f.ends_at
               AND p.stock_quantity > 0
-            ORDER BY fp.sale_price ASC
+              AND p.is_active = 1
+              AND fp.sale_price > 0
+              AND fp.sale_price < p.price
+            ORDER BY fp.sale_price ASC, f.ends_at ASC
         ")->fetchAll(PDO::FETCH_ASSOC);
+        // Nếu các campaign trùng một sản phẩm, chọn giá sale thấp nhất.
+        $unique = [];
+        foreach ($rows as $row) {
+            $pid = (int)$row['id'];
+            if (!isset($unique[$pid])) {
+                $unique[$pid] = $row;
+            }
+        }
+        return array_values($unique);
     }
 }
