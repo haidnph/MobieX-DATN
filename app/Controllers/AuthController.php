@@ -46,12 +46,24 @@ final class AuthController
                     header('Location: ' . $data['redirect']);
                     exit;
                 }
-            } else {
-                $data['error'] = 'Chức năng gửi email đặt lại mật khẩu chưa được cấu hình.';
+            } elseif ($action === 'forgot-password') {
+                $email=strtolower(trim((string)($_POST['email']??'')));
+                if(!filter_var($email,FILTER_VALIDATE_EMAIL)) $data['error']='Email chưa hợp lệ.';
+                else {
+                    $token=User::issuePasswordReset($email);
+                    if($token){$scheme=(!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off')?'https':'http';$host=$_SERVER['HTTP_HOST']??'localhost';$base=rtrim(str_replace('\\','/',dirname($_SERVER['SCRIPT_NAME']??'/index.php')),'/.');$link=$scheme.'://'.$host.$base.'/index.php?page=reset-password&token='.rawurlencode($token);$from=getenv('MAIL_FROM')?:'no-reply@mobilex.local';$sent=mail($email,'Đặt lại mật khẩu MobileX',"Mở liên kết sau trong 1 giờ để đặt mật khẩu mới:\n\n$link",'From: '.$from);if(!$sent)error_log('MobileX password reset email could not be sent; configure PHP mail transport.');}
+                    $data['message']='Nếu email thuộc tài khoản MobileX, liên kết đặt lại mật khẩu sẽ được gửi đến hộp thư.';
+                }
+            } elseif ($action === 'reset-password') {
+                $token=(string)($_POST['token']??'');$password=(string)($_POST['password']??'');
+                if(strlen($password)<8) $data['error']='Mật khẩu mới cần ít nhất 8 ký tự.';
+                elseif(!User::resetPassword($token,$password)) $data['error']='Liên kết không hợp lệ hoặc đã hết hạn.';
+                else {$data['message']='Đã đổi mật khẩu. Bạn có thể đăng nhập.';}
             }
-        } elseif ($action === 'forgot-password' || $action === 'reset-password') {
-            $data['message'] = 'Chức năng đặt lại mật khẩu cần cấu hình dịch vụ email trước khi sử dụng.';
+        } elseif ($action === 'reset-password' && empty($_GET['token'])) {
+            $data['error']='Liên kết đặt lại mật khẩu không hợp lệ.';
         }
+        $data['resetToken']=(string)($_GET['token']??$_POST['token']??'');
 
         View::render($routes[$action][0], 'MobileX | ' . $routes[$action][1], $data);
     }

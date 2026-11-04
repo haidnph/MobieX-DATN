@@ -32,7 +32,7 @@ final class RememberLogin
                 return;
             }
             session_regenerate_id(true);
-            $_SESSION['user'] = ['id' => (int) $user['id'], 'name' => $user['name'], 'email' => $user['email']];
+            $_SESSION['user'] = ['id' => (int) $user['id'], 'name' => $user['name'], 'email' => $user['email'], 'role' => $user['role'] ?? 'customer'];
         } catch (Throwable $error) {
             error_log('MobileX remember-login restore failed: ' . $error->getMessage());
             self::clearCookie();
