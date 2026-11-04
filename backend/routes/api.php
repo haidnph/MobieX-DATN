@@ -103,6 +103,43 @@ Route::get(
 
 /*
 |--------------------------------------------------------------------------
+| Attribute Management Endpoints
+|--------------------------------------------------------------------------
+|
+| All attribute write endpoints require:
+| - Sanctum authentication.
+| - An active user account.
+| - attributes.manage permission.
+|
+*/
+
+Route::middleware([
+    'auth:sanctum',
+    'active',
+    'permission:attributes.manage',
+])->group(function (): void {
+    Route::post(
+        '/attributes',
+        [AttributeController::class, 'store'],
+    )->name('api.attributes.store');
+
+    Route::patch(
+        '/attributes/{id}',
+        [AttributeController::class, 'update'],
+    )
+        ->whereNumber('id')
+        ->name('api.attributes.update');
+
+    Route::delete(
+        '/attributes/{id}',
+        [AttributeController::class, 'destroy'],
+    )
+        ->whereNumber('id')
+        ->name('api.attributes.destroy');
+});
+
+/*
+|--------------------------------------------------------------------------
 | Category Write Endpoints
 |--------------------------------------------------------------------------
 */

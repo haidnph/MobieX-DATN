@@ -3,7 +3,7 @@
 **Module:** A-03 — Attributes  
 **Branch:** `feature/catalog-attributes`  
 **Backend owner:** Kiên  
-**Status:** Contract accepted; Commit 02 schema and Commit 03 public read endpoints implemented; write endpoints pending
+**Status:** Contract accepted; Commit 02 schema, Commit 03 public read endpoints and Commit 04 attribute management endpoints implemented; Attribute Values and category assignments pending
 
 ## 1. Overview
 
@@ -685,3 +685,116 @@ The public read endpoints are implemented as follows:
 The read API uses `AttributeResource` and `AttributeValueResource` and is
 covered by `AttributeReadTest`, including public access, visibility, ordering,
 pagination, category/type filtering, nested values, and not-found behavior.
+
+## 15. Attribute management implementation — Commit 04
+
+The following management endpoints are implemented:
+
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | /api/attributes | Create attribute |
+| PATCH | /api/attributes/{id} | Partially update attribute |
+| DELETE | /api/attributes/{id} | Delete attribute |
+
+### 15.1. Authorization
+
+All write endpoints require:
+
+- `auth:sanctum`
+- `active`
+- `permission:attributes.manage`
+
+The existing permission is reused. No permission or RBAC migration is introduced.
+
+### 15.2. Create attribute
+
+POST `/api/attributes`
+
+Required fields:
+
+- `name`: string, max 100.
+- `code`: lowercase snake_case, max 100, globally unique.
+- `type`: `select` or `color`.
+
+Optional fields:
+
+- `sort_order`: integer, 0 or greater.
+- `status`: boolean.
+
+Omitted `sort_order` and `status` use database defaults.
+
+Explicit null is rejected because both database columns are NOT NULL.
+
+Success returns HTTP 201 and an AttributeResource response.
+
+### 15.3. Update attribute
+
+PATCH `/api/attributes/{id}`
+
+- Supports partial updates.
+- At least one supported field is required.
+- Duplicate codes are rejected.
+- The current attribute is excluded from unique-code validation.
+- Unsupported fields are rejected.
+- Empty payloads are rejected.
+- Hidden attributes remain manageable by ID.
+
+Success returns HTTP 200.
+
+### 15.4. Delete attribute
+
+DELETE `/api/attributes/{id}`
+
+- Physical deletion is allowed when no ProductVariant references
+  any AttributeValue owned by the attribute.
+- Existing AttributeValues and category assignments are removed
+  through database cascade constraints.
+- Referenced values prevent deletion and return HTTP 409.
+- Set `status = false` to hide an attribute that cannot be deleted.
+
+ProductVariant integration remains conditional on the existing
+Product/Stock schema.
+
+When `variant_attribute_values` exists, the implementation
+requires:
+
+- An `attribute_value_id` column.
+- A foreign key to `attribute_values.id`.
+- `ON DELETE RESTRICT` or `NO ACTION`.
+
+If the dependency cannot be verified safely, deletion returns
+HTTP 409 instead of assuming that cascading deletion is safe.
+
+The application does not create a placeholder ProductVariant
+or pivot table.
+
+### 15.5. Error handling
+
+| Status | Meaning |
+|---|---|
+| 201 | Attribute created |
+| 200 | Attribute updated or deleted |
+| 401 | Unauthenticated |
+| 403 | Inactive account or missing permission |
+| 404 | Attribute not found |
+| 409 | Attribute deletion conflicts with references or unsafe dependency schema |
+| 422 | Validation failure |
+
+### 15.6. Feature Tests
+
+`AttributeWriteTest` covers:
+
+- Public access restrictions for all write methods.
+- Authentication and `attributes.manage` permission.
+- Inactive account rejection.
+- Creation and database defaults.
+- Duplicate code validation.
+- Supported types and code format.
+- Partial updates and unchanged unique codes.
+- Empty PATCH and unsupported fields.
+- Deletion cascades.
+- ProductVariant reference protection.
+- Missing or unsafe ProductVariant dependency schema.
+- Not-found behavior.
+
+All tests run using the configured test database.
