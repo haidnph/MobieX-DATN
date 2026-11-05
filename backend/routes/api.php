@@ -342,6 +342,11 @@ Route::middleware([
         '/cart',
         [CartController::class, 'index'],
     )->name('api.cart.index');
+
+    Route::post(
+        '/cart/items',
+        [CartController::class, 'store'],
+    )->name('api.cart.items.store');
 });
 
 /*
