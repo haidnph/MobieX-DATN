@@ -17,6 +17,17 @@ final class View
         extract($data, EXTR_SKIP);
         require $viewPath;
         $html = Translator::render((string) ob_get_clean());
+        $html = preg_replace("~<script\\b[^>]*src=[\"']https://cdn\\.tailwindcss\\.com[^\"']*[\"'][^>]*>\\s*</script>~i", '', $html) ?? $html;
+        $html = preg_replace("~<script\\b[^>]*src=[\"'][^\"']*/public/assets/js/tailwind-config\\.js[^\"']*[\"'][^>]*>\\s*</script>~i", '', $html) ?? $html;
+        $siteStylesheet = str_contains($html, 'public/assets/css/site.css')
+            ? ''
+            : '<link rel="stylesheet" href="/public/assets/css/site.css">';
+        $html = preg_replace(
+            '~</head>~i',
+            $siteStylesheet . '<link rel="stylesheet" href="/public/assets/css/tailwind.css"></head>',
+            $html,
+            1
+        ) ?? $html;
         $basePath = str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '/index.php')));
         if ($basePath === '/' || $basePath === '.') {
             $basePath = '';
