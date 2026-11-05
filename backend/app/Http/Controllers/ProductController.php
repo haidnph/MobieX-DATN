@@ -21,9 +21,19 @@ class ProductController extends Controller
             $keyword = $request->keyword;
 
             $query->where(function ($q) use ($keyword) {
-                $q->where('name', 'like', '%'.$keyword.'%')
-                    ->orWhere('slug', 'like', '%'.$keyword.'%');
+                $q->where('name', 'like', '%' . $keyword . '%')
+                    ->orWhere('slug', 'like', '%' . $keyword . '%');
             });
+        }
+
+        // Lọc theo thương hiệu
+        if ($request->filled('brand_id')) {
+            $query->where('brand_id', $request->brand_id);
+        }
+
+        // Lọc theo danh mục
+        if ($request->filled('category_id')) {
+            $query->where('category_id', $request->category_id);
         }
 
         // Lọc theo trạng thái sản phẩm
@@ -38,6 +48,7 @@ class ProductController extends Controller
             'message' => 'Lấy danh sách sản phẩm thành công',
             'data' => $products,
         ], 200);
+
     }
 
     public function show($id)
@@ -104,7 +115,7 @@ class ProductController extends Controller
         // Kiểm tra dữ liệu đầu vào
         $validated = $request->validate([
             'name' => 'sometimes|required|string|max:255',
-            'slug' => 'sometimes|required|string|max:255|unique:products,slug,'.$id,
+            'slug' => 'sometimes|required|string|max:255|unique:products,slug,' . $id,
             'description' => 'nullable|string',
             'brand_id' => 'nullable|exists:brands,id',
             'category_id' => 'nullable|exists:categories,id',
