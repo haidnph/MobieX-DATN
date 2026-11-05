@@ -17,6 +17,7 @@ use App\Http\Controllers\Catalog\BrandController;
 use App\Http\Controllers\Catalog\CategoryAttributeController;
 use App\Http\Controllers\Catalog\CategoryController;
 use App\Http\Controllers\Profile\ProfileController;
+use App\Http\Controllers\ProductController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/health', function () {
@@ -79,6 +80,10 @@ Route::get(
     ->whereNumber('id')
     ->name('api.categories.show');
 
+Route::get(
+    '/products',
+    [ProductController::class, 'index'],
+)->name('api.products.index');
 /*
  * Public Category Attribute assignments.
  *
