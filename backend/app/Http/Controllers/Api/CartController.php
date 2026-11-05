@@ -150,4 +150,90 @@ class CartController extends Controller
             'data' => $result['cart_item'],
         ]);
     }
+
+    /**
+     * Cập nhật số lượng sản phẩm trong giỏ hàng.
+     */
+    public function update(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'quantity' => ['required', 'integer', 'min:1'],
+        ]);
+
+        $result = DB::transaction(function () use ($request, $id, $validated) {
+            $cart = Cart::where('user_id', $request->user()->id)
+                ->where('status', 'active')
+                ->first();
+
+            if (!$cart) {
+                return [
+                    'error' => 'Không tìm thấy giỏ hàng.',
+                    'code' => 404,
+                ];
+            }
+
+            $cartItem = CartItem::where('cart_id', $cart->id)
+                ->where('id', $id)
+                ->first();
+
+            if (!$cartItem) {
+                return [
+                    'error' => 'Không tìm thấy sản phẩm trong giỏ hàng.',
+                    'code' => 404,
+                ];
+            }
+
+            $variant = ProductVariant::whereKey($cartItem->variant_id)
+                ->lockForUpdate()
+                ->first();
+
+            if (!$variant || $variant->status !== 'active') {
+                return [
+                    'error' => 'Biến thể sản phẩm không hoạt động.',
+                    'code' => 422,
+                ];
+            }
+
+            $inventory = $variant->inventory()
+                ->lockForUpdate()
+                ->first();
+
+            if (!$inventory) {
+                return [
+                    'error' => 'Biến thể sản phẩm chưa có thông tin tồn kho.',
+                    'code' => 422,
+                ];
+            }
+
+            $availableQuantity = (int) $inventory->available_quantity;
+
+            if ($validated['quantity'] > $availableQuantity) {
+                return [
+                    'error' => "Tồn kho không đủ. Hiện còn {$availableQuantity} sản phẩm.",
+                    'code' => 422,
+                ];
+            }
+
+            $cartItem->quantity = $validated['quantity'];
+            $cartItem->save();
+
+            return [
+                'cart_item' => $cartItem->load('variant.product'),
+                'code' => 200,
+            ];
+        });
+
+        if (isset($result['error'])) {
+            return response()->json([
+                'status' => false,
+                'message' => $result['error'],
+            ], $result['code']);
+        }
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Cập nhật số lượng sản phẩm thành công.',
+            'data' => $result['cart_item'],
+        ]);
+    }
 }

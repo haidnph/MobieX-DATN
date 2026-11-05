@@ -347,6 +347,12 @@ Route::middleware([
         '/cart/items',
         [CartController::class, 'store'],
     )->name('api.cart.items.store');
+
+    Route::put(
+        '/cart/items/{id}',
+        [CartController::class, 'update'],
+    )->whereNumber('id')
+        ->name('api.cart.items.update');
 });
 
 /*
