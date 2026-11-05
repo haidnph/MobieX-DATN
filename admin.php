@@ -241,6 +241,8 @@ $statusNames = [
     <title>MobileX | Admin Dashboard</title>
 
     <link rel="stylesheet"
+          href="public/assets/css/tailwind.css">
+    <link rel="stylesheet"
           href="public/assets/css/admin.css">
     <link rel="stylesheet"
           href="public/assets/css/admin-reviews-inline.css">
