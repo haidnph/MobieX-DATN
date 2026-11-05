@@ -236,4 +236,39 @@ class CartController extends Controller
             'data' => $result['cart_item'],
         ]);
     }
+
+    /**
+     * Xóa sản phẩm khỏi giỏ hàng.
+     */
+    public function destroy(Request $request, int $id): JsonResponse
+    {
+        $cart = Cart::where('user_id', $request->user()->id)
+            ->where('status', 'active')
+            ->first();
+
+        if (!$cart) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Không tìm thấy giỏ hàng.',
+            ], 404);
+        }
+
+        $cartItem = CartItem::where('cart_id', $cart->id)
+            ->where('id', $id)
+            ->first();
+
+        if (!$cartItem) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Không tìm thấy sản phẩm trong giỏ hàng.',
+            ], 404);
+        }
+
+        $cartItem->delete();
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Xóa sản phẩm khỏi giỏ hàng thành công.',
+        ]);
+    }
 }

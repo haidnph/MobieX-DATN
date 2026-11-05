@@ -353,6 +353,12 @@ Route::middleware([
         [CartController::class, 'update'],
     )->whereNumber('id')
         ->name('api.cart.items.update');
+
+    Route::delete(
+        '/cart/items/{id}',
+        [CartController::class, 'destroy'],
+    )->whereNumber('id')
+        ->name('api.cart.items.destroy');
 });
 
 /*
