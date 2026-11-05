@@ -35,6 +35,7 @@ class InventoryController extends Controller
         $validated = $request->validate([
             'variant_id' => 'required|exists:product_variants,id',
             'quantity' => 'required|integer|min:1',
+            'cost_price' => 'nullable|numeric|min:0',
             'note' => 'nullable|string|max:255',
         ]);
 
@@ -51,10 +52,21 @@ class InventoryController extends Controller
                 ], 404);
             }
 
+            // Tăng số lượng tồn kho
             $inventory->quantity += $validated['quantity'];
             $inventory->updated_at = now();
             $inventory->save();
 
+            // Cập nhật giá vốn nếu có gửi lên
+            if (isset($validated['cost_price'])) {
+                DB::table('product_variants')
+                    ->where('id', $validated['variant_id'])
+                    ->update([
+                        'cost_price' => $validated['cost_price'],
+                    ]);
+            }
+
+            // Ghi lịch sử nhập kho
             InventoryTransaction::create([
                 'variant_id' => $validated['variant_id'],
                 'user_id' => Auth::id(),

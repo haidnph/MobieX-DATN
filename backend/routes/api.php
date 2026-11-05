@@ -348,6 +348,7 @@ Route::middleware([
     )->whereNumber('id')
         ->name('api.product-variants.destroy');
 
+    
     // Product images
     Route::post(
         '/product-images',
@@ -365,7 +366,25 @@ Route::middleware([
         [ProductImageController::class, 'destroy'],
     )->whereNumber('id')
         ->name('api.product-images.destroy');
+
+    // Quản lý tồn kho
+    Route::get('/inventories', [InventoryController::class, 'index'])
+        ->name('api.inventories.index');
+
+    Route::post('/inventories/import', [InventoryController::class, 'import'])
+        ->name('api.inventories.import');
+
+    Route::post('/inventories/export', [InventoryController::class, 'export'])
+        ->name('api.inventories.export');
+
+    Route::get('/inventories/transactions', [InventoryController::class, 'transactions'])
+        ->name('api.inventories.transactions');
+
+    Route::get('/inventories/low-stock', [InventoryController::class, 'lowStock'])
+        ->name('api.inventories.low-stock');
 });
+
+
 /*
 |--------------------------------------------------------------------------
 | Profile and Address Book
