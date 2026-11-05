@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ProductVariant extends Model
 {
@@ -41,5 +42,10 @@ class ProductVariant extends Model
     {
         return $this->hasMany(ProductImage::class, 'variant_id')
             ->orderBy('sort_order');
+    }
+
+    public function cartItems(): HasMany
+    {
+        return $this->hasMany(CartItem::class, 'variant_id');
     }
 }
