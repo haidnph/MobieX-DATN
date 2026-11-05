@@ -18,6 +18,7 @@ use App\Http\Controllers\Catalog\CategoryAttributeController;
 use App\Http\Controllers\Catalog\CategoryController;
 use App\Http\Controllers\Profile\ProfileController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\Api\CartController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/health', function () {
@@ -336,6 +337,11 @@ Route::middleware([
     )
         ->whereNumber('id')
         ->name('api.addresses.destroy');
+    // Cart
+    Route::get(
+        '/cart',
+        [CartController::class, 'index'],
+    )->name('api.cart.index');
 });
 
 /*
