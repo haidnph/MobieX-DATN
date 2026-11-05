@@ -18,6 +18,9 @@ use App\Http\Controllers\Catalog\CategoryAttributeController;
 use App\Http\Controllers\Catalog\CategoryController;
 use App\Http\Controllers\Profile\ProfileController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProductVariantController;
+use App\Http\Controllers\Api\ProductImageController;
+use App\Http\Controllers\Api\InventoryController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\OrderController;
 use Illuminate\Support\Facades\Route;
@@ -86,6 +89,27 @@ Route::get(
     '/products',
     [ProductController::class, 'index'],
 )->name('api.products.index');
+Route::get(
+    '/products/{id}',
+    [ProductController::class, 'show'],
+)->whereNumber('id')
+    ->name('api.products.show');
+
+Route::get(
+    '/product-variants',
+    [ProductVariantController::class, 'index'],
+)->name('api.product-variants.index');
+
+Route::get(
+    '/product-variants/{id}',
+    [ProductVariantController::class, 'show'],
+)->whereNumber('id')
+    ->name('api.product-variants.show');
+
+Route::get(
+    '/product-images',
+    [ProductImageController::class, 'index'],
+)->name('api.product-images.index');
 /*
  * Public Category Attribute assignments.
  *
@@ -278,7 +302,70 @@ Route::middleware([
         ->whereNumber('id')
         ->name('api.brands.destroy');
 });
+/*
+|--------------------------------------------------------------------------
+| Product, Variant and Image Management
+|--------------------------------------------------------------------------
+*/
 
+Route::middleware([
+    'auth:sanctum',
+    'active',
+])->group(function (): void {
+    // Products
+    Route::post(
+        '/products',
+        [ProductController::class, 'store'],
+    )->name('api.products.store');
+
+    Route::patch(
+        '/products/{id}',
+        [ProductController::class, 'update'],
+    )->whereNumber('id')
+        ->name('api.products.update');
+
+    Route::delete(
+        '/products/{id}',
+        [ProductController::class, 'destroy'],
+    )->whereNumber('id')
+        ->name('api.products.destroy');
+
+    // Product variants
+    Route::post(
+        '/product-variants',
+        [ProductVariantController::class, 'store'],
+    )->name('api.product-variants.store');
+
+    Route::patch(
+        '/product-variants/{id}',
+        [ProductVariantController::class, 'update'],
+    )->whereNumber('id')
+        ->name('api.product-variants.update');
+
+    Route::delete(
+        '/product-variants/{id}',
+        [ProductVariantController::class, 'destroy'],
+    )->whereNumber('id')
+        ->name('api.product-variants.destroy');
+
+    // Product images
+    Route::post(
+        '/product-images',
+        [ProductImageController::class, 'store'],
+    )->name('api.product-images.store');
+
+    Route::patch(
+        '/product-images/{id}',
+        [ProductImageController::class, 'update'],
+    )->whereNumber('id')
+        ->name('api.product-images.update');
+
+    Route::delete(
+        '/product-images/{id}',
+        [ProductImageController::class, 'destroy'],
+    )->whereNumber('id')
+        ->name('api.product-images.destroy');
+});
 /*
 |--------------------------------------------------------------------------
 | Profile and Address Book
