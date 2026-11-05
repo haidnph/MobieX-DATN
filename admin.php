@@ -241,8 +241,6 @@ $statusNames = [
     <title>MobileX | Admin Dashboard</title>
 
     <link rel="stylesheet"
-          href="public/assets/css/tailwind.css">
-    <link rel="stylesheet"
           href="public/assets/css/admin.css">
     <link rel="stylesheet"
           href="public/assets/css/admin-reviews-inline.css">
@@ -407,6 +405,13 @@ $statusNames = [
 
                     <h2><?= vnd($stats['year_revenue']) ?></h2>
                     <p>Năm <?= date('Y') ?></p>
+                    <div class="line green-line"></div>
+                </article>
+
+                <article class="stat-card">
+                    <div class="stat-top"><span>Tổng doanh thu</span><div class="stat-icon green">₫</div></div>
+                    <h2><?= vnd($stats['total_revenue'] ?? 0) ?></h2>
+                    <p>Tất cả đơn đã hoàn thành</p>
                     <div class="line green-line"></div>
                 </article>
 
