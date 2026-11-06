@@ -20,6 +20,7 @@ use App\Http\Controllers\Profile\ProfileController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductVariantController;
 use App\Http\Controllers\Api\ProductImageController;
+use App\Http\Controllers\Api\ProductSpecificationController;
 use App\Http\Controllers\Api\InventoryController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\OrderController;
@@ -348,7 +349,7 @@ Route::middleware([
     )->whereNumber('id')
         ->name('api.product-variants.destroy');
 
-    
+
     // Product images
     Route::post(
         '/product-images',
@@ -366,6 +367,35 @@ Route::middleware([
         [ProductImageController::class, 'destroy'],
     )->whereNumber('id')
         ->name('api.product-images.destroy');
+
+    // Product specifications
+    Route::get(
+        '/product-specifications',
+        [ProductSpecificationController::class, 'index'],
+    )->name('api.product-specifications.index');
+
+    Route::get(
+        '/product-specifications/{id}',
+        [ProductSpecificationController::class, 'show'],
+    )->whereNumber('id')
+        ->name('api.product-specifications.show');
+
+    Route::post(
+        '/product-specifications',
+        [ProductSpecificationController::class, 'store'],
+    )->name('api.product-specifications.store');
+
+    Route::put(
+        '/product-specifications/{id}',
+        [ProductSpecificationController::class, 'update'],
+    )->whereNumber('id')
+        ->name('api.product-specifications.update');
+
+    Route::delete(
+        '/product-specifications/{id}',
+        [ProductSpecificationController::class, 'destroy'],
+    )->whereNumber('id')
+        ->name('api.product-specifications.destroy');
 
     // Quản lý tồn kho
     Route::get('/inventories', [InventoryController::class, 'index'])
