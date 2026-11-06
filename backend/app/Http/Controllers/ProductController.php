@@ -139,6 +139,7 @@ class ProductController extends Controller
             'brand',
             'category',
             'images',
+            'specifications',
             'variants.inventory',
             'variants.images',
             'variants.attributeValues.attribute',
