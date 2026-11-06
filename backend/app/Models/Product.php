@@ -2,43 +2,63 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Product extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
+        'brand_id',
+        'category_id',
+        'product_type',
         'name',
         'slug',
         'description',
-        'brand_id',
-        'category_id',
         'status',
     ];
 
-    public function variants()
-    {
-        return $this->hasMany(ProductVariant::class);
-    }
-
-    public function brand()
+    public function brand(): BelongsTo
     {
         return $this->belongsTo(Brand::class);
     }
 
-    public function category()
+    public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
     }
 
-    public function images()
+    public function variants(): HasMany
+    {
+        return $this->hasMany(ProductVariant::class);
+    }
+
+    public function images(): HasMany
     {
         return $this->hasMany(ProductImage::class, 'product_id')
             ->orderBy('sort_order');
     }
+
     public function specifications(): HasMany
     {
-        return $this->hasMany(ProductSpecification::class, 'product_id')
-            ->orderBy('sort_order');
+        return $this->hasMany(ProductSpecification::class);
+    }
+
+    public function compatibilities(): HasMany
+    {
+        return $this->hasMany(ProductCompatibility::class, 'accessory_product_id');
+    }
+
+    public function attributeValues(): HasMany
+    {
+        return $this->hasMany(ProductAttributeValue::class);
+    }
+
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class);
     }
 }
