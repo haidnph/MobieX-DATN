@@ -7,6 +7,7 @@ use App\Models\ProductVariant;
 use App\Models\AttributeValue;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
 
 class ProductVariantController extends Controller
@@ -45,6 +46,15 @@ class ProductVariantController extends Controller
             'quantity' => 'nullable|integer|min:0',
             'min_stock' => 'nullable|integer|min:0',
         ]);
+        if ($this->hasDuplicateAttributeTypes(
+            $validated['attribute_value_ids'] ?? []
+        )) {
+            throw ValidationException::withMessages([
+                'attribute_value_ids' => [
+                    'Mỗi thuộc tính chỉ được chọn một giá trị cho mỗi biến thể.',
+                ],
+            ]);
+        }
 
         // Thực hiện tạo biến thể và tồn kho trong một giao dịch
         $variant = DB::transaction(function () use ($validated) {
@@ -56,6 +66,16 @@ class ProductVariantController extends Controller
             $attributeValues = AttributeValue::with('attribute')
                 ->whereIn('id', $validated['attribute_value_ids'] ?? [])
                 ->get();
+            if ($this->checkDuplicateCombination(
+                $product->id,
+                $validated['attribute_value_ids'] ?? []
+            )) {
+                throw ValidationException::withMessages([
+                    'attribute_value_ids' => [
+                        'Biến thể này đã tồn tại với cùng tổ hợp thuộc tính trong sản phẩm.',
+                    ],
+                ]);
+            }
 
             // Nếu người dùng không nhập SKU thì tự động sinh
             $sku = $this->generateUniqueSku($product, $attributeValues);
@@ -148,8 +168,32 @@ class ProductVariantController extends Controller
             'quantity' => 'sometimes|integer|min:0',
             'min_stock' => 'sometimes|integer|min:0',
         ]);
-
+        if (
+            array_key_exists('attribute_value_ids', $validated) &&
+            $this->hasDuplicateAttributeTypes($validated['attribute_value_ids'])
+        ) {
+            throw ValidationException::withMessages([
+                'attribute_value_ids' => [
+                    'Mỗi thuộc tính chỉ được chọn một giá trị cho mỗi biến thể.',
+                ],
+            ]);
+        }
         DB::transaction(function () use ($variant, $validated) {
+
+            // Kiểm tra trùng tổ hợp thuộc tính khi cập nhật
+            if (array_key_exists('attribute_value_ids', $validated)) {
+                if ($this->checkDuplicateCombination(
+                    $variant->product_id,
+                    $validated['attribute_value_ids'],
+                    $variant->id
+                )) {
+                    throw ValidationException::withMessages([
+                        'attribute_value_ids' => [
+                            'Tổ hợp thuộc tính này đã tồn tại ở một biến thể khác.',
+                        ],
+                    ]);
+                }
+            }
 
             // Cập nhật thông tin biến thể
             $variant->update([
@@ -384,5 +428,61 @@ class ProductVariantController extends Controller
         }
 
         return $code ?: 'PRODUCT';
+    }
+    /**
+     * Kiểm tra trùng tổ hợp thuộc tính trong cùng sản phẩm.
+     */
+    private function checkDuplicateCombination(
+        $productId,
+        array $attributeValueIds,
+        $exceptVariantId = null
+    ): bool {
+        $attributeValueIds = array_map('intval', $attributeValueIds);
+        sort($attributeValueIds);
+
+        // Không kiểm tra nếu biến thể chưa có thuộc tính.
+        if (empty($attributeValueIds)) {
+            return false;
+        }
+
+        $variants = ProductVariant::where('product_id', $productId)
+            ->when($exceptVariantId, function ($query) use ($exceptVariantId) {
+                $query->where('id', '!=', $exceptVariantId);
+            })
+            ->with('attributeValues:id')
+            ->get();
+
+        foreach ($variants as $existingVariant) {
+            $existingIds = $existingVariant->attributeValues
+                ->pluck('id')
+                ->map(fn($id) => (int) $id)
+                ->sort()
+                ->values()
+                ->all();
+
+            if ($existingIds === $attributeValueIds) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Kiểm tra một biến thể có chọn nhiều giá trị thuộc cùng thuộc tính không.
+     */
+    private function hasDuplicateAttributeTypes(array $attributeValueIds): bool
+    {
+        if (empty($attributeValueIds)) {
+            return false;
+        }
+
+        $duplicateCount = AttributeValue::whereIn('id', $attributeValueIds)
+            ->select('attribute_id')
+            ->groupBy('attribute_id')
+            ->havingRaw('COUNT(*) > 1')
+            ->count();
+
+        return $duplicateCount > 0;
     }
 }

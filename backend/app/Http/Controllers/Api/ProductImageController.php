@@ -147,7 +147,7 @@ class ProductImageController extends Controller
         ], 201);
     }
 
-    // Cập nhật thông tin hình ảnh
+    // Cập nhật thông tin hoặc thay thế hình ảnh
     public function update(Request $request, $id)
     {
         $image = ProductImage::findOrFail($id);
@@ -157,6 +157,7 @@ class ProductImageController extends Controller
             'alt_text' => 'sometimes|nullable|string|max:255',
             'sort_order' => 'sometimes|integer|min:0',
             'is_primary' => 'sometimes|boolean',
+            'image' => 'sometimes|image|mimes:jpg,jpeg,png,webp|max:5120',
         ]);
 
         $variantId = array_key_exists('variant_id', $validated)
@@ -172,26 +173,57 @@ class ProductImageController extends Controller
             return $variantError;
         }
 
-        return DB::transaction(function () use ($image, $validated, $variantId) {
-            if (
-                !empty($validated['is_primary'])
-                || $variantId != $image->variant_id
-            ) {
-                $this->clearPrimaryImage(
-                    $image->product_id,
-                    $variantId,
-                    $image->id
+        $oldImageUrl = $image->image_url;
+        $newPath = null;
+
+        try {
+            if ($request->hasFile('image')) {
+                $newPath = $request->file('image')->store(
+                    'products',
+                    'public'
                 );
+
+                $validated['image_url'] = asset('storage/' . $newPath);
             }
 
-            $image->update($validated);
+            unset($validated['image']);
 
-            return response()->json([
-                'status' => true,
-                'message' => 'Cập nhật hình ảnh thành công.',
-                'data' => $image->fresh(),
-            ]);
-        });
+            DB::transaction(function () use (
+                $image,
+                $validated,
+                $variantId
+            ) {
+                if (
+                    !empty($validated['is_primary'])
+                    || $variantId != $image->variant_id
+                ) {
+                    $this->clearPrimaryImage(
+                        $image->product_id,
+                        $variantId,
+                        $image->id
+                    );
+                }
+
+                $image->update($validated);
+            });
+        } catch (\Throwable $e) {
+            if ($newPath) {
+                Storage::disk('public')->delete($newPath);
+            }
+
+            throw $e;
+        }
+
+        // Chỉ xóa ảnh cũ sau khi cập nhật database thành công
+        if ($newPath) {
+            $this->deleteImageFile($oldImageUrl);
+        }
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Cập nhật hình ảnh thành công.',
+            'data' => $image->fresh(),
+        ]);
     }
 
     // Xóa file ảnh trong Storage
@@ -203,15 +235,26 @@ class ProductImageController extends Controller
 
         $path = parse_url($imageUrl, PHP_URL_PATH);
 
-        if (!$path || !str_starts_with($path, '/storage/')) {
+        if (!$path) {
             return;
         }
 
-        $storagePath = substr($path, strlen('/storage/'));
+        // Tìm vị trí /storage/ trong URL
+        $storagePosition = strpos($path, '/storage/');
 
-        Storage::disk('public')->delete($storagePath);
+        if ($storagePosition === false) {
+            return;
+        }
+
+        $storagePath = substr(
+            $path,
+            $storagePosition + strlen('/storage/')
+        );
+
+        if (!empty($storagePath)) {
+            Storage::disk('public')->delete($storagePath);
+        }
     }
-
     // Xóa hình ảnh
     public function destroy($id)
     {

@@ -356,7 +356,8 @@ Route::middleware([
         [ProductImageController::class, 'store'],
     )->name('api.product-images.store');
 
-    Route::patch(
+    Route::match(
+        ['put', 'patch'],
         '/product-images/{id}',
         [ProductImageController::class, 'update'],
     )->whereNumber('id')
