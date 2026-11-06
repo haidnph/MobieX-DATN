@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\AttributeValue;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class ProductVariantController extends Controller
 {
@@ -29,7 +32,7 @@ class ProductVariantController extends Controller
         // Kiểm tra dữ liệu đầu vào
         $validated = $request->validate([
             'product_id' => 'required|exists:products,id',
-            'sku' => 'required|string|max:100|unique:product_variants,sku',
+            'sku' => 'prohibited',
             'price' => 'required|numeric|min:0',
             'compare_price' => 'nullable|numeric|min:0',
             'cost_price' => 'nullable|numeric|min:0',
@@ -46,9 +49,20 @@ class ProductVariantController extends Controller
         // Thực hiện tạo biến thể và tồn kho trong một giao dịch
         $variant = DB::transaction(function () use ($validated) {
 
+            // Lấy thông tin sản phẩm
+            $product = Product::findOrFail($validated['product_id']);
+
+            // Lấy các thuộc tính đã chọn
+            $attributeValues = AttributeValue::with('attribute')
+                ->whereIn('id', $validated['attribute_value_ids'] ?? [])
+                ->get();
+
+            // Nếu người dùng không nhập SKU thì tự động sinh
+            $sku = $this->generateUniqueSku($product, $attributeValues);
+
             $variant = ProductVariant::create([
                 'product_id' => $validated['product_id'],
-                'sku' => $validated['sku'],
+                'sku' => $sku,
                 'price' => $validated['price'],
                 'compare_price' => $validated['compare_price'] ?? null,
                 'cost_price' => $validated['cost_price'] ?? null,
@@ -121,7 +135,7 @@ class ProductVariantController extends Controller
 
         // Kiểm tra dữ liệu đầu vào
         $validated = $request->validate([
-            'sku' => 'sometimes|required|string|max:100|unique:product_variants,sku,'.$id,
+            'sku' => 'prohibited',
             'price' => 'sometimes|required|numeric|min:0',
             'compare_price' => 'nullable|numeric|min:0',
             'cost_price' => 'nullable|numeric|min:0',
@@ -139,7 +153,6 @@ class ProductVariantController extends Controller
 
             // Cập nhật thông tin biến thể
             $variant->update([
-                'sku' => $validated['sku'] ?? $variant->sku,
                 'price' => $validated['price'] ?? $variant->price,
                 'compare_price' => $validated['compare_price'] ?? $variant->compare_price,
                 'cost_price' => $validated['cost_price'] ?? $variant->cost_price,
@@ -264,5 +277,112 @@ class ProductVariantController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Tạo SKU duy nhất cho biến thể.
+     */
+    private function generateUniqueSku($product, $attributeValues)
+    {
+        // Tạo mã sản phẩm từ slug.
+        // Ví dụ: iphone-17-pro-max => IP17PM
+        $productCode = $this->generateProductCode($product->slug);
+
+        $colorCode = null;
+        $ramCode = null;
+        $storageCode = null;
+        $otherCodes = [];
+
+        foreach ($attributeValues as $attributeValue) {
+            $attributeCode = $attributeValue->attribute->code ?? '';
+            $value = trim($attributeValue->value);
+
+            if ($attributeCode === 'color') {
+                $normalizedColor = Str::lower(Str::ascii($value));
+
+                $colorMap = [
+                    'den' => 'BLK',
+                    'trang' => 'WHT',
+                    'xanh duong' => 'BLU',
+                    'titan tu nhien' => 'NAT',
+                    'titan trang' => 'TWH',
+                ];
+
+                $colorCode = $colorMap[$normalizedColor]
+                    ?? strtoupper(substr(preg_replace('/[^a-zA-Z0-9]/', '', Str::ascii($value)), 0, 3));
+            } elseif ($attributeCode === 'ram') {
+                preg_match('/\d+/', $value, $matches);
+                $ramCode = $matches[0] ?? null;
+            } elseif ($attributeCode === 'storage') {
+                preg_match('/\d+/', $value, $matches);
+                $storageCode = $matches[0] ?? null;
+            } else {
+                // Thuộc tính khác như công suất, kích thước, kết nối...
+                $attributePrefix = strtoupper(substr($attributeCode, 0, 3));
+                $attributeValueCode = strtoupper(
+                    preg_replace('/[^a-zA-Z0-9]/', '', Str::ascii($value))
+                );
+
+                if ($attributePrefix && $attributeValueCode) {
+                    $otherCodes[] = $attributePrefix . $attributeValueCode;
+                }
+            }
+        }
+
+        // Sắp xếp mã theo cấu trúc SKU điện thoại
+        $parts = ['MBX', $productCode];
+
+        if ($colorCode) {
+            $parts[] = $colorCode;
+        }
+
+        if ($ramCode) {
+            $parts[] = $ramCode;
+        }
+
+        if ($storageCode) {
+            $parts[] = $storageCode;
+        }
+
+        // Thêm các thuộc tính khác nếu có
+        $parts = array_merge($parts, $otherCodes);
+
+        $baseSku = implode('-', $parts);
+
+        // Kiểm tra trùng SKU và tự thêm hậu tố
+        $sku = $baseSku;
+        $counter = 2;
+
+        while (ProductVariant::where('sku', $sku)->exists()) {
+            $sku = $baseSku . '-' . $counter;
+            $counter++;
+        }
+
+        return $sku;
+    }
+
+    /**
+     * Tạo mã sản phẩm từ slug.
+     */
+    private function generateProductCode($slug)
+    {
+        $words = explode('-', Str::lower($slug));
+
+        if (empty($words)) {
+            return 'PRODUCT';
+        }
+
+        // Hai ký tự đầu của từ đầu tiên
+        $code = strtoupper(substr($words[0], 0, 2));
+
+        foreach (array_slice($words, 1) as $word) {
+            if (preg_match('/^\d+$/', $word)) {
+                $code .= $word;
+            } else {
+                $code .= strtoupper(substr($word, 0, 1));
+            }
+        }
+
+        return $code ?: 'PRODUCT';
     }
 }
