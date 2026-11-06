@@ -85,6 +85,8 @@ class BrandDeletionTest extends TestCase
     {
         $this->authenticateAsBrandManager();
 
+        Schema::dropIfExists('products');
+
         $this->assertFalse(
             Schema::hasTable('products'),
         );
@@ -376,6 +378,8 @@ class BrandDeletionTest extends TestCase
         bool $addBrandForeignKey = true,
         string $onDelete = 'restrict',
     ): void {
+        Schema::dropIfExists('products');
+
         Schema::create('products', function (Blueprint $table) use (
             $includeBrandId,
             $addBrandForeignKey,

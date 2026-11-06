@@ -17,31 +17,43 @@ class RolePermissionSeederTest extends TestCase
     {
         $this->seed(RolePermissionSeeder::class);
 
-        $this->assertDatabaseCount('roles', 3);
-        $this->assertDatabaseCount('permissions', 5);
+        $this->assertDatabaseCount('roles', 5);
+        $this->assertDatabaseCount('permissions', 35);
 
         $this->assertDatabaseHas('roles', [
-            'name' => 'Admin',
+            'name' => 'Quản trị viên',
             'slug' => 'admin',
         ]);
 
         $this->assertDatabaseHas('roles', [
-            'name' => 'Staff',
-            'slug' => 'staff',
+            'name' => 'Kế toán',
+            'slug' => 'accountant',
         ]);
 
         $this->assertDatabaseHas('roles', [
-            'name' => 'Customer',
+            'name' => 'Kho',
+            'slug' => 'warehouse',
+        ]);
+
+        $this->assertDatabaseHas('roles', [
+            'name' => 'Bán hàng',
+            'slug' => 'sales',
+        ]);
+
+        $this->assertDatabaseHas('roles', [
+            'name' => 'Khách hàng',
             'slug' => 'customer',
         ]);
 
         foreach (
             [
+                'dashboard.view',
                 'users.view',
                 'users.manage',
                 'categories.manage',
                 'brands.manage',
                 'attributes.manage',
+                'orders.view',
             ] as $permissionSlug
         ) {
             $this->assertDatabaseHas('permissions', [
@@ -56,18 +68,84 @@ class RolePermissionSeederTest extends TestCase
 
         $expectedMatrix = [
             'admin' => [
+                'addresses.manage-own',
                 'attributes.manage',
+                'banners.manage',
+                'banners.view',
                 'brands.manage',
+                'brands.view',
                 'categories.manage',
+                'categories.view',
+                'coupons.manage',
+                'coupons.view',
+                'dashboard.view',
+                'flash_sales.manage',
+                'flash_sales.view',
+                'inventory.adjust',
+                'inventory.import',
+                'inventory.view',
+                'orders.cancel-own',
+                'orders.manage',
+                'orders.update-status',
+                'orders.view',
+                'orders.view-own',
+                'payments.view',
+                'products.manage',
+                'products.publish',
+                'products.view',
+                'profile.update-own',
+                'reports.view',
+                'reviews.create-own',
+                'reviews.moderate',
+                'reviews.view',
+                'roles.manage',
+                'shipping_methods.manage',
+                'shipping_methods.view',
                 'users.manage',
                 'users.view',
             ],
-            'staff' => [
-                'attributes.manage',
-                'brands.manage',
-                'categories.manage',
+            'accountant' => [
+                'coupons.view',
+                'dashboard.view',
+                'orders.view',
+                'payments.view',
+                'reports.view',
+                'shipping_methods.view',
             ],
-            'customer' => [],
+            'warehouse' => [
+                'dashboard.view',
+                'inventory.adjust',
+                'inventory.import',
+                'inventory.view',
+                'orders.update-status',
+                'orders.view',
+                'products.view',
+                'shipping_methods.view',
+            ],
+            'sales' => [
+                'banners.view',
+                'brands.view',
+                'categories.view',
+                'coupons.view',
+                'dashboard.view',
+                'flash_sales.manage',
+                'flash_sales.view',
+                'orders.manage',
+                'orders.update-status',
+                'orders.view',
+                'products.manage',
+                'products.publish',
+                'products.view',
+                'shipping_methods.view',
+                'users.view',
+            ],
+            'customer' => [
+                'addresses.manage-own',
+                'orders.cancel-own',
+                'orders.view-own',
+                'profile.update-own',
+                'reviews.create-own',
+            ],
         ];
 
         foreach ($expectedMatrix as $roleSlug => $expectedPermissions) {
@@ -111,9 +189,9 @@ class RolePermissionSeederTest extends TestCase
         $this->assertSame($firstSnapshot, $secondSnapshot);
 
         $this->assertSame([
-            'roles' => 3,
-            'permissions' => 5,
-            'permission_role' => 8,
+            'roles' => 5,
+            'permissions' => 35,
+            'permission_role' => 69,
         ], $secondSnapshot);
     }
 
@@ -129,10 +207,10 @@ class RolePermissionSeederTest extends TestCase
             Permission::query()->pluck('id')->all()
         );
 
-        $this->assertCount(5, $customer->fresh()->permissions);
+        $this->assertCount(35, $customer->fresh()->permissions);
 
         $this->seed(RolePermissionSeeder::class);
 
-        $this->assertCount(0, $customer->fresh()->permissions);
+        $this->assertCount(5, $customer->fresh()->permissions);
     }
 }

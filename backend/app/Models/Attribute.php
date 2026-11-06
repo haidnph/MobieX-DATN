@@ -14,8 +14,10 @@ class Attribute extends Model
     protected $fillable = [
         'name',
         'code',
+        'display_type',
         'type',
         'sort_order',
+        'is_active',
         'status',
     ];
 
@@ -28,8 +30,44 @@ class Attribute extends Model
     {
         return [
             'sort_order' => 'integer',
+            'is_active' => 'boolean',
             'status' => 'boolean',
         ];
+    }
+
+    /**
+     * Backward compatibility accessor for type.
+     */
+    public function getTypeAttribute(): string
+    {
+        return $this->attributes['display_type'] ?? $this->attributes['type'] ?? 'select';
+    }
+
+    /**
+     * Backward compatibility mutator for type.
+     */
+    public function setTypeAttribute(?string $value): void
+    {
+        $this->attributes['display_type'] = $value ?? 'select';
+        $this->attributes['type'] = $value ?? 'select';
+    }
+
+    /**
+     * Backward compatibility accessor for status.
+     */
+    public function getStatusAttribute(): bool
+    {
+        return (bool) ($this->attributes['is_active'] ?? $this->attributes['status'] ?? true);
+    }
+
+    /**
+     * Backward compatibility mutator for status.
+     */
+    public function setStatusAttribute(mixed $value): void
+    {
+        $boolVal = (bool) $value;
+        $this->attributes['is_active'] = $boolVal;
+        $this->attributes['status'] = $boolVal;
     }
 
     /**
@@ -54,6 +92,6 @@ class Attribute extends Model
             'attribute_category',
             'attribute_id',
             'category_id',
-        );
+        )->withPivot(['is_required', 'is_variant_axis', 'sort_order']);
     }
 }
