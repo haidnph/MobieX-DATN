@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Product extends Model
 {
@@ -33,6 +34,11 @@ class Product extends Model
     public function images()
     {
         return $this->hasMany(ProductImage::class, 'product_id')
+            ->orderBy('sort_order');
+    }
+    public function specifications(): HasMany
+    {
+        return $this->hasMany(ProductSpecification::class, 'product_id')
             ->orderBy('sort_order');
     }
 }
