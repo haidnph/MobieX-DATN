@@ -1,3 +1,4 @@
+
 document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll("header button").forEach((button) => {
     if (!button.querySelector("img")) return;
@@ -8,6 +9,16 @@ document.addEventListener("DOMContentLoaded", () => {
     button.setAttribute("aria-expanded", "false");
     button.setAttribute("aria-haspopup", "true");
 
+    // Allow keyboard users to reach the popup.
+    button.setAttribute(
+      "aria-controls",
+      menu.id || (
+        menu.id = "account-menu-" +
+        [...document.querySelectorAll("header button")]
+          .indexOf(button)
+      )
+    );
+
     const setOpen = (open) => {
       button.setAttribute("aria-expanded", String(open));
       menu.classList.toggle("opacity-0", !open);
@@ -15,8 +26,11 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     wrapper.addEventListener("mouseenter", () => setOpen(true));
+
     wrapper.addEventListener("mouseleave", () => {
-      if (button.dataset.pinned !== "true") setOpen(false);
+      if (button.dataset.pinned !== "true") {
+        setOpen(false);
+      }
     });
 
     button.addEventListener("click", (event) => {
@@ -27,7 +41,15 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     document.addEventListener("click", (event) => {
-      if (button.contains(event.target) || menu.contains(event.target)) return;
+      if (button.contains(event.target) || menu.contains(event.target)) {
+        return;
+      }
+      button.dataset.pinned = "false";
+      setOpen(false);
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
       button.dataset.pinned = "false";
       setOpen(false);
     });
