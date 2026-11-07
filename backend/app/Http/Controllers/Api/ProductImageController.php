@@ -34,13 +34,13 @@ class ProductImageController extends Controller
     // Kiểm tra biến thể thuộc sản phẩm
     private function checkVariant($productId, $variantId)
     {
-        if (!$variantId) {
+        if (! $variantId) {
             return null;
         }
 
         $variant = ProductVariant::find($variantId);
 
-        if (!$variant || $variant->product_id != $productId) {
+        if (! $variant || $variant->product_id != $productId) {
             return response()->json([
                 'status' => false,
                 'message' => 'Biến thể không thuộc sản phẩm này.',
@@ -106,9 +106,9 @@ class ProductImageController extends Controller
                     $path = $file->store('products', 'public');
 
                     // Đường dẫn công khai
-                    $imageUrl = asset('storage/' . $path);
+                    $imageUrl = asset('storage/'.$path);
 
-                    $isPrimary = !empty($validated['is_primary'])
+                    $isPrimary = ! empty($validated['is_primary'])
                         && $index === 0;
 
                     // Chỉ có một ảnh chính trên mỗi biến thể
@@ -183,7 +183,7 @@ class ProductImageController extends Controller
                     'public'
                 );
 
-                $validated['image_url'] = asset('storage/' . $newPath);
+                $validated['image_url'] = asset('storage/'.$newPath);
             }
 
             unset($validated['image']);
@@ -194,7 +194,7 @@ class ProductImageController extends Controller
                 $variantId
             ) {
                 if (
-                    !empty($validated['is_primary'])
+                    ! empty($validated['is_primary'])
                     || $variantId != $image->variant_id
                 ) {
                     $this->clearPrimaryImage(
@@ -235,7 +235,7 @@ class ProductImageController extends Controller
 
         $path = parse_url($imageUrl, PHP_URL_PATH);
 
-        if (!$path) {
+        if (! $path) {
             return;
         }
 
@@ -251,10 +251,11 @@ class ProductImageController extends Controller
             $storagePosition + strlen('/storage/')
         );
 
-        if (!empty($storagePath)) {
+        if (! empty($storagePath)) {
             Storage::disk('public')->delete($storagePath);
         }
     }
+
     // Xóa hình ảnh
     public function destroy($id)
     {

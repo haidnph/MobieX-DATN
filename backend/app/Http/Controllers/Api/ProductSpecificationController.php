@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ProductSpecification;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class ProductSpecificationController extends Controller
 {
@@ -34,7 +34,7 @@ class ProductSpecificationController extends Controller
     {
         $specification = ProductSpecification::with('product')->find($id);
 
-        if (!$specification) {
+        if (! $specification) {
             return response()->json([
                 'success' => false,
                 'message' => 'Không tìm thấy thông số kỹ thuật.',
@@ -75,7 +75,7 @@ class ProductSpecificationController extends Controller
     {
         $specification = ProductSpecification::find($id);
 
-        if (!$specification) {
+        if (! $specification) {
             return response()->json([
                 'success' => false,
                 'message' => 'Không tìm thấy thông số kỹ thuật.',
@@ -105,7 +105,7 @@ class ProductSpecificationController extends Controller
     {
         $specification = ProductSpecification::find($id);
 
-        if (!$specification) {
+        if (! $specification) {
             return response()->json([
                 'success' => false,
                 'message' => 'Không tìm thấy thông số kỹ thuật.',

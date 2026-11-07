@@ -163,7 +163,7 @@ return new class extends Migration
     {
         try {
             DB::statement($sql);
-        } catch (\Throwable) {
+        } catch (Throwable) {
             // Constraint may already exist or cannot be applied on current engine
         }
     }

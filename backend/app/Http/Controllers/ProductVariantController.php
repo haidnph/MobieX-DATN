@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AttributeValue;
 use App\Models\Product;
 use App\Models\ProductVariant;
-use App\Models\AttributeValue;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class ProductVariantController extends Controller
 {
@@ -368,7 +368,7 @@ class ProductVariantController extends Controller
                 );
 
                 if ($attributePrefix && $attributeValueCode) {
-                    $otherCodes[] = $attributePrefix . $attributeValueCode;
+                    $otherCodes[] = $attributePrefix.$attributeValueCode;
                 }
             }
         }
@@ -398,7 +398,7 @@ class ProductVariantController extends Controller
         $counter = 2;
 
         while (ProductVariant::where('sku', $sku)->exists()) {
-            $sku = $baseSku . '-' . $counter;
+            $sku = $baseSku.'-'.$counter;
             $counter++;
         }
 
@@ -429,6 +429,7 @@ class ProductVariantController extends Controller
 
         return $code ?: 'PRODUCT';
     }
+
     /**
      * Kiểm tra trùng tổ hợp thuộc tính trong cùng sản phẩm.
      */
@@ -455,7 +456,7 @@ class ProductVariantController extends Controller
         foreach ($variants as $existingVariant) {
             $existingIds = $existingVariant->attributeValues
                 ->pluck('id')
-                ->map(fn($id) => (int) $id)
+                ->map(fn ($id) => (int) $id)
                 ->sort()
                 ->values()
                 ->all();

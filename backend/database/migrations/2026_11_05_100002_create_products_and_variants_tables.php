@@ -74,7 +74,7 @@ return new class extends Migration
                 )->nullable();
 
                 $table->unsignedBigInteger('primary_scope_id')->storedAs(
-                    "CASE WHEN is_primary = 1 THEN COALESCE(product_variant_id, attribute_value_id, 0) ELSE NULL END"
+                    'CASE WHEN is_primary = 1 THEN COALESCE(product_variant_id, attribute_value_id, 0) ELSE NULL END'
                 )->nullable();
 
                 $table->timestamps();
