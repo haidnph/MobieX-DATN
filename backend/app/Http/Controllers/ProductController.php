@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class ProductController extends Controller
 {
@@ -31,22 +32,22 @@ class ProductController extends Controller
         ]);
 
         // Tìm kiếm theo tên hoặc slug
-        if (!empty($validated['keyword'])) {
+        if (! empty($validated['keyword'])) {
             $keyword = $validated['keyword'];
 
             $query->where(function ($q) use ($keyword) {
-                $q->where('name', 'like', '%' . $keyword . '%')
-                    ->orWhere('slug', 'like', '%' . $keyword . '%');
+                $q->where('name', 'like', '%'.$keyword.'%')
+                    ->orWhere('slug', 'like', '%'.$keyword.'%');
             });
         }
 
         // Lọc theo thương hiệu
-        if (!empty($validated['brand_id'])) {
+        if (! empty($validated['brand_id'])) {
             $query->where('brand_id', $validated['brand_id']);
         }
 
         // Lọc theo danh mục, bao gồm các danh mục con trực tiếp
-        if (!empty($validated['category_id'])) {
+        if (! empty($validated['category_id'])) {
             $categoryId = (int) $validated['category_id'];
 
             $categoryIds = Category::where('parent_id', $categoryId)
@@ -59,7 +60,7 @@ class ProductController extends Controller
         }
 
         // Lọc theo trạng thái
-        if (!empty($validated['status'])) {
+        if (! empty($validated['status'])) {
             $query->where('status', $validated['status']);
         }
 
@@ -67,8 +68,8 @@ class ProductController extends Controller
         $hasVariantFilters =
             isset($validated['min_price']) ||
             isset($validated['max_price']) ||
-            !empty($validated['ram']) ||
-            !empty($validated['storage']);
+            ! empty($validated['ram']) ||
+            ! empty($validated['storage']);
 
         if ($hasVariantFilters) {
             $query->whereHas('variants', function ($variantQuery) use ($validated) {
@@ -91,7 +92,7 @@ class ProductController extends Controller
                 }
 
                 // RAM
-                if (!empty($validated['ram'])) {
+                if (! empty($validated['ram'])) {
                     $ram = $validated['ram'];
 
                     $variantQuery->whereHas('attributeValues', function ($valueQuery) use ($ram) {
@@ -104,7 +105,7 @@ class ProductController extends Controller
                 }
 
                 // Bộ nhớ trong
-                if (!empty($validated['storage'])) {
+                if (! empty($validated['storage'])) {
                     $storage = $validated['storage'];
 
                     $variantQuery->whereHas('attributeValues', function ($valueQuery) use ($storage) {
@@ -198,7 +199,7 @@ class ProductController extends Controller
         // Kiểm tra dữ liệu đầu vào
         $validated = $request->validate([
             'name' => 'sometimes|required|string|max:255',
-            'slug' => 'sometimes|required|string|max:255|unique:products,slug,' . $id,
+            'slug' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('products', 'slug')->ignore($request->route('id'))],
             'description' => 'nullable|string',
             'brand_id' => 'nullable|exists:brands,id',
             'category_id' => 'nullable|exists:categories,id',

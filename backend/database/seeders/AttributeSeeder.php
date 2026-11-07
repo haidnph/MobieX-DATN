@@ -6,7 +6,6 @@ use App\Models\Attribute;
 use App\Models\AttributeValue;
 use App\Models\Category;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
 
 class AttributeSeeder extends Seeder
 {

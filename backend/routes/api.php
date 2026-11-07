@@ -6,6 +6,11 @@ use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\UserRoleController;
 use App\Http\Controllers\Admin\UserStatusController;
+use App\Http\Controllers\Api\CartController;
+use App\Http\Controllers\Api\InventoryController;
+use App\Http\Controllers\Api\OrderController;
+use App\Http\Controllers\Api\ProductImageController;
+use App\Http\Controllers\Api\ProductSpecificationController;
 use App\Http\Controllers\Auth\CurrentUserController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
@@ -16,14 +21,9 @@ use App\Http\Controllers\Catalog\AttributeValueController;
 use App\Http\Controllers\Catalog\BrandController;
 use App\Http\Controllers\Catalog\CategoryAttributeController;
 use App\Http\Controllers\Catalog\CategoryController;
-use App\Http\Controllers\Profile\ProfileController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductVariantController;
-use App\Http\Controllers\Api\ProductImageController;
-use App\Http\Controllers\Api\ProductSpecificationController;
-use App\Http\Controllers\Api\InventoryController;
-use App\Http\Controllers\Api\CartController;
-use App\Http\Controllers\Api\OrderController;
+use App\Http\Controllers\Profile\ProfileController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/health', function () {
@@ -349,7 +349,6 @@ Route::middleware([
     )->whereNumber('id')
         ->name('api.product-variants.destroy');
 
-
     // Product images
     Route::post(
         '/product-images',
@@ -414,7 +413,6 @@ Route::middleware([
     Route::get('/inventories/low-stock', [InventoryController::class, 'lowStock'])
         ->name('api.inventories.low-stock');
 });
-
 
 /*
 |--------------------------------------------------------------------------

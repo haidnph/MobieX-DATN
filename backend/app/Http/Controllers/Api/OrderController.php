@@ -40,7 +40,7 @@ class OrderController extends Controller
                 ->lockForUpdate()
                 ->first();
 
-            if (!$cart) {
+            if (! $cart) {
                 throw ValidationException::withMessages([
                     'cart' => 'Không tìm thấy giỏ hàng đang hoạt động.',
                 ]);
@@ -65,7 +65,7 @@ class OrderController extends Controller
                     ->lockForUpdate()
                     ->first();
 
-                if (!$variant || $variant->status !== 'active') {
+                if (! $variant || $variant->status !== 'active') {
                     throw ValidationException::withMessages([
                         'cart' => 'Một sản phẩm trong giỏ hàng không còn khả dụng.',
                     ]);
@@ -75,7 +75,7 @@ class OrderController extends Controller
                     ->lockForUpdate()
                     ->first();
 
-                if (!$inventory) {
+                if (! $inventory) {
                     throw ValidationException::withMessages([
                         'cart' => 'Không tìm thấy tồn kho của một sản phẩm.',
                     ]);
@@ -92,14 +92,14 @@ class OrderController extends Controller
 
                 $product = $variant->product;
 
-                if (!$product) {
+                if (! $product) {
                     throw ValidationException::withMessages([
                         'cart' => 'Không tìm thấy thông tin sản phẩm.',
                     ]);
                 }
 
                 $variantName = $variant->attributeValues
-                    ->map(fn($value) => $value->value)
+                    ->map(fn ($value) => $value->value)
                     ->filter()
                     ->implode(' / ');
 
@@ -122,7 +122,7 @@ class OrderController extends Controller
             $order = Order::create([
                 'user_id' => $userId,
                 'shipping_method_id' => $validated['shipping_method_id'] ?? null,
-                'order_code' => 'MX-' . Str::upper(Str::random(12)),
+                'order_code' => 'MX-'.Str::upper(Str::random(12)),
                 'subtotal' => $subtotal,
                 'discount_amount' => 0,
                 'shipping_fee' => 0,
@@ -162,7 +162,7 @@ class OrderController extends Controller
                     'quantity' => $item['quantity'],
                     'reference_type' => 'order',
                     'reference_id' => $order->id,
-                    'note' => 'Xuất kho cho đơn hàng ' . $order->order_code,
+                    'note' => 'Xuất kho cho đơn hàng '.$order->order_code,
                 ]);
             }
 

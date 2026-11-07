@@ -4,11 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Cart;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
-
 use App\Models\CartItem;
 use App\Models\ProductVariant;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class CartController extends Controller
@@ -41,7 +40,7 @@ class CartController extends Controller
                 'sku' => $variant?->sku,
                 'product_name' => $product?->name,
                 'variant_attributes' => $variant?->attributeValues
-                    ->map(fn($value) => [
+                    ->map(fn ($value) => [
                         'attribute' => $value->attribute?->name,
                         'value' => $value->value,
                     ])
@@ -92,7 +91,7 @@ class CartController extends Controller
                 ->lockForUpdate()
                 ->first();
 
-            if (!$inventory) {
+            if (! $inventory) {
                 return [
                     'error' => 'Biến thể sản phẩm chưa có thông tin tồn kho.',
                     'code' => 422,
@@ -165,7 +164,7 @@ class CartController extends Controller
                 ->where('status', 'active')
                 ->first();
 
-            if (!$cart) {
+            if (! $cart) {
                 return [
                     'error' => 'Không tìm thấy giỏ hàng.',
                     'code' => 404,
@@ -176,7 +175,7 @@ class CartController extends Controller
                 ->where('id', $id)
                 ->first();
 
-            if (!$cartItem) {
+            if (! $cartItem) {
                 return [
                     'error' => 'Không tìm thấy sản phẩm trong giỏ hàng.',
                     'code' => 404,
@@ -187,7 +186,7 @@ class CartController extends Controller
                 ->lockForUpdate()
                 ->first();
 
-            if (!$variant || $variant->status !== 'active') {
+            if (! $variant || $variant->status !== 'active') {
                 return [
                     'error' => 'Biến thể sản phẩm không hoạt động.',
                     'code' => 422,
@@ -198,7 +197,7 @@ class CartController extends Controller
                 ->lockForUpdate()
                 ->first();
 
-            if (!$inventory) {
+            if (! $inventory) {
                 return [
                     'error' => 'Biến thể sản phẩm chưa có thông tin tồn kho.',
                     'code' => 422,
@@ -246,7 +245,7 @@ class CartController extends Controller
             ->where('status', 'active')
             ->first();
 
-        if (!$cart) {
+        if (! $cart) {
             return response()->json([
                 'status' => false,
                 'message' => 'Không tìm thấy giỏ hàng.',
@@ -257,7 +256,7 @@ class CartController extends Controller
             ->where('id', $id)
             ->first();
 
-        if (!$cartItem) {
+        if (! $cartItem) {
             return response()->json([
                 'status' => false,
                 'message' => 'Không tìm thấy sản phẩm trong giỏ hàng.',
