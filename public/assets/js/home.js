@@ -16,9 +16,11 @@
 
       current = (next + slides.length) % slides.length;
 
-      slides.forEach((el, i) =>
-        el.classList.toggle('hidden', i !== current)
-      );
+      slides.forEach((el, i) => {
+        const active = i === current;
+        el.classList.toggle('hidden', !active);
+        el.setAttribute('aria-hidden', String(!active));
+      });
     };
 
     slider.querySelector('[data-mx-prev]')
@@ -32,17 +34,19 @@
       );
 
     if (slides.length > 1) {
-      setInterval(() => show(current + 1), 5500);
+      setInterval(() => {
+        if (!document.hidden) show(current + 1);
+      }, 5500);
     }
   }
 
   const clock = document.getElementById('mx-flash-clock');
 
   if (clock) {
-    const initial = Math.max(
-      0,
-      Number(clock.dataset.seconds) || 0
-    );
+    const rawSeconds = Number(clock.dataset.seconds);
+    const initial = Number.isFinite(rawSeconds)
+      ? Math.max(0, Math.floor(rawSeconds))
+      : 0;
 
     const startedAt = Date.now();
     let finished = false;
