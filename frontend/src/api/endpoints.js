@@ -1,0 +1,71 @@
+// src/api/endpoints.js
+// Single source of truth for all API URL constants.
+// Keep in sync with backend/api.json (OpenAPI contract).
+
+const EP = {
+  // ── Auth ──────────────────────────────────────────────
+  AUTH_LOGIN: '/auth/login',
+  AUTH_REGISTER: '/auth/register',
+  AUTH_LOGOUT: '/auth/logout',
+  AUTH_ME: '/me',
+  AUTH_FORGOT_PASSWORD: '/auth/forgot-password',
+  AUTH_RESET_PASSWORD: '/auth/reset-password',
+
+  // ── Catalog ───────────────────────────────────────────
+  CATEGORIES: '/categories',
+  BRANDS: '/brands',
+  PRODUCTS: '/products',
+  PRODUCT_DETAIL: (id) => `/products/${id}`,
+  PRODUCT_REVIEWS: (id) => `/products/${id}/reviews`,
+
+  // ── Banners ───────────────────────────────────────────
+  BANNERS: '/banners',
+
+  // ── Cart ──────────────────────────────────────────────
+  CART: '/cart',
+  CART_ITEMS: '/cart/items',
+  CART_ITEM: (id) => `/cart/items/${id}`,
+  CART_APPLY_COUPON: '/cart/apply-coupon',
+  CART_CLEAR: '/cart/clear',
+
+  // ── Addresses ─────────────────────────────────────────
+  ADDRESSES: '/addresses',
+  ADDRESS_DETAIL: (id) => `/addresses/${id}`,
+  ADDRESS_DEFAULT: (id) => `/addresses/${id}/default`,
+
+  // ── Orders ────────────────────────────────────────────
+  ORDERS: '/orders',
+  ORDER_DETAIL: (id) => `/orders/${id}`,
+  ORDER_CANCEL: (id) => `/orders/${id}/cancel`,
+
+  // ── Payments ──────────────────────────────────────────
+  PAYMENT_VNPAY_CREATE: '/payments/vnpay/create',
+  PAYMENT_VNPAY_RETURN: '/payments/vnpay/return',
+
+  // ── Admin: Orders ─────────────────────────────────────
+  ADMIN_ORDERS: '/admin/orders',
+  ADMIN_ORDER_DETAIL: (id) => `/admin/orders/${id}`,
+  ADMIN_ORDER_STATUS: (id) => `/admin/orders/${id}/status`,
+
+  // ── Admin: Coupons ────────────────────────────────────
+  ADMIN_COUPONS: '/admin/coupons',
+  ADMIN_COUPON_DETAIL: (id) => `/admin/coupons/${id}`,
+
+  // ── Admin: Banners ────────────────────────────────────
+  ADMIN_BANNERS: '/admin/banners',
+  ADMIN_BANNER_DETAIL: (id) => `/admin/banners/${id}`,
+
+  // ── Admin: Reviews ────────────────────────────────────
+  ADMIN_REVIEWS: '/admin/reviews',
+  ADMIN_REVIEW_STATUS: (id) => `/admin/reviews/${id}/status`,
+
+  // ── Admin: Dashboard ──────────────────────────────────
+  ADMIN_DASHBOARD_STATS: '/admin/dashboard/stats',
+  ADMIN_DASHBOARD_REVENUE_CHART: '/admin/dashboard/revenue-chart',
+
+  // ── Admin: Products ───────────────────────────────────
+  ADMIN_PRODUCTS: '/admin/products',
+  ADMIN_PRODUCT_DETAIL: (id) => `/admin/products/${id}`,
+}
+
+export default EP
