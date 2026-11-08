@@ -8,7 +8,9 @@ use App\Models\Inventory;
 use App\Models\InventoryTransaction;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\OrderStatusHistory;
 use App\Models\ProductVariant;
+use App\Models\ShippingMethod;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -23,16 +25,28 @@ class OrderController extends Controller
         $validated = $request->validate([
             'shipping_name' => ['required', 'string', 'max:255'],
             'shipping_phone' => ['required', 'string', 'max:20'],
-            'shipping_address' => ['required', 'string', 'max:255'],
+            'shipping_address' => ['nullable', 'string', 'max:255'],
+            'shipping_address_line' => ['nullable', 'string', 'max:255'],
             'shipping_city' => ['nullable', 'string', 'max:100'],
+            'shipping_province_code' => ['nullable', 'string', 'max:20'],
+            'shipping_province_name' => ['nullable', 'string', 'max:100'],
             'shipping_district' => ['nullable', 'string', 'max:100'],
             'shipping_ward' => ['nullable', 'string', 'max:100'],
+            'shipping_ward_code' => ['nullable', 'string', 'max:20'],
+            'shipping_ward_name' => ['nullable', 'string', 'max:100'],
             'shipping_method_id' => ['nullable', 'integer', 'exists:shipping_methods,id'],
-            'payment_method' => ['required', Rule::in(['COD', 'VNPAY', 'MOMO'])],
+            'payment_method' => ['required', Rule::in(['COD', 'VNPAY', 'MOMO', 'cod', 'vnpay', 'momo'])],
             'customer_note' => ['nullable', 'string'],
         ]);
 
-        $order = DB::transaction(function () use ($request, $validated) {
+        $addressLine = $validated['shipping_address_line'] ?? $validated['shipping_address'] ?? null;
+        if (! $addressLine) {
+            throw ValidationException::withMessages([
+                'shipping_address' => 'Địa chỉ giao hàng không được để trống.',
+            ]);
+        }
+
+        $order = DB::transaction(function () use ($request, $validated, $addressLine) {
             $userId = $request->user()->id;
 
             $cart = Cart::where('user_id', $userId)
@@ -48,12 +62,27 @@ class OrderController extends Controller
 
             $cartItems = $cart->items()->with([
                 'variant.product',
-                'variant.attributeValues.attribute',
             ])->get();
 
             if ($cartItems->isEmpty()) {
                 throw ValidationException::withMessages([
                     'cart' => 'Giỏ hàng đang trống.',
+                ]);
+            }
+
+            $shippingMethod = null;
+            if (! empty($validated['shipping_method_id'])) {
+                $shippingMethod = ShippingMethod::find($validated['shipping_method_id']);
+            }
+            if (! $shippingMethod) {
+                $shippingMethod = ShippingMethod::where('is_active', true)->first();
+            }
+            if (! $shippingMethod) {
+                $shippingMethod = ShippingMethod::create([
+                    'name' => 'Giao hàng tiêu chuẩn',
+                    'code' => 'STANDARD',
+                    'fee' => 0.00,
+                    'is_active' => true,
                 ]);
             }
 
@@ -71,7 +100,7 @@ class OrderController extends Controller
                     ]);
                 }
 
-                $inventory = Inventory::where('variant_id', $variant->id)
+                $inventory = Inventory::where('product_variant_id', $variant->id)
                     ->lockForUpdate()
                     ->first();
 
@@ -81,27 +110,30 @@ class OrderController extends Controller
                     ]);
                 }
 
-                $available = (int) $inventory->quantity
-                    - (int) $inventory->reserved_quantity;
-
-                if ($available < $cartItem->quantity) {
+                if ($inventory->available_quantity < (int) $cartItem->quantity) {
                     throw ValidationException::withMessages([
                         'cart' => "Sản phẩm {$variant->sku} không đủ tồn kho.",
                     ]);
                 }
 
                 $product = $variant->product;
-
                 if (! $product) {
                     throw ValidationException::withMessages([
                         'cart' => 'Không tìm thấy thông tin sản phẩm.',
                     ]);
                 }
 
-                $variantName = $variant->attributeValues
-                    ->map(fn ($value) => $value->value)
-                    ->filter()
-                    ->implode(' / ');
+                $variantName = $variant->option_signature ?: null;
+                if (! $variantName && method_exists($variant, 'attributeValues')) {
+                    try {
+                        $variantName = $variant->attributeValues
+                            ->map(fn ($value) => $value->value)
+                            ->filter()
+                            ->implode(' / ');
+                    } catch (\Throwable) {
+                        $variantName = null;
+                    }
+                }
 
                 $price = (float) $variant->price;
                 $itemSubtotal = $price * (int) $cartItem->quantity;
@@ -110,6 +142,7 @@ class OrderController extends Controller
                 $preparedItems[] = [
                     'variant' => $variant,
                     'inventory' => $inventory,
+                    'product' => $product,
                     'product_name' => $product->name,
                     'variant_name' => $variantName ?: null,
                     'sku' => $variant->sku,
@@ -119,59 +152,82 @@ class OrderController extends Controller
                 ];
             }
 
+            $shippingFee = (float) $shippingMethod->fee;
+            $totalAmount = $subtotal + $shippingFee;
+
             $order = Order::create([
                 'user_id' => $userId,
-                'shipping_method_id' => $validated['shipping_method_id'] ?? null,
                 'order_code' => 'MX-'.Str::upper(Str::random(12)),
+                'shipping_method_id' => $shippingMethod->id,
+                'shipping_method_code' => $shippingMethod->code,
+                'shipping_method_name' => $shippingMethod->name,
                 'subtotal' => $subtotal,
                 'discount_amount' => 0,
-                'shipping_fee' => 0,
-                'total_amount' => $subtotal,
+                'shipping_fee' => $shippingFee,
+                'total_amount' => $totalAmount,
+                'currency_code' => 'VND',
                 'shipping_name' => $validated['shipping_name'],
                 'shipping_phone' => $validated['shipping_phone'],
-                'shipping_address' => $validated['shipping_address'],
-                'shipping_city' => $validated['shipping_city'] ?? null,
-                'shipping_district' => $validated['shipping_district'] ?? null,
-                'shipping_ward' => $validated['shipping_ward'] ?? null,
-                'payment_method' => $validated['payment_method'],
-                'payment_status' => 'PENDING',
-                'order_status' => 'PENDING',
+                'shipping_address_line' => $addressLine,
+                'shipping_province_code' => $validated['shipping_province_code'] ?? 'VN-HN',
+                'shipping_province_name' => $validated['shipping_province_name'] ?? $validated['shipping_city'] ?? 'Hà Nội',
+                'shipping_ward_code' => $validated['shipping_ward_code'] ?? '001',
+                'shipping_ward_name' => $validated['shipping_ward_name'] ?? $validated['shipping_ward'] ?? 'Dịch Vọng Hậu',
+                'payment_method' => strtolower($validated['payment_method']),
+                'payment_status' => 'pending',
+                'status' => 'pending',
                 'customer_note' => $validated['customer_note'] ?? null,
             ]);
 
             foreach ($preparedItems as $item) {
                 OrderItem::create([
                     'order_id' => $order->id,
+                    'product_id' => $item['product']->id,
                     'product_variant_id' => $item['variant']->id,
                     'product_name' => $item['product_name'],
                     'variant_name' => $item['variant_name'],
                     'sku' => $item['sku'],
+                    'image_path' => $item['variant']->image_path ?? $item['product']->thumbnail_url,
                     'price' => $item['price'],
+                    'cost_price_snapshot' => $item['variant']->cost_price ?? null,
                     'quantity' => $item['quantity'],
-                    'subtotal' => $item['subtotal'],
                 ]);
 
+                // Stock Reservation: Keep on_hand_quantity intact, increase reserved_quantity
                 $inventory = $item['inventory'];
-                $inventory->quantity -= $item['quantity'];
+                $inventory->reserved_quantity += $item['quantity'];
                 $inventory->save();
 
                 InventoryTransaction::create([
-                    'variant_id' => $item['variant']->id,
+                    'product_variant_id' => $item['variant']->id,
                     'user_id' => $userId,
-                    'transaction_type' => 'export',
-                    'quantity' => $item['quantity'],
+                    'type' => 'reserve',
+                    'quantity_delta' => 0,
+                    'reserved_delta' => $item['quantity'],
+                    'unit_cost' => $item['variant']->cost_price ?? null,
                     'reference_type' => 'order',
                     'reference_id' => $order->id,
-                    'note' => 'Xuất kho cho đơn hàng '.$order->order_code,
+                    'idempotency_key' => "order_{$order->id}_var_{$item['variant']->id}_reserve",
+                    'note' => 'Giữ chỗ cho đơn hàng '.$order->order_code,
+                    'created_at' => now(),
                 ]);
             }
+
+            OrderStatusHistory::create([
+                'order_id' => $order->id,
+                'user_id' => $userId,
+                'from_status' => null,
+                'status' => 'pending',
+                'note' => 'Đơn hàng được tạo thành công.',
+                'created_at' => now(),
+            ]);
 
             $cart->items()->delete();
 
             return $order;
         });
 
-        $order->load('items');
+        $order->load(['items.variant.product', 'statusHistories']);
 
         return response()->json([
             'message' => 'Đặt hàng thành công.',

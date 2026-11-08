@@ -51,6 +51,15 @@ class Inventory extends Model
         $this->attributes['on_hand_quantity'] = $value;
     }
 
+    public function getAvailableQuantityAttribute(): int
+    {
+        if (isset($this->attributes['available_quantity'])) {
+            return (int) $this->attributes['available_quantity'];
+        }
+
+        return max(0, (int) ($this->attributes['on_hand_quantity'] ?? 0) - (int) ($this->attributes['reserved_quantity'] ?? 0));
+    }
+
     public function variant(): BelongsTo
     {
         return $this->belongsTo(ProductVariant::class, 'product_variant_id');
