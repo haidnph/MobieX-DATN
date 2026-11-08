@@ -64,6 +64,81 @@ class OrderController extends Controller
         ]);
     }
 
+    public function cancel(Request $request, int|string $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'cancel_reason' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $order = Order::with('items')->findOrFail($id);
+
+        if ((int) $order->user_id !== (int) $request->user()->id) {
+            return response()->json([
+                'message' => 'Bạn không có quyền hủy đơn hàng này.',
+            ], 403);
+        }
+
+        if ($order->status !== 'pending') {
+            return response()->json([
+                'message' => 'Chỉ có thể hủy đơn hàng khi đơn đang ở trạng thái chờ xử lý (pending).',
+            ], 422);
+        }
+
+        $userId = $request->user()->id;
+        $reason = $validated['cancel_reason'] ?? 'Khách hàng yêu cầu hủy đơn';
+
+        DB::transaction(function () use ($order, $userId, $reason) {
+            $fromStatus = $order->status;
+
+            $order->update([
+                'status' => 'cancelled',
+                'cancelled_at' => now(),
+                'cancel_reason' => $reason,
+            ]);
+
+            foreach ($order->items as $item) {
+                $inventory = Inventory::where('product_variant_id', $item->product_variant_id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($inventory) {
+                    $inventory->reserved_quantity = max(0, (int) $inventory->reserved_quantity - (int) $item->quantity);
+                    $inventory->save();
+
+                    InventoryTransaction::create([
+                        'product_variant_id' => $item->product_variant_id,
+                        'user_id' => $userId,
+                        'type' => 'release',
+                        'quantity_delta' => 0,
+                        'reserved_delta' => -((int) $item->quantity),
+                        'unit_cost' => $item->cost_price_snapshot,
+                        'reference_type' => 'order',
+                        'reference_id' => $order->id,
+                        'idempotency_key' => "order_{$order->id}_var_{$item->product_variant_id}_release",
+                        'note' => 'Hoàn trả tồn kho do đơn hàng '.$order->order_code.' bị hủy',
+                        'created_at' => now(),
+                    ]);
+                }
+            }
+
+            OrderStatusHistory::create([
+                'order_id' => $order->id,
+                'user_id' => $userId,
+                'from_status' => $fromStatus,
+                'status' => 'cancelled',
+                'note' => $reason,
+                'created_at' => now(),
+            ]);
+        });
+
+        $order->load(['items.variant.product', 'statusHistories']);
+
+        return response()->json([
+            'message' => 'Hủy đơn hàng thành công.',
+            'data' => $order,
+        ]);
+    }
+
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([

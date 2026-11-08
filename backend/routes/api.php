@@ -512,6 +512,10 @@ Route::middleware([
         '/orders',
         [OrderController::class, 'store'],
     )->name('api.orders.store');
+
+    Route::match(['patch', 'post'], '/orders/{id}/cancel', [OrderController::class, 'cancel'])
+        ->whereNumber('id')
+        ->name('api.orders.cancel');
 });
 
 /*
