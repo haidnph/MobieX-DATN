@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\InventoryController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\ProductImageController;
 use App\Http\Controllers\Api\ProductSpecificationController;
+use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Auth\CurrentUserController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
@@ -105,6 +106,12 @@ Route::get(
     [ProductController::class, 'show'],
 )->whereNumber('id')
     ->name('api.products.show');
+
+Route::get(
+    '/products/{id}/reviews',
+    [ReviewController::class, 'index'],
+)->whereNumber('id')
+    ->name('api.products.reviews.index');
 
 Route::get(
     '/product-variants',
@@ -531,6 +538,11 @@ Route::middleware([
     Route::match(['patch', 'post'], '/orders/{id}/cancel', [OrderController::class, 'cancel'])
         ->whereNumber('id')
         ->name('api.orders.cancel');
+
+    // Product review submission
+    Route::post('/products/{id}/reviews', [ReviewController::class, 'store'])
+        ->whereNumber('id')
+        ->name('api.products.reviews.store');
 });
 
 /*
