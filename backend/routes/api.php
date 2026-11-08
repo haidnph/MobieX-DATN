@@ -621,18 +621,28 @@ Route::prefix('admin')
     ->middleware([
         'auth:sanctum',
         'active',
-        'permission:orders.view',
     ])
     ->group(function (): void {
-        Route::get(
-            '/orders',
-            [AdminOrderController::class, 'index'],
-        )->name('orders.index');
+        Route::middleware('permission:orders.view')->group(function (): void {
+            Route::get(
+                '/orders',
+                [AdminOrderController::class, 'index'],
+            )->name('orders.index');
 
-        Route::get(
-            '/orders/{id}',
-            [AdminOrderController::class, 'show'],
-        )
-            ->whereNumber('id')
-            ->name('orders.show');
+            Route::get(
+                '/orders/{id}',
+                [AdminOrderController::class, 'show'],
+            )
+                ->whereNumber('id')
+                ->name('orders.show');
+        });
+
+        Route::middleware('permission:orders.manage')->group(function (): void {
+            Route::patch(
+                '/orders/{id}/status',
+                [AdminOrderController::class, 'updateStatus'],
+            )
+                ->whereNumber('id')
+                ->name('orders.status.update');
+        });
     });
