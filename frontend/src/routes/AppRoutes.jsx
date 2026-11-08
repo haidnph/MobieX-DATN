@@ -34,8 +34,10 @@ const OrderDetailPage  = lazy(() => import('../features/orders/OrderDetailPage')
 const AdminDashboard       = lazy(() => import('../features/admin/AdminDashboard'))
 const AdminOrderListPage   = lazy(() => import('../features/admin/AdminOrderListPage'))
 const AdminOrderDetailPage = lazy(() => import('../features/admin/AdminOrderDetailPage'))
+const AdminProductPage     = lazy(() => import('../features/admin/AdminProductPage'))
 const AdminCouponPage      = lazy(() => import('../features/admin/AdminCouponPage'))
 const AdminReviewPage      = lazy(() => import('../features/admin/AdminReviewPage'))
+const AdminBannerPage      = lazy(() => import('../features/admin/AdminBannerPage'))
 
 // ── Loading fallback ───────────────────────────────────────────────────────────
 function PageLoader() {
@@ -141,8 +143,10 @@ export default function AppRoutes() {
           <Route index                 element={<AdminDashboard />} />
           <Route path="orders"         element={<AdminOrderListPage />} />
           <Route path="orders/:id"     element={<AdminOrderDetailPage />} />
+          <Route path="products"       element={<AdminProductPage />} />
           <Route path="coupons"        element={<AdminCouponPage />} />
           <Route path="reviews"        element={<AdminReviewPage />} />
+          <Route path="banners"        element={<AdminBannerPage />} />
           <Route path="*"              element={<Navigate to="/admin" replace />} />
         </Route>
       </Routes>
