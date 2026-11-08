@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Addresses\AddressController;
+use App\Http\Controllers\Admin\AdminBannerController;
 use App\Http\Controllers\Admin\AdminCouponController;
 use App\Http\Controllers\Admin\AdminOrderController;
 use App\Http\Controllers\Admin\PermissionController;
@@ -8,6 +9,7 @@ use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\UserRoleController;
 use App\Http\Controllers\Admin\UserStatusController;
+use App\Http\Controllers\Api\BannerController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CouponController;
 use App\Http\Controllers\Api\InventoryController;
@@ -76,6 +78,11 @@ Route::middleware([
 | Public Catalog Read Endpoints
 |--------------------------------------------------------------------------
 */
+
+Route::get(
+    '/banners',
+    [BannerController::class, 'index'],
+)->name('api.banners.index');
 
 Route::get(
     '/categories',
@@ -687,5 +694,41 @@ Route::prefix('admin')
             )
                 ->whereNumber('id')
                 ->name('coupons.destroy');
+        });
+
+        // Admin Banner Management
+        Route::middleware('permission:banners.view')->group(function (): void {
+            Route::get(
+                '/banners',
+                [AdminBannerController::class, 'index'],
+            )->name('banners.index');
+
+            Route::get(
+                '/banners/{id}',
+                [AdminBannerController::class, 'show'],
+            )
+                ->whereNumber('id')
+                ->name('banners.show');
+        });
+
+        Route::middleware('permission:banners.manage')->group(function (): void {
+            Route::post(
+                '/banners',
+                [AdminBannerController::class, 'store'],
+            )->name('banners.store');
+
+            Route::patch(
+                '/banners/{id}',
+                [AdminBannerController::class, 'update'],
+            )
+                ->whereNumber('id')
+                ->name('banners.update');
+
+            Route::delete(
+                '/banners/{id}',
+                [AdminBannerController::class, 'destroy'],
+            )
+                ->whereNumber('id')
+                ->name('banners.destroy');
         });
     });
