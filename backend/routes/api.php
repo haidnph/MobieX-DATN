@@ -3,6 +3,7 @@
 use App\Http\Controllers\Addresses\AddressController;
 use App\Http\Controllers\Admin\AdminBannerController;
 use App\Http\Controllers\Admin\AdminCouponController;
+use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminOrderController;
 use App\Http\Controllers\Admin\AdminReviewController;
 use App\Http\Controllers\Admin\PermissionController;
@@ -767,5 +768,18 @@ Route::prefix('admin')
             )
                 ->whereNumber('id')
                 ->name('reviews.status.update');
+        });
+
+        // Admin Dashboard & Reports
+        Route::middleware('permission:dashboard.view')->group(function (): void {
+            Route::get(
+                '/dashboard/stats',
+                [AdminDashboardController::class, 'stats'],
+            )->name('dashboard.stats');
+
+            Route::get(
+                '/dashboard/revenue-chart',
+                [AdminDashboardController::class, 'revenueChart'],
+            )->name('dashboard.revenue-chart');
         });
     });
