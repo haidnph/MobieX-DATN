@@ -57,5 +57,18 @@ class CustomerUserSeeder extends Seeder
         );
 
         $admin->roles()->syncWithoutDetaching([$adminRole->id]);
+
+        // 3. Super Admin Account
+        $superAdmin = User::updateOrCreate(
+            ['email' => 'superadmin@gmail.com'],
+            [
+                'name' => 'Super Admin',
+                'password' => Hash::make('superadmin1234567890'),
+                'phone' => '0909999999',
+                'is_active' => true,
+            ]
+        );
+
+        $superAdmin->roles()->syncWithoutDetaching([$adminRole->id]);
     }
 }
