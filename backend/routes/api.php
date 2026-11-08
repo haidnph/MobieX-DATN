@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Addresses\AddressController;
+use App\Http\Controllers\Admin\AdminCouponController;
 use App\Http\Controllers\Admin\AdminOrderController;
 use App\Http\Controllers\Admin\PermissionController;
 use App\Http\Controllers\Admin\RoleController;
@@ -650,5 +651,41 @@ Route::prefix('admin')
             )
                 ->whereNumber('id')
                 ->name('orders.status.update');
+        });
+
+        // Admin Coupon Management
+        Route::middleware('permission:coupons.view')->group(function (): void {
+            Route::get(
+                '/coupons',
+                [AdminCouponController::class, 'index'],
+            )->name('coupons.index');
+
+            Route::get(
+                '/coupons/{id}',
+                [AdminCouponController::class, 'show'],
+            )
+                ->whereNumber('id')
+                ->name('coupons.show');
+        });
+
+        Route::middleware('permission:coupons.manage')->group(function (): void {
+            Route::post(
+                '/coupons',
+                [AdminCouponController::class, 'store'],
+            )->name('coupons.store');
+
+            Route::patch(
+                '/coupons/{id}',
+                [AdminCouponController::class, 'update'],
+            )
+                ->whereNumber('id')
+                ->name('coupons.update');
+
+            Route::delete(
+                '/coupons/{id}',
+                [AdminCouponController::class, 'destroy'],
+            )
+                ->whereNumber('id')
+                ->name('coupons.destroy');
         });
     });
