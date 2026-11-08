@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Cart;
+use App\Models\Coupon;
+use App\Models\CouponRedemption;
 use App\Models\Inventory;
 use App\Models\InventoryTransaction;
 use App\Models\Order;
@@ -121,6 +123,22 @@ class OrderController extends Controller
                 }
             }
 
+            // Release coupon reservation if any
+            if ($order->coupon_id) {
+                $coupon = Coupon::whereKey($order->coupon_id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($coupon) {
+                    $coupon->reserved_count = max(0, (int) $coupon->reserved_count - 1);
+                    $coupon->save();
+                }
+
+                CouponRedemption::where('order_id', $order->id)
+                    ->where('status', 'reserved')
+                    ->update(['status' => 'released']);
+            }
+
             OrderStatusHistory::create([
                 'order_id' => $order->id,
                 'user_id' => $userId,
@@ -155,6 +173,7 @@ class OrderController extends Controller
             'shipping_ward_name' => ['nullable', 'string', 'max:100'],
             'shipping_method_id' => ['nullable', 'integer', 'exists:shipping_methods,id'],
             'payment_method' => ['required', Rule::in(['COD', 'VNPAY', 'MOMO', 'cod', 'vnpay', 'momo'])],
+            'coupon_code' => ['nullable', 'string', 'max:50'],
             'customer_note' => ['nullable', 'string'],
         ]);
 
@@ -272,16 +291,77 @@ class OrderController extends Controller
             }
 
             $shippingFee = (float) $shippingMethod->fee;
-            $totalAmount = $subtotal + $shippingFee;
+
+            $coupon = null;
+            $discountAmount = 0.0;
+            if (! empty($validated['coupon_code'])) {
+                $couponCode = trim($validated['coupon_code']);
+                $coupon = Coupon::where('code', $couponCode)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $coupon) {
+                    throw ValidationException::withMessages([
+                        'coupon_code' => 'Mã giảm giá không tồn tại.',
+                    ]);
+                }
+
+                if (! $coupon->is_active) {
+                    throw ValidationException::withMessages([
+                        'coupon_code' => 'Mã giảm giá hiện đang bị vô hiệu hóa.',
+                    ]);
+                }
+
+                $now = now();
+                if ($coupon->start_at && $now->lt($coupon->start_at)) {
+                    throw ValidationException::withMessages([
+                        'coupon_code' => 'Mã giảm giá chưa đến thời gian áp dụng.',
+                    ]);
+                }
+
+                if ($coupon->end_at && $now->gt($coupon->end_at)) {
+                    throw ValidationException::withMessages([
+                        'coupon_code' => 'Mã giảm giá đã hết hạn sử dụng.',
+                    ]);
+                }
+
+                if ($coupon->usage_limit !== null && (($coupon->used_count + $coupon->reserved_count) >= $coupon->usage_limit)) {
+                    throw ValidationException::withMessages([
+                        'coupon_code' => 'Mã giảm giá đã hết lượt sử dụng.',
+                    ]);
+                }
+
+                if ($subtotal < (float) $coupon->min_order_amount) {
+                    throw ValidationException::withMessages([
+                        'coupon_code' => 'Giá trị đơn hàng chưa đạt mức tối thiểu '.number_format((float) $coupon->min_order_amount).' VND để áp dụng mã.',
+                    ]);
+                }
+
+                if ($coupon->discount_type === 'percent') {
+                    $discountAmount = round(($subtotal * (float) $coupon->discount_value) / 100, 2);
+                    if ($coupon->max_discount !== null && $discountAmount > (float) $coupon->max_discount) {
+                        $discountAmount = (float) $coupon->max_discount;
+                    }
+                } elseif ($coupon->discount_type === 'fixed') {
+                    $discountAmount = min((float) $coupon->discount_value, $subtotal);
+                }
+
+                $coupon->reserved_count += 1;
+                $coupon->save();
+            }
+
+            $totalAmount = max(0.0, round($subtotal - $discountAmount + $shippingFee, 2));
 
             $order = Order::create([
                 'user_id' => $userId,
                 'order_code' => 'MX-'.Str::upper(Str::random(12)),
+                'coupon_id' => $coupon?->id,
+                'coupon_code' => $coupon?->code,
                 'shipping_method_id' => $shippingMethod->id,
                 'shipping_method_code' => $shippingMethod->code,
                 'shipping_method_name' => $shippingMethod->name,
                 'subtotal' => $subtotal,
-                'discount_amount' => 0,
+                'discount_amount' => $discountAmount,
                 'shipping_fee' => $shippingFee,
                 'total_amount' => $totalAmount,
                 'currency_code' => 'VND',
@@ -297,6 +377,16 @@ class OrderController extends Controller
                 'status' => 'pending',
                 'customer_note' => $validated['customer_note'] ?? null,
             ]);
+
+            if ($coupon) {
+                CouponRedemption::create([
+                    'coupon_id' => $coupon->id,
+                    'order_id' => $order->id,
+                    'user_id' => $userId,
+                    'discount_amount' => $discountAmount,
+                    'status' => 'reserved',
+                ]);
+            }
 
             foreach ($preparedItems as $item) {
                 OrderItem::create([

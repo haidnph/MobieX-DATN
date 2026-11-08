@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Coupon;
+use App\Models\CouponRedemption;
 use App\Models\Inventory;
 use App\Models\InventoryTransaction;
 use App\Models\Order;
@@ -183,6 +185,21 @@ class AdminOrderController extends Controller
                                 'created_at' => now(),
                             ]);
                         }
+                    }
+
+                    if ($order->coupon_id) {
+                        $coupon = Coupon::whereKey($order->coupon_id)
+                            ->lockForUpdate()
+                            ->first();
+
+                        if ($coupon) {
+                            $coupon->reserved_count = max(0, (int) $coupon->reserved_count - 1);
+                            $coupon->save();
+                        }
+
+                        CouponRedemption::where('order_id', $order->id)
+                            ->where('status', 'reserved')
+                            ->update(['status' => 'released']);
                     }
                 }
             }
