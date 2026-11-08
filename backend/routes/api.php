@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Addresses\AddressController;
+use App\Http\Controllers\Admin\AdminOrderController;
 use App\Http\Controllers\Admin\PermissionController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\UserController;
@@ -607,4 +608,31 @@ Route::prefix('admin')
         )
             ->whereNumber('user')
             ->name('users.status.update');
+    });
+
+/*
+|--------------------------------------------------------------------------
+| Admin Orders Management Endpoints
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('admin')
+    ->name('api.admin.')
+    ->middleware([
+        'auth:sanctum',
+        'active',
+        'permission:orders.view',
+    ])
+    ->group(function (): void {
+        Route::get(
+            '/orders',
+            [AdminOrderController::class, 'index'],
+        )->name('orders.index');
+
+        Route::get(
+            '/orders/{id}',
+            [AdminOrderController::class, 'show'],
+        )
+            ->whereNumber('id')
+            ->name('orders.show');
     });
