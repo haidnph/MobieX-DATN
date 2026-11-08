@@ -497,6 +497,17 @@ Route::middleware([
         ->name('api.cart.items.destroy');
 
     // Orders
+    Route::get(
+        '/orders',
+        [OrderController::class, 'index'],
+    )->name('api.orders.index');
+
+    Route::get(
+        '/orders/{id}',
+        [OrderController::class, 'show'],
+    )->whereNumber('id')
+        ->name('api.orders.show');
+
     Route::post(
         '/orders',
         [OrderController::class, 'store'],

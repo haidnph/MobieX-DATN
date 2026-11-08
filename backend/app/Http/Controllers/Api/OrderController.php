@@ -20,6 +20,50 @@ use Illuminate\Validation\ValidationException;
 
 class OrderController extends Controller
 {
+    public function index(Request $request): JsonResponse
+    {
+        $userId = $request->user()->id;
+
+        $query = Order::query()
+            ->where('user_id', $userId)
+            ->with([
+                'items.variant.product',
+                'statusHistories',
+                'shippingMethod',
+            ])
+            ->latest();
+
+        if ($request->filled('status')) {
+            $query->where('status', strtolower((string) $request->query('status')));
+        }
+
+        $perPage = min(max((int) $request->query('per_page', 15), 1), 100);
+        $orders = $query->paginate($perPage);
+
+        return response()->json($orders);
+    }
+
+    public function show(Request $request, int|string $id): JsonResponse
+    {
+        $order = Order::with([
+            'items.variant.product',
+            'statusHistories',
+            'shippingMethod',
+            'payments',
+            'coupon',
+        ])->findOrFail($id);
+
+        if ((int) $order->user_id !== (int) $request->user()->id) {
+            return response()->json([
+                'message' => 'Bạn không có quyền truy cập đơn hàng này.',
+            ], 403);
+        }
+
+        return response()->json([
+            'data' => $order,
+        ]);
+    }
+
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
