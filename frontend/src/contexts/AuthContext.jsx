@@ -11,6 +11,20 @@ import storage from '../utils/storage'
 
 const AuthContext = createContext(null)
 
+function normalizeUser(rawUser) {
+  if (!rawUser) return null
+  const rawRoles = rawUser.roles ?? []
+  const roleSlugs = rawRoles.map((r) => (typeof r === 'string' ? r : r?.slug)).filter(Boolean)
+  const permissions = rawUser.permissions ?? []
+  const permissionSlugs = permissions.map((p) => (typeof p === 'string' ? p : p?.slug)).filter(Boolean)
+  return {
+    ...rawUser,
+    roles: roleSlugs,
+    rawRoles,
+    permissions: permissionSlugs,
+  }
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(/** @type {AuthUser|null} */ (null))
   const [token, setToken] = useState(/** @type {string|null} */ (storage.get('token')))
@@ -26,7 +40,8 @@ export function AuthProvider({ children }) {
     axiosClient
       .get(EP.AUTH_ME)
       .then(({ data }) => {
-        setUser(data.data ?? data)
+        const u = data.data?.user ?? data.data ?? data
+        setUser(normalizeUser(u))
         setToken(savedToken)
       })
       .catch(() => {
@@ -43,11 +58,24 @@ export function AuthProvider({ children }) {
     const { data } = await axiosClient.post(EP.AUTH_LOGIN, credentials)
     const payload = data.data ?? data
     const newToken = payload.token ?? payload.access_token
-    const userObj = payload.user ?? payload
     storage.set('token', newToken)
     setToken(newToken)
-    setUser(userObj)
-    return userObj
+
+    // Ensure we have the full user profile with roles
+    let userObj = payload.user ?? payload
+    if (!userObj?.roles || userObj.roles.length === 0) {
+      try {
+        const meRes = await axiosClient.get(EP.AUTH_ME, {
+          headers: { Authorization: `Bearer ${newToken}` },
+        })
+        userObj = meRes.data.data?.user ?? meRes.data.data ?? meRes.data
+      } catch {
+        // fallback to payload userObj
+      }
+    }
+    const normalized = normalizeUser(userObj)
+    setUser(normalized)
+    return normalized
   }, [])
 
   // ── Logout ─────────────────────────────────────────────────────────────
@@ -64,19 +92,28 @@ export function AuthProvider({ children }) {
   }, [])
 
   // ── Permission helpers ─────────────────────────────────────────────────
-  const hasPermission = useCallback(
-    (slug) => !!(user?.permissions ?? []).includes(slug),
-    [user],
-  )
-
   const hasRole = useCallback(
-    (role) => !!(user?.roles ?? []).includes(role),
+    (role) => {
+      if (!user?.roles) return false
+      return user.roles.some((r) => {
+        const slug = typeof r === 'string' ? r : r?.slug
+        return slug === role
+      })
+    },
     [user],
   )
 
   const isAdmin = useCallback(
     () => hasRole('admin') || hasRole('super-admin'),
     [hasRole],
+  )
+
+  const hasPermission = useCallback(
+    (slug) => {
+      if (isAdmin()) return true
+      return !!(user?.permissions ?? []).includes(slug)
+    },
+    [user, isAdmin],
   )
 
   return (
