@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\UserRoleController;
 use App\Http\Controllers\Admin\UserStatusController;
 use App\Http\Controllers\Api\CartController;
+use App\Http\Controllers\Api\CouponController;
 use App\Http\Controllers\Api\InventoryController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\ProductImageController;
@@ -496,6 +497,11 @@ Route::middleware([
         [CartController::class, 'destroy'],
     )->whereNumber('id')
         ->name('api.cart.items.destroy');
+
+    Route::post(
+        '/cart/apply-coupon',
+        [CouponController::class, 'applyCoupon'],
+    )->name('api.cart.apply-coupon');
 
     // Orders
     Route::get(
