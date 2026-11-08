@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CouponController;
 use App\Http\Controllers\Api\InventoryController;
 use App\Http\Controllers\Api\OrderController;
+use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ProductImageController;
 use App\Http\Controllers\Api\ProductSpecificationController;
 use App\Http\Controllers\Api\ReviewController;
@@ -545,7 +546,20 @@ Route::middleware([
     Route::post('/products/{id}/reviews', [ReviewController::class, 'store'])
         ->whereNumber('id')
         ->name('api.products.reviews.store');
+
+    // Online Payments
+    Route::post('/payments/vnpay/create', [PaymentController::class, 'createVNPayPayment'])
+        ->name('api.payments.vnpay.create');
 });
+
+/*
+|--------------------------------------------------------------------------
+| Payment Callbacks & Webhooks
+|--------------------------------------------------------------------------
+*/
+
+Route::get('/payments/vnpay/return', [PaymentController::class, 'vnpayReturn'])
+    ->name('api.payments.vnpay.return');
 
 /*
 |--------------------------------------------------------------------------
