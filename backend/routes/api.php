@@ -4,6 +4,7 @@ use App\Http\Controllers\Addresses\AddressController;
 use App\Http\Controllers\Admin\AdminBannerController;
 use App\Http\Controllers\Admin\AdminCouponController;
 use App\Http\Controllers\Admin\AdminOrderController;
+use App\Http\Controllers\Admin\AdminReviewController;
 use App\Http\Controllers\Admin\PermissionController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\UserController;
@@ -742,5 +743,29 @@ Route::prefix('admin')
             )
                 ->whereNumber('id')
                 ->name('banners.destroy');
+        });
+
+        // Admin Review Management
+        Route::middleware('permission:reviews.view')->group(function (): void {
+            Route::get(
+                '/reviews',
+                [AdminReviewController::class, 'index'],
+            )->name('reviews.index');
+
+            Route::get(
+                '/reviews/{id}',
+                [AdminReviewController::class, 'show'],
+            )
+                ->whereNumber('id')
+                ->name('reviews.show');
+        });
+
+        Route::middleware('permission:reviews.moderate')->group(function (): void {
+            Route::patch(
+                '/reviews/{id}/status',
+                [AdminReviewController::class, 'updateStatus'],
+            )
+                ->whereNumber('id')
+                ->name('reviews.status.update');
         });
     });
