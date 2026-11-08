@@ -561,6 +561,9 @@ Route::middleware([
 Route::get('/payments/vnpay/return', [PaymentController::class, 'vnpayReturn'])
     ->name('api.payments.vnpay.return');
 
+Route::get('/payments/vnpay/ipn', [PaymentController::class, 'vnpayIpn'])
+    ->name('api.payments.vnpay.ipn');
+
 /*
 |--------------------------------------------------------------------------
 | Password Reset
