@@ -159,6 +159,19 @@ class OrderController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        if (! $request->has('shipping_name') && $request->has('recipient_name')) {
+            $request->merge(['shipping_name' => $request->input('recipient_name')]);
+        }
+        if (! $request->has('shipping_phone')) {
+            $phone = $request->input('recipient_phone') ?? $request->input('phone');
+            if ($phone) {
+                $request->merge(['shipping_phone' => $phone]);
+            }
+        }
+        if (! $request->has('customer_note') && $request->has('note')) {
+            $request->merge(['customer_note' => $request->input('note')]);
+        }
+
         $validated = $request->validate([
             'shipping_name' => ['required', 'string', 'max:255'],
             'shipping_phone' => ['required', 'string', 'max:20'],

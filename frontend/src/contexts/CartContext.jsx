@@ -53,58 +53,32 @@ export function CartProvider({ children }) {
 
   // ── Add item ───────────────────────────────────────────────────────────
   const addToCart = useCallback(async (variantId, quantity = 1) => {
-    const { data } = await axiosClient.post(EP.CART_ITEMS, {
+    await axiosClient.post(EP.CART_ITEMS, {
+      variant_id: variantId,
       product_variant_id: variantId,
       quantity,
     })
-    const payload = data.data ?? data
-    setCartItems(payload.items ?? [])
-    setCartSummary({
-      subtotal: payload.subtotal ?? 0,
-      discount: payload.discount ?? 0,
-      total: payload.total ?? 0,
-      couponCode: payload.coupon_code ?? null,
-    })
-  }, [])
+    await fetchCart()
+  }, [fetchCart])
 
   // ── Update quantity ────────────────────────────────────────────────────
   const updateQuantity = useCallback(async (cartItemId, quantity) => {
-    const { data } = await axiosClient.patch(EP.CART_ITEM(cartItemId), { quantity })
-    const payload = data.data ?? data
-    setCartItems(payload.items ?? [])
-    setCartSummary({
-      subtotal: payload.subtotal ?? 0,
-      discount: payload.discount ?? 0,
-      total: payload.total ?? 0,
-      couponCode: payload.coupon_code ?? null,
-    })
-  }, [])
+    await axiosClient.put(EP.CART_ITEM(cartItemId), { quantity })
+    await fetchCart()
+  }, [fetchCart])
 
   // ── Remove item ────────────────────────────────────────────────────────
   const removeFromCart = useCallback(async (cartItemId) => {
-    const { data } = await axiosClient.delete(EP.CART_ITEM(cartItemId))
-    const payload = data.data ?? data
-    setCartItems(payload.items ?? [])
-    setCartSummary({
-      subtotal: payload.subtotal ?? 0,
-      discount: payload.discount ?? 0,
-      total: payload.total ?? 0,
-      couponCode: payload.coupon_code ?? null,
-    })
-  }, [])
+    await axiosClient.delete(EP.CART_ITEM(cartItemId))
+    await fetchCart()
+  }, [fetchCart])
 
   // ── Apply coupon ───────────────────────────────────────────────────────
   const applyCoupon = useCallback(async (couponCode) => {
     const { data } = await axiosClient.post(EP.CART_APPLY_COUPON, { coupon_code: couponCode })
-    const payload = data.data ?? data
-    setCartSummary({
-      subtotal: payload.subtotal ?? 0,
-      discount: payload.discount ?? 0,
-      total: payload.total ?? 0,
-      couponCode: payload.coupon_code ?? couponCode,
-    })
-    return payload
-  }, [])
+    await fetchCart()
+    return data?.data ?? data
+  }, [fetchCart])
 
   // ── Clear coupon ───────────────────────────────────────────────────────
   const clearCoupon = useCallback(() => {

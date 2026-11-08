@@ -39,7 +39,13 @@ export default function ProductDetailPage() {
           // Default to first variant
           const firstVariant = prodData.variants?.[0] ?? null
           setSelectedVariant(firstVariant)
-          setActiveImage(prodData.thumbnail ?? firstVariant?.image_url ?? null)
+          const defaultImg =
+            prodData.thumbnail ||
+            prodData.images?.find((img) => img.is_primary)?.image_path ||
+            prodData.images?.[0]?.image_path ||
+            firstVariant?.image_url ||
+            null
+          setActiveImage(defaultImg)
         }
         if (revRes.status === 'fulfilled') {
           const revData = revRes.value.data.data ?? revRes.value.data
@@ -137,28 +143,32 @@ export default function ProductDetailPage() {
           </div>
 
           {/* Thumbnails */}
-          {variants.length > 1 && (
-            <div className="flex gap-2 overflow-x-auto pb-2">
-              {variants.map((v) => (
-                <button
-                  key={v.id}
-                  onClick={() => handleVariantSelect(v)}
-                  className={[
-                    'w-16 h-16 rounded-xl border-2 overflow-hidden shrink-0 transition-all bg-surface-container flex items-center justify-center p-1',
-                    selectedVariant?.id === v.id
-                      ? 'border-primary ring-2 ring-primary/30'
-                      : 'border-outline-variant/30 hover:border-outline',
-                  ].join(' ')}
-                >
-                  {v.image_url ? (
-                    <img src={v.image_url} alt={v.name} className="w-full h-full object-contain" />
-                  ) : (
-                    <span className="material-symbols-outlined text-lg text-outline">devices</span>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
+          {(() => {
+            const gallery = (product.images && product.images.length > 0)
+              ? product.images.map((img) => img.image_path || img.image_url).filter(Boolean)
+              : [product.thumbnail].filter(Boolean)
+
+            if (gallery.length <= 1) return null
+
+            return (
+              <div className="flex gap-2 overflow-x-auto pb-2">
+                {gallery.map((imgSrc, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setActiveImage(imgSrc)}
+                    className={[
+                      'w-16 h-16 rounded-xl border-2 overflow-hidden shrink-0 transition-all bg-surface-container flex items-center justify-center p-1',
+                      activeImage === imgSrc
+                        ? 'border-primary ring-2 ring-primary/30'
+                        : 'border-outline-variant/30 hover:border-outline',
+                    ].join(' ')}
+                  >
+                    <img src={imgSrc} alt={`${product.name} ${idx + 1}`} className="w-full h-full object-contain" />
+                  </button>
+                ))}
+              </div>
+            )
+          })()}
         </div>
 
         {/* Right: Details (7 cols) */}
@@ -221,7 +231,15 @@ export default function ProductDetailPage() {
                         vStock <= 0 ? 'opacity-50' : '',
                       ].join(' ')}
                     >
-                      <div>{v.name || v.option_signature || `Phiên bản #${v.id}`}</div>
+                      <div className="font-semibold">
+                        {v.option_signature
+                          ? v.option_signature
+                              .split('|')
+                              .map((part) => part.split(':')[1] || part)
+                              .join(' • ')
+                              .toUpperCase()
+                          : (v.name || `Phiên bản #${v.id}`)}
+                      </div>
                       <div className="text-xs text-outline">{formatCurrencyVND(v.price)}</div>
                     </button>
                   )

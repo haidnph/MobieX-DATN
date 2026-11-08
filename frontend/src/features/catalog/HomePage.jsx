@@ -110,8 +110,30 @@ function HeroBanner({ banners }) {
 
 // ── Product Card ──────────────────────────────────────────────────────────────
 function ProductCard({ product }) {
-  const price = product.min_price ?? product.base_price ?? 0
-  const originalPrice = product.max_price ?? null
+  const thumbnail =
+    product.thumbnail ||
+    product.images?.find((img) => img.is_primary)?.image_path ||
+    product.images?.[0]?.image_path ||
+    product.images?.[0]?.url
+
+  const price =
+    product.min_price && Number(product.min_price) > 0
+      ? Number(product.min_price)
+      : product.variants?.length
+        ? Math.min(...product.variants.map((v) => Number(v.price) || 0))
+        : Number(product.base_price) || 0
+
+  const originalPrice =
+    product.max_price && Number(product.max_price) > 0
+      ? Number(product.max_price)
+      : product.variants?.length
+        ? Math.max(...product.variants.map((v) => Number(v.compare_price) || 0))
+        : null
+
+  const discountPercent =
+    originalPrice && originalPrice > price
+      ? Math.round(((originalPrice - price) / originalPrice) * 100)
+      : (product.discount_percent || 0)
 
   return (
     <Link
@@ -119,9 +141,9 @@ function ProductCard({ product }) {
       className="group bg-surface-container rounded-xl overflow-hidden border border-outline-variant/10 hover:border-primary/30 hover:shadow-[0_0_30px_rgba(77,142,255,0.15)] transition-all duration-300"
     >
       <div className="relative h-48 bg-surface-container-high overflow-hidden">
-        {product.thumbnail ? (
+        {thumbnail ? (
           <img
-            src={product.thumbnail}
+            src={thumbnail}
             alt={product.name}
             className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-500"
           />
@@ -130,9 +152,9 @@ function ProductCard({ product }) {
             <span className="material-symbols-outlined text-5xl text-outline">smartphone</span>
           </div>
         )}
-        {product.discount_percent > 0 && (
+        {discountPercent > 0 && (
           <span className="absolute top-2 left-2 bg-secondary-container text-on-secondary-container text-[10px] font-bold px-2 py-0.5 rounded-full">
-            -{product.discount_percent}%
+            -{discountPercent}%
           </span>
         )}
       </div>

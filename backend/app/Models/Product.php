@@ -21,6 +21,54 @@ class Product extends Model
         'status',
     ];
 
+    protected $appends = [
+        'min_price',
+        'max_price',
+        'thumbnail',
+    ];
+
+    public function getThumbnailAttribute(): ?string
+    {
+        if ($this->relationLoaded('images')) {
+            $primary = $this->images->firstWhere('is_primary', true) ?? $this->images->first();
+
+            return $primary?->image_path ?? $primary?->image_url ?? null;
+        }
+
+        $primary = $this->images()->where('is_primary', true)->first() ?? $this->images()->first();
+
+        return $primary?->image_path ?? $primary?->image_url ?? null;
+    }
+
+    public function getMinPriceAttribute(): float
+    {
+        if ($this->relationLoaded('variants')) {
+            if ($this->variants->isEmpty()) {
+                return 0.0;
+            }
+
+            return (float) $this->variants->min('price');
+        }
+
+        return (float) ($this->variants()->min('price') ?? 0.0);
+    }
+
+    public function getMaxPriceAttribute(): ?float
+    {
+        if ($this->relationLoaded('variants')) {
+            if ($this->variants->isEmpty()) {
+                return null;
+            }
+            $maxCompare = $this->variants->max('compare_price');
+
+            return $maxCompare ? (float) $maxCompare : null;
+        }
+
+        $maxCompare = $this->variants()->max('compare_price');
+
+        return $maxCompare ? (float) $maxCompare : null;
+    }
+
     public function brand(): BelongsTo
     {
         return $this->belongsTo(Brand::class);

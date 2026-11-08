@@ -29,6 +29,7 @@ class ProductController extends Controller
             'brand',
             'category',
             'variants',
+            'images',
         ]);
 
         // Tìm kiếm theo tên hoặc slug

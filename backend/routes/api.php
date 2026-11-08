@@ -339,7 +339,8 @@ Route::middleware([
         [ProductController::class, 'store'],
     )->name('api.products.store');
 
-    Route::patch(
+    Route::match(
+        ['put', 'patch'],
         '/products/{id}',
         [ProductController::class, 'update'],
     )->whereNumber('id')
@@ -350,6 +351,25 @@ Route::middleware([
         [ProductController::class, 'destroy'],
     )->whereNumber('id')
         ->name('api.products.destroy');
+
+    // Admin product aliases
+    Route::post(
+        '/admin/products',
+        [ProductController::class, 'store'],
+    )->name('api.admin.products.store');
+
+    Route::match(
+        ['put', 'patch'],
+        '/admin/products/{id}',
+        [ProductController::class, 'update'],
+    )->whereNumber('id')
+        ->name('api.admin.products.update');
+
+    Route::delete(
+        '/admin/products/{id}',
+        [ProductController::class, 'destroy'],
+    )->whereNumber('id')
+        ->name('api.admin.products.destroy');
 
     // Product variants
     Route::post(
@@ -504,7 +524,8 @@ Route::middleware([
         [CartController::class, 'store'],
     )->name('api.cart.items.store');
 
-    Route::put(
+    Route::match(
+        ['put', 'patch'],
         '/cart/items/{id}',
         [CartController::class, 'update'],
     )->whereNumber('id')
@@ -712,7 +733,8 @@ Route::prefix('admin')
                 [AdminCouponController::class, 'store'],
             )->name('coupons.store');
 
-            Route::patch(
+            Route::match(
+                ['put', 'patch'],
                 '/coupons/{id}',
                 [AdminCouponController::class, 'update'],
             )
@@ -748,7 +770,8 @@ Route::prefix('admin')
                 [AdminBannerController::class, 'store'],
             )->name('banners.store');
 
-            Route::patch(
+            Route::match(
+                ['put', 'patch'],
                 '/banners/{id}',
                 [AdminBannerController::class, 'update'],
             )

@@ -48,16 +48,18 @@ export default function CheckoutPage() {
     try {
       // Build order payload matching backend OrderController store endpoint
       const payload = {
+        shipping_name: form.recipient_name,
         recipient_name: form.recipient_name,
+        shipping_phone: form.phone,
         recipient_phone: form.phone,
-        shipping_address: `${form.shipping_address}, ${form.city}`,
-        note: form.note,
+        phone: form.phone,
+        shipping_address: form.shipping_address,
+        shipping_address_line: form.shipping_address,
+        shipping_city: form.city || 'Hà Nội',
+        customer_note: form.note || undefined,
+        note: form.note || undefined,
         payment_method: form.payment_method,
         coupon_code: cartSummary.couponCode || undefined,
-        items: cartItems.map((item) => ({
-          product_variant_id: item.product_variant_id || item.variant?.id,
-          quantity: item.quantity,
-        })),
       }
 
       const { data } = await axiosClient.post(EP.ORDERS, payload)

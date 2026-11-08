@@ -35,23 +35,41 @@ class CartController extends Controller
             $product = $variant?->product;
 
             return [
+                'id' => $item->id,
                 'cart_item_id' => $item->id,
                 'variant_id' => $item->variant_id,
                 'sku' => $variant?->sku,
+                'product_id' => $product?->id,
                 'product_name' => $product?->name,
+                'product' => [
+                    'id' => $product?->id,
+                    'name' => $product?->name,
+                    'slug' => $product?->slug,
+                    'thumbnail' => $product?->thumbnail,
+                ],
+                'variant' => [
+                    'id' => $variant?->id,
+                    'sku' => $variant?->sku,
+                    'price' => $variant?->price,
+                    'name' => $variant?->option_signature,
+                    'available_quantity' => $variant?->inventory?->available_quantity ?? $variant?->inventory?->quantity ?? 0,
+                    'image_url' => $product?->thumbnail,
+                ],
                 'variant_attributes' => $variant?->attributeValues
                     ->map(fn ($value) => [
                         'attribute' => $value->attribute?->name,
                         'value' => $value->value,
                     ])
                     ->values(),
-                'price' => $variant?->price,
+                'price' => (float) ($variant?->price ?? 0),
                 'quantity' => $item->quantity,
-                'stock_quantity' => $variant?->inventory?->quantity ?? 0,
+                'stock_quantity' => $variant?->inventory?->available_quantity ?? $variant?->inventory?->quantity ?? 0,
                 'subtotal' => (float) ($variant?->price ?? 0)
                     * $item->quantity,
             ];
         })->values();
+
+        $totalAmount = $items->sum('subtotal');
 
         return response()->json([
             'status' => true,
@@ -60,7 +78,10 @@ class CartController extends Controller
                 'cart_id' => $cart->id,
                 'items' => $items,
                 'total_quantity' => $items->sum('quantity'),
-                'total_amount' => $items->sum('subtotal'),
+                'total_amount' => $totalAmount,
+                'subtotal' => $totalAmount,
+                'discount' => 0,
+                'total' => $totalAmount,
             ],
         ]);
     }
@@ -70,6 +91,10 @@ class CartController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        if (! $request->has('variant_id') && $request->has('product_variant_id')) {
+            $request->merge(['variant_id' => $request->input('product_variant_id')]);
+        }
+
         $validated = $request->validate([
             'variant_id' => ['required', 'integer', 'exists:product_variants,id'],
             'quantity' => ['required', 'integer', 'min:1'],

@@ -1,0 +1,35 @@
+import { describe, it, expect } from 'vitest'
+import EP from '../api/endpoints'
+
+describe('API Endpoints Definition', () => {
+  it('contains valid authentication endpoints', () => {
+    expect(EP.AUTH_LOGIN).toBe('/auth/login')
+    expect(EP.AUTH_REGISTER).toBe('/auth/register')
+    expect(EP.AUTH_ME).toBe('/me')
+    expect(EP.AUTH_LOGOUT).toBe('/auth/logout')
+  })
+
+  it('generates dynamic product detail endpoint correctly', () => {
+    expect(EP.PRODUCT_DETAIL(42)).toBe('/products/42')
+  })
+
+  it('generates dynamic order endpoints correctly', () => {
+    expect(EP.ORDER_DETAIL(101)).toBe('/orders/101')
+    expect(EP.ORDER_CANCEL(101)).toBe('/orders/101/cancel')
+  })
+
+  it('generates dynamic admin detail endpoints correctly', () => {
+    expect(EP.ADMIN_ORDER_DETAIL(5)).toBe('/admin/orders/5')
+    expect(EP.ADMIN_ORDER_STATUS(5)).toBe('/admin/orders/5/status')
+    expect(EP.ADMIN_COUPON_DETAIL(3)).toBe('/admin/coupons/3')
+    expect(EP.ADMIN_BANNER_DETAIL(2)).toBe('/admin/banners/2')
+    expect(EP.ADMIN_PRODUCT_DETAIL(1)).toBe('/admin/products/1')
+  })
+
+  it('contains cart and payment endpoints', () => {
+    expect(EP.CART).toBe('/cart')
+    expect(EP.CART_ITEMS).toBe('/cart/items')
+    expect(EP.PAYMENT_VNPAY_CREATE).toBe('/payments/vnpay/create')
+    expect(EP.PAYMENT_VNPAY_RETURN).toBe('/payments/vnpay/return')
+  })
+})
