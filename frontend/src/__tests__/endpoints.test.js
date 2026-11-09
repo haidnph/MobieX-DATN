@@ -40,4 +40,12 @@ describe('API Endpoints Definition', () => {
     expect(EP.INVENTORY_LOW_STOCK).toBe('/inventories/low-stock')
     expect(EP.INVENTORY_TRANSACTIONS).toBe('/inventories/transactions')
   })
+
+  it('contains admin user management endpoints', () => {
+    expect(EP.ADMIN_USERS).toBe('/admin/users')
+    expect(EP.ADMIN_USER_DETAIL(7)).toBe('/admin/users/7')
+    expect(EP.ADMIN_USER_STATUS(7)).toBe('/admin/users/7/status')
+    expect(EP.ADMIN_USER_ROLES(7)).toBe('/admin/users/7/roles')
+    expect(EP.ADMIN_USER_ROLE_DELETE(7, 'admin')).toBe('/admin/users/7/roles/admin')
+  })
 })

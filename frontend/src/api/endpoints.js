@@ -73,6 +73,13 @@ const EP = {
   INVENTORY_EXPORT: '/inventories/export',
   INVENTORY_LOW_STOCK: '/inventories/low-stock',
   INVENTORY_TRANSACTIONS: '/inventories/transactions',
+
+  // ── Admin: Users & Roles ──────────────────────────────
+  ADMIN_USERS: '/admin/users',
+  ADMIN_USER_DETAIL: (id) => `/admin/users/${id}`,
+  ADMIN_USER_STATUS: (id) => `/admin/users/${id}/status`,
+  ADMIN_USER_ROLES: (id) => `/admin/users/${id}/roles`,
+  ADMIN_USER_ROLE_DELETE: (id, roleSlug) => `/admin/users/${id}/roles/${roleSlug}`,
 }
 
 export default EP
