@@ -6,6 +6,7 @@ import { ThemeProvider } from './contexts/ThemeContext'
 import { AuthProvider } from './contexts/AuthContext'
 import { CartProvider } from './contexts/CartContext'
 import { CompareProvider } from './contexts/CompareContext'
+import { WishlistProvider } from './contexts/WishlistContext'
 import { ToastProvider } from './contexts/ToastContext'
 import ErrorBoundary from './components/feedback/ErrorBoundary'
 import AppRoutes from './routes/AppRoutes'
@@ -19,7 +20,9 @@ export default function App() {
             <CartProvider>
               <ToastProvider>
                 <CompareProvider>
-                  <AppRoutes />
+                  <WishlistProvider>
+                    <AppRoutes />
+                  </WishlistProvider>
                 </CompareProvider>
               </ToastProvider>
             </CartProvider>

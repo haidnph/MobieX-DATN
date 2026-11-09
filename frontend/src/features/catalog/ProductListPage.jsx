@@ -10,6 +10,7 @@ import Spinner from '../../components/common/Spinner'
 import Pagination from '../../components/common/Pagination'
 import useDebounce from '../../hooks/useDebounce'
 import { useCompare } from '../../contexts/CompareContext'
+import { useWishlist } from '../../contexts/WishlistContext'
 
 // ── Skeleton ───────────────────────────────────────────────────────────────────
 function SkeletonCard() {
@@ -26,6 +27,7 @@ function SkeletonCard() {
 // ── Product Card ───────────────────────────────────────────────────────────────
 function ProductCard({ product }) {
   const { toggleCompare, isInCompare } = useCompare()
+  const { toggleWishlist, isInWishlist } = useWishlist()
   const thumbnail =
     product.images?.find((img) => img.is_primary)?.image_url ||
     product.images?.find((img) => img.is_primary)?.image_path ||
@@ -81,22 +83,43 @@ function ProductCard({ product }) {
             -{discountPercent}%
           </span>
         )}
-        <button
-          type="button"
-          title={isInCompare(product.id) ? 'Đã thêm so sánh (bấm để bỏ)' : 'Thêm vào so sánh cấu hình'}
-          onClick={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            toggleCompare(product)
-          }}
-          className={`absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center transition-all ${
-            isInCompare(product.id)
-              ? 'bg-primary text-on-primary shadow-md scale-110'
-              : 'bg-surface-container/80 text-on-surface-variant hover:text-primary hover:bg-surface-bright backdrop-blur-xs'
-          }`}
-        >
-          <span className="material-symbols-outlined text-sm">compare_arrows</span>
-        </button>
+        <div className="absolute top-2 right-2 flex items-center gap-1.5 z-10">
+          <button
+            type="button"
+            title={isInCompare(product.id) ? 'Đã thêm so sánh (bấm để bỏ)' : 'Thêm vào so sánh cấu hình'}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              toggleCompare(product)
+            }}
+            className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
+              isInCompare(product.id)
+                ? 'bg-primary text-on-primary shadow-md scale-105'
+                : 'bg-surface-container/85 text-on-surface-variant hover:text-primary hover:bg-surface-bright backdrop-blur-xs'
+            }`}
+          >
+            <span className="material-symbols-outlined text-sm">compare_arrows</span>
+          </button>
+
+          <button
+            type="button"
+            title={isInWishlist(product.id) ? 'Đã lưu yêu thích (bấm để bỏ)' : 'Lưu vào yêu thích'}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              toggleWishlist(product)
+            }}
+            className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
+              isInWishlist(product.id)
+                ? 'bg-error text-white shadow-md scale-105'
+                : 'bg-surface-container/85 text-on-surface-variant hover:text-error hover:bg-surface-bright backdrop-blur-xs'
+            }`}
+          >
+            <span className="material-symbols-outlined text-sm">
+              {isInWishlist(product.id) ? 'favorite' : 'favorite_border'}
+            </span>
+          </button>
+        </div>
       </div>
       <div className="p-4">
         <p className="text-xs text-primary font-medium mb-1">{product.brand?.name}</p>

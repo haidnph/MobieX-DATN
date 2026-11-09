@@ -9,6 +9,7 @@ import EP from '../../api/endpoints'
 import { useAuth } from '../../contexts/AuthContext'
 import { useCart } from '../../contexts/CartContext'
 import { useCompare } from '../../contexts/CompareContext'
+import { useWishlist } from '../../contexts/WishlistContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { useDebounce } from '../../hooks/useDebounce'
 
@@ -16,6 +17,7 @@ export default function Header() {
   const { user, logout, isAdmin } = useAuth()
   const { itemCount, cartBadgeCount } = useCart()
   const { compareCount } = useCompare()
+  const { wishlistCount } = useWishlist()
   const { isDark, toggleTheme } = useTheme()
   const navigate = useNavigate()
 
@@ -135,6 +137,21 @@ export default function Header() {
             {compareCount > 0 && (
               <span className="absolute top-1.5 right-1.5 flex h-4 min-w-[1rem] px-1 items-center justify-center rounded-full bg-primary text-on-primary text-[10px] font-bold shadow-[0_0_8px_rgba(77,142,255,0.6)]">
                 {compareCount}
+              </span>
+            )}
+          </Link>
+
+          {/* Wishlist */}
+          <Link
+            to="/wishlist"
+            aria-label="Sản phẩm yêu thích"
+            title="Sản phẩm yêu thích"
+            className="relative p-2 rounded-xl text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors flex items-center justify-center"
+          >
+            <span className="material-symbols-outlined text-xl">favorite_border</span>
+            {wishlistCount > 0 && (
+              <span className="absolute top-1.5 right-1.5 flex h-4 min-w-[1rem] px-1 items-center justify-center rounded-full bg-error text-white text-[10px] font-bold shadow-[0_0_8px_rgba(239,68,68,0.6)]">
+                {wishlistCount}
               </span>
             )}
           </Link>

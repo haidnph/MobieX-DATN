@@ -7,6 +7,7 @@ import axiosClient from '../../api/axiosClient'
 import EP from '../../api/endpoints'
 import { useCart } from '../../contexts/CartContext'
 import { useCompare } from '../../contexts/CompareContext'
+import { useWishlist } from '../../contexts/WishlistContext'
 import { useToast } from '../../contexts/ToastContext'
 import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
 import { formatDate } from '../../utils/formatDate'
@@ -18,6 +19,7 @@ export default function ProductDetailPage() {
   const { id } = useParams()
   const { addToCart } = useCart()
   const { toggleCompare, isInCompare } = useCompare()
+  const { toggleWishlist, isInWishlist } = useWishlist()
   const { showToast } = useToast()
 
   const [product, setProduct] = useState(null)
@@ -381,6 +383,19 @@ export default function ProductDetailPage() {
                 <span className="material-symbols-outlined text-xl">compare_arrows</span>
                 <span className="hidden sm:inline">
                   {isInCompare(product.id) ? 'Đang so sánh' : 'So sánh'}
+                </span>
+              </Button>
+
+              <Button
+                variant={isInWishlist(product.id) ? 'outline' : 'secondary'}
+                size="lg"
+                type="button"
+                className={`px-4 rounded-xl ${isInWishlist(product.id) ? 'border-error text-error bg-error/10' : ''}`}
+                title={isInWishlist(product.id) ? 'Đã lưu yêu thích (bấm để bỏ)' : 'Lưu vào yêu thích'}
+                onClick={() => toggleWishlist(product)}
+              >
+                <span className="material-symbols-outlined text-xl">
+                  {isInWishlist(product.id) ? 'favorite' : 'favorite_border'}
                 </span>
               </Button>
             </div>
