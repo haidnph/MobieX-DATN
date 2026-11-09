@@ -259,6 +259,55 @@ class ProductImageController extends Controller
         }
     }
 
+    /**
+     * Bulk-reorder images for a product.
+     * Expects: { "images": [{ "id": 1, "sort_order": 0 }, { "id": 2, "sort_order": 1 }] }
+     */
+    public function reorder(Request $request)
+    {
+        $validated = $request->validate([
+            'images' => 'required|array|min:1',
+            'images.*.id' => 'required|integer|exists:product_images,id',
+            'images.*.sort_order' => 'required|integer|min:0',
+        ]);
+
+        DB::transaction(function () use ($validated) {
+            foreach ($validated['images'] as $item) {
+                ProductImage::where('id', $item['id'])
+                    ->update(['sort_order' => $item['sort_order']]);
+            }
+        });
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Sắp xếp hình ảnh thành công.',
+        ]);
+    }
+
+    /**
+     * Set an image as primary within its scope (product-level or variant-level).
+     */
+    public function setPrimary(Request $request, $id)
+    {
+        $image = ProductImage::findOrFail($id);
+
+        DB::transaction(function () use ($image) {
+            $this->clearPrimaryImage(
+                $image->product_id,
+                $image->product_variant_id,
+                $image->id
+            );
+
+            $image->update(['is_primary' => true]);
+        });
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Đã đặt làm ảnh đại diện.',
+            'data' => $image->fresh(),
+        ]);
+    }
+
     // Xóa hình ảnh
     public function destroy($id)
     {

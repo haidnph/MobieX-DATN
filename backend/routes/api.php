@@ -395,6 +395,16 @@ Route::middleware([
         [ProductImageController::class, 'store'],
     )->name('api.product-images.store');
 
+    Route::patch(
+        '/product-images/reorder',
+        [ProductImageController::class, 'reorder'],
+    )->name('api.product-images.reorder');
+
+    Route::patch(
+        '/product-images/{id}/primary',
+        [ProductImageController::class, 'setPrimary'],
+    )->whereNumber('id')->name('api.product-images.primary');
+
     Route::match(
         ['put', 'patch'],
         '/product-images/{id}',
