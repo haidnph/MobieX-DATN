@@ -22,10 +22,19 @@ class ProductImageController extends Controller
         }
 
         if ($request->filled('product_variant_id')) {
-            $query->where('product_variant_id', $request->product_variant_id);
+            if ($request->product_variant_id === 'null' || $request->product_variant_id === 'none') {
+                $query->whereNull('product_variant_id');
+            } else {
+                $query->where('product_variant_id', $request->product_variant_id);
+            }
         } elseif ($request->filled('variant_id')) {
-            // alias ngược để tương thích
-            $query->where('product_variant_id', $request->variant_id);
+            if ($request->variant_id === 'null' || $request->variant_id === 'none') {
+                $query->whereNull('product_variant_id');
+            } else {
+                $query->where('product_variant_id', $request->variant_id);
+            }
+        } elseif ($request->boolean('general_only')) {
+            $query->whereNull('product_variant_id');
         }
 
         return response()->json([

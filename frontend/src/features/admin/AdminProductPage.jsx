@@ -15,6 +15,7 @@ import Pagination from '../../components/common/Pagination'
 import Spinner from '../../components/common/Spinner'
 import Badge from '../../components/common/Badge'
 import ProductImageGallery from '../../components/admin/ProductImageGallery'
+import VariantImageManager from '../../components/admin/VariantImageManager'
 import BulkActionBar from '../../components/common/BulkActionBar'
 
 const STATUS_BADGES = {
@@ -871,7 +872,10 @@ export default function AdminProductPage() {
         {/* Tab 3: Thư viện hình ảnh */}
         {activeTab === 'images' && editingProduct && (
           <div className="space-y-4">
-            <ProductImageGallery productId={editingProduct.id} />
+            <VariantImageManager
+              productId={editingProduct.id}
+              variants={editingProduct.variants ?? []}
+            />
             <div className="flex justify-end pt-3 border-t border-outline-variant/10">
               <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>
                 Đóng
