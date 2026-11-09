@@ -10,6 +10,7 @@ import Spinner from '../../components/common/Spinner'
 import { useCompare } from '../../contexts/CompareContext'
 import { useWishlist } from '../../contexts/WishlistContext'
 import { useRecentlyViewed } from '../../hooks/useRecentlyViewed'
+import FlashSaleSection from './FlashSaleSection'
 
 // ── Skeleton ─────────────────────────────────────────────────────────────────
 function SkeletonCard() {
@@ -340,6 +341,9 @@ export default function HomePage() {
           </div>
         </section>
       )}
+
+      {/* Flash Sale Section */}
+      <FlashSaleSection products={products} />
 
       {/* Featured Products */}
       <section>
