@@ -354,6 +354,16 @@ Route::middleware([
 
     // Admin product aliases
     Route::post(
+        '/admin/products/bulk-status',
+        [ProductController::class, 'bulkStatus'],
+    )->name('api.admin.products.bulk-status');
+
+    Route::post(
+        '/admin/products/bulk-delete',
+        [ProductController::class, 'bulkDelete'],
+    )->name('api.admin.products.bulk-delete');
+
+    Route::post(
         '/admin/products',
         [ProductController::class, 'store'],
     )->name('api.admin.products.store');

@@ -461,4 +461,93 @@ class ProductController extends Controller
             ], 200);
         }
     }
+
+    /**
+     * Bulk update status for multiple products.
+     */
+    public function bulkStatus(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'required|integer|exists:products,id',
+            'status' => 'required|in:active,draft,inactive,out_of_stock',
+        ]);
+
+        $status = $validated['status'];
+        $isActive = ($status === 'active');
+
+        DB::transaction(function () use ($validated, $status, $isActive) {
+            Product::whereIn('id', $validated['ids'])->update(['status' => $status]);
+            ProductVariant::whereIn('product_id', $validated['ids'])->update(['is_active' => $isActive]);
+        });
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Cập nhật trạng thái cho '.count($validated['ids']).' sản phẩm thành công.',
+        ]);
+    }
+
+    /**
+     * Bulk safe-delete multiple products.
+     */
+    public function bulkDelete(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'required|integer|exists:products,id',
+        ]);
+
+        $deletedCount = 0;
+        $deactivatedCount = 0;
+
+        foreach ($validated['ids'] as $id) {
+            $product = Product::find($id);
+            if (! $product) {
+                continue;
+            }
+
+            $hasOrders = DB::table('order_items')
+                ->where('product_id', $product->id)
+                ->exists();
+
+            if ($hasOrders) {
+                $product->update(['status' => 'inactive']);
+                $product->variants()->update(['is_active' => false]);
+                $deactivatedCount++;
+
+                continue;
+            }
+
+            try {
+                DB::transaction(function () use ($product) {
+                    $product->images()->delete();
+                    $product->specifications()->delete();
+                    $product->attributeValues()->delete();
+                    $product->reviews()->delete();
+
+                    foreach ($product->variants as $variant) {
+                        DB::table('cart_items')->where('product_variant_id', $variant->id)->delete();
+                        DB::table('product_variant_attribute_values')->where('product_variant_id', $variant->id)->delete();
+                        DB::table('inventory_transactions')->where('product_variant_id', $variant->id)->delete();
+                        DB::table('inventories')->where('product_variant_id', $variant->id)->delete();
+                        $variant->delete();
+                    }
+
+                    $product->delete();
+                });
+                $deletedCount++;
+            } catch (\Throwable $e) {
+                $product->update(['status' => 'inactive']);
+                $product->variants()->update(['is_active' => false]);
+                $deactivatedCount++;
+            }
+        }
+
+        return response()->json([
+            'status' => true,
+            'deleted_count' => $deletedCount,
+            'deactivated_count' => $deactivatedCount,
+            'message' => "Đã xử lý: {$deletedCount} sản phẩm đã xóa, {$deactivatedCount} sản phẩm đã chuyển sang ẩn (do có đơn hàng).",
+        ]);
+    }
 }

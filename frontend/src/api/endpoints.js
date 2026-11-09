@@ -70,6 +70,8 @@ const EP = {
   // ── Admin: Products ───────────────────────────────────
   ADMIN_PRODUCTS: '/admin/products',
   ADMIN_PRODUCT_DETAIL: (id) => `/admin/products/${id}`,
+  ADMIN_PRODUCTS_BULK_STATUS: '/admin/products/bulk-status',
+  ADMIN_PRODUCTS_BULK_DELETE: '/admin/products/bulk-delete',
 
   // ── Admin: Inventories ────────────────────────────────
   INVENTORIES: '/inventories',

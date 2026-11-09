@@ -15,6 +15,7 @@ import Pagination from '../../components/common/Pagination'
 import Spinner from '../../components/common/Spinner'
 import Badge from '../../components/common/Badge'
 import ProductImageGallery from '../../components/admin/ProductImageGallery'
+import BulkActionBar from '../../components/common/BulkActionBar'
 
 const STATUS_BADGES = {
   active: { label: 'Đang bán', variant: 'success' },
@@ -50,6 +51,11 @@ export default function AdminProductPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [page, setPage] = useState(1)
+
+  // Bulk actions selection
+  const [selectedIds, setSelectedIds] = useState([])
+  const [bulkLoading, setBulkLoading] = useState(false)
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false)
 
   // Modal
   const [modalOpen, setModalOpen] = useState(false)
@@ -226,6 +232,43 @@ export default function AdminProductPage() {
     }
   }
 
+  // ── Bulk Actions Handlers ──────────────────────────────────────────────────
+  const handleBulkStatus = async (status) => {
+    if (selectedIds.length === 0) return
+    setBulkLoading(true)
+    try {
+      await axiosClient.post(EP.ADMIN_PRODUCTS_BULK_STATUS, {
+        ids: selectedIds,
+        status,
+      })
+      showToast(`Đã cập nhật trạng thái cho ${selectedIds.length} sản phẩm thành công!`)
+      setSelectedIds([])
+      fetchProducts()
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Lỗi khi cập nhật hàng loạt', 'error')
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return
+    setBulkLoading(true)
+    try {
+      const { data } = await axiosClient.post(EP.ADMIN_PRODUCTS_BULK_DELETE, {
+        ids: selectedIds,
+      })
+      showToast(data.message || `Đã xử lý xóa ${selectedIds.length} sản phẩm!`)
+      setSelectedIds([])
+      setBulkDeleteConfirmOpen(false)
+      fetchProducts()
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Lỗi khi xóa hàng loạt', 'error')
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Title & Add Button */}
@@ -298,6 +341,17 @@ export default function AdminProductPage() {
             <table className="w-full text-left text-sm">
               <thead className="bg-surface-container-high text-xs uppercase text-on-surface-variant border-b border-outline-variant/20">
                 <tr>
+                  <th className="px-4 py-3.5 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={products.length > 0 && selectedIds.length === products.length}
+                      onChange={(e) => {
+                        if (e.target.checked) setSelectedIds(products.map((p) => p.id))
+                        else setSelectedIds([])
+                      }}
+                      className="rounded accent-primary cursor-pointer w-4 h-4"
+                    />
+                  </th>
                   <th className="px-5 py-3.5">Ảnh</th>
                   <th className="px-5 py-3.5">Tên sản phẩm & Slug</th>
                   <th className="px-5 py-3.5">Thương hiệu / Nhóm</th>
@@ -312,9 +366,29 @@ export default function AdminProductPage() {
                   const badge = STATUS_BADGES[p.status] || { label: p.status, variant: 'neutral' }
                   const variants = p.variants ?? []
                   const price = p.min_price ?? p.base_price ?? 0
+                  const isSelected = selectedIds.includes(p.id)
 
                   return (
-                    <tr key={p.id} className="hover:bg-surface-container-high/40 transition-colors">
+                    <tr
+                      key={p.id}
+                      className={[
+                        'transition-colors',
+                        isSelected ? 'bg-primary/5 hover:bg-primary/10' : 'hover:bg-surface-container-high/40',
+                      ].join(' ')}
+                    >
+                      <td className="px-4 py-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            e.stopPropagation()
+                            setSelectedIds((prev) =>
+                              prev.includes(p.id) ? prev.filter((id) => id !== p.id) : [...prev, p.id]
+                            )
+                          }}
+                          className="rounded accent-primary cursor-pointer w-4 h-4"
+                        />
+                      </td>
                       <td className="px-5 py-3">
                         <div className="w-12 h-12 bg-surface-container-high rounded-xl overflow-hidden flex items-center justify-center border border-outline-variant/20 p-1">
                           {p.thumbnail ? (
@@ -538,6 +612,27 @@ export default function AdminProductPage() {
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
         loading={deleting}
+      />
+
+      {/* Bulk Action Floating CTA Bar */}
+      <BulkActionBar
+        selectedCount={selectedIds.length}
+        onClear={() => setSelectedIds([])}
+        onActivate={() => handleBulkStatus('active')}
+        onDeactivate={() => handleBulkStatus('inactive')}
+        onDelete={() => setBulkDeleteConfirmOpen(true)}
+        loading={bulkLoading}
+      />
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={bulkDeleteConfirmOpen}
+        title={`Xác nhận xóa ${selectedIds.length} sản phẩm`}
+        message={`Bạn có chắc chắn muốn xóa ${selectedIds.length} sản phẩm đã chọn? Các sản phẩm đã từng có đơn hàng sẽ được hệ thống tự động chuyển sang trạng thái "Ngừng kinh doanh" để bảo vệ toàn vẹn dữ liệu.`}
+        confirmLabel="Xóa hàng loạt"
+        onConfirm={handleBulkDelete}
+        onCancel={() => setBulkDeleteConfirmOpen(false)}
+        loading={bulkLoading}
       />
     </div>
   )
