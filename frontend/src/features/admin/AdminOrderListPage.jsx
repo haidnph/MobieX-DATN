@@ -78,6 +78,45 @@ export default function AdminOrderListPage() {
     setSearchParams(next)
   }
 
+  const handleExportCSV = () => {
+    if (orders.length === 0) return
+
+    // UTF-8 BOM so Excel displays Vietnamese correctly
+    const BOM = '\uFEFF'
+    const headers = [
+      'Mã đơn hàng',
+      'Khách hàng',
+      'SĐT',
+      'Địa chỉ',
+      'Ngày tạo',
+      'Tổng tiền (VNĐ)',
+      'Trạng thái đơn',
+      'Thanh toán',
+    ]
+
+    const rows = orders.map((o) => [
+      `"${o.order_code || o.id}"`,
+      `"${o.shipping_name || o.user?.name || 'Khách lẻ'}"`,
+      `"${o.shipping_phone || ''}"`,
+      `"${(o.shipping_address || '').replace(/"/g, '""')}"`,
+      `"${formatDateTime(o.created_at)}"`,
+      `"${o.total_amount || 0}"`,
+      `"${STATUS_CONFIG[o.status]?.label || o.status}"`,
+      `"${o.payment_status === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán'}"`,
+    ])
+
+    const csvContent = BOM + [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `MobieX_DonHang_${new Date().toISOString().slice(0, 10)}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -88,6 +127,15 @@ export default function AdminOrderListPage() {
             Tổng số: <strong className="text-on-surface">{meta.total}</strong> đơn hàng trên hệ thống
           </p>
         </div>
+        <button
+          type="button"
+          onClick={handleExportCSV}
+          disabled={orders.length === 0}
+          className="px-4 py-2 bg-surface-container-high hover:bg-surface-bright text-on-surface rounded-xl text-sm font-semibold border border-outline-variant/30 transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50 self-start sm:self-auto"
+        >
+          <span className="material-symbols-outlined text-base text-secondary">file_download</span>
+          Xuất báo cáo CSV
+        </button>
       </div>
 
       {/* Filter and Search Bar */}
