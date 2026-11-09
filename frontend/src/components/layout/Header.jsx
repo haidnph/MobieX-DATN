@@ -11,6 +11,7 @@ import { useCart } from '../../contexts/CartContext'
 import { useCompare } from '../../contexts/CompareContext'
 import { useWishlist } from '../../contexts/WishlistContext'
 import { useTheme } from '../../contexts/ThemeContext'
+import { useToast } from '../../contexts/ToastContext'
 import { useDebounce } from '../../hooks/useDebounce'
 import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
 
@@ -20,6 +21,7 @@ export default function Header() {
   const { compareCount } = useCompare()
   const { wishlistCount } = useWishlist()
   const { isDark, toggleTheme } = useTheme()
+  const { showToast } = useToast()
   const navigate = useNavigate()
 
   const [categories, setCategories] = useState([])
@@ -31,6 +33,10 @@ export default function Header() {
   const [searchSuggestions, setSearchSuggestions] = useState([])
   const [loadingSuggestions, setLoadingSuggestions] = useState(false)
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
+
+  // Voice Search states
+  const [isListening, setIsListening] = useState(false)
+  const recognitionRef = useRef(null)
 
   const userMenuRef = useRef(null)
   const searchRef = useRef(null)
@@ -78,6 +84,62 @@ export default function Header() {
     setShowSearchDropdown(false)
     if (searchQuery.trim()) {
       navigate(`/products?q=${encodeURIComponent(searchQuery.trim())}`)
+    }
+  }
+
+  // Voice Search via Web Speech API
+  const handleVoiceSearch = () => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      showToast('Trình duyệt không hỗ trợ nhận diện giọng nói. Vui lòng dùng Chrome hoặc Edge.', 'warning')
+      return
+    }
+
+    if (isListening) {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop()
+      }
+      setIsListening(false)
+      return
+    }
+
+    try {
+      const recognition = new SpeechRecognition()
+      recognition.lang = 'vi-VN'
+      recognition.continuous = false
+      recognition.interimResults = false
+
+      recognition.onstart = () => {
+        setIsListening(true)
+        showToast('Đang lắng nghe... Hãy nói tên thiết bị (VD: iPhone 16 Pro)', 'info')
+      }
+
+      recognition.onresult = (event) => {
+        const transcript = event.results?.[0]?.[0]?.transcript || ''
+        if (transcript.trim()) {
+          setSearchQuery(transcript.trim())
+          setShowSearchDropdown(true)
+          showToast(`Đã nhận diện giọng nói: "${transcript.trim()}"`, 'success')
+        }
+      }
+
+      recognition.onerror = (e) => {
+        setIsListening(false)
+        if (e.error !== 'no-speech') {
+          showToast('Không nhận diện được âm thanh. Vui lòng thử lại.', 'warning')
+        }
+      }
+
+      recognition.onend = () => {
+        setIsListening(false)
+      }
+
+      recognitionRef.current = recognition
+      recognition.start()
+    } catch {
+      setIsListening(false)
+      showToast('Không thể kích hoạt micro.', 'error')
     }
   }
 
@@ -163,6 +225,22 @@ export default function Header() {
                   <span className="material-symbols-outlined text-base">close</span>
                 </button>
               )}
+              {/* Voice search button */}
+              <button
+                type="button"
+                onClick={handleVoiceSearch}
+                aria-label="Tìm kiếm bằng giọng nói"
+                title={isListening ? 'Đang lắng nghe... Bấm để dừng' : 'Tìm kiếm bằng giọng nói'}
+                className={`p-1 ml-1 rounded-lg transition-colors flex items-center justify-center ${
+                  isListening
+                    ? 'text-error animate-pulse bg-error-container/20 ring-2 ring-error/50'
+                    : 'text-outline hover:text-primary hover:bg-surface-container-high'
+                }`}
+              >
+                <span className="material-symbols-outlined text-lg">
+                  {isListening ? 'mic' : 'mic_none'}
+                </span>
+              </button>
             </div>
           </form>
 
@@ -443,6 +521,19 @@ export default function Header() {
                   className="w-full bg-transparent text-sm text-on-surface placeholder:text-outline focus:outline-none"
                   placeholder="Tìm kiếm sản phẩm..."
                 />
+                <button
+                  type="button"
+                  onClick={handleVoiceSearch}
+                  className={`p-1 ml-1 rounded-lg transition-colors flex items-center justify-center ${
+                    isListening
+                      ? 'text-error animate-pulse bg-error-container/20'
+                      : 'text-outline hover:text-primary'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-lg">
+                    {isListening ? 'mic' : 'mic_none'}
+                  </span>
+                </button>
               </div>
             </form>
 
