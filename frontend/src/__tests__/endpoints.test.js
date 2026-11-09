@@ -32,4 +32,12 @@ describe('API Endpoints Definition', () => {
     expect(EP.PAYMENT_VNPAY_CREATE).toBe('/payments/vnpay/create')
     expect(EP.PAYMENT_VNPAY_RETURN).toBe('/payments/vnpay/return')
   })
+
+  it('contains inventory management endpoints', () => {
+    expect(EP.INVENTORIES).toBe('/inventories')
+    expect(EP.INVENTORY_IMPORT).toBe('/inventories/import')
+    expect(EP.INVENTORY_EXPORT).toBe('/inventories/export')
+    expect(EP.INVENTORY_LOW_STOCK).toBe('/inventories/low-stock')
+    expect(EP.INVENTORY_TRANSACTIONS).toBe('/inventories/transactions')
+  })
 })

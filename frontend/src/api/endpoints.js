@@ -66,6 +66,13 @@ const EP = {
   // ── Admin: Products ───────────────────────────────────
   ADMIN_PRODUCTS: '/admin/products',
   ADMIN_PRODUCT_DETAIL: (id) => `/admin/products/${id}`,
+
+  // ── Admin: Inventories ────────────────────────────────
+  INVENTORIES: '/inventories',
+  INVENTORY_IMPORT: '/inventories/import',
+  INVENTORY_EXPORT: '/inventories/export',
+  INVENTORY_LOW_STOCK: '/inventories/low-stock',
+  INVENTORY_TRANSACTIONS: '/inventories/transactions',
 }
 
 export default EP

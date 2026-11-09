@@ -37,6 +37,7 @@ const AdminOrderDetailPage = lazy(() => import('../features/admin/AdminOrderDeta
 const AdminProductPage     = lazy(() => import('../features/admin/AdminProductPage'))
 const AdminCategoryPage    = lazy(() => import('../features/admin/AdminCategoryPage'))
 const AdminBrandPage       = lazy(() => import('../features/admin/AdminBrandPage'))
+const AdminInventoryPage   = lazy(() => import('../features/admin/AdminInventoryPage'))
 const AdminCouponPage      = lazy(() => import('../features/admin/AdminCouponPage'))
 const AdminReviewPage      = lazy(() => import('../features/admin/AdminReviewPage'))
 const AdminBannerPage      = lazy(() => import('../features/admin/AdminBannerPage'))
@@ -148,6 +149,7 @@ export default function AppRoutes() {
           <Route path="products"       element={<AdminProductPage />} />
           <Route path="categories"     element={<AdminCategoryPage />} />
           <Route path="brands"         element={<AdminBrandPage />} />
+          <Route path="inventories"    element={<AdminInventoryPage />} />
           <Route path="coupons"        element={<AdminCouponPage />} />
           <Route path="reviews"        element={<AdminReviewPage />} />
           <Route path="banners"        element={<AdminBannerPage />} />

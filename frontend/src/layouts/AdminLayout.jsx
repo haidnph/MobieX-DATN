@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { to: '/admin/products',   icon: 'inventory_2',         label: 'Sản phẩm' },
   { to: '/admin/categories', icon: 'category',            label: 'Danh mục' },
   { to: '/admin/brands',     icon: 'store',               label: 'Thương hiệu' },
+  { to: '/admin/inventories',icon: 'warehouse',           label: 'Kho hàng' },
   { to: '/admin/coupons',    icon: 'local_offer',         label: 'Mã giảm giá' },
   { to: '/admin/reviews',    icon: 'rate_review',         label: 'Đánh giá' },
   { to: '/admin/banners',    icon: 'image',               label: 'Banner' },
