@@ -57,11 +57,18 @@ export default function AdminProductPage() {
   const [bulkLoading, setBulkLoading] = useState(false)
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false)
 
-  // Modal
+  // Modal & Tabs
   const [modalOpen, setModalOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState(null)
+  const [activeTab, setActiveTab] = useState('info') // 'info' | 'specs' | 'images'
   const [submitting, setSubmitting] = useState(false)
   const [errors, setErrors] = useState({})
+
+  // Specification state
+  const [specDefinitions, setSpecDefinitions] = useState([])
+  const [productSpecs, setProductSpecs] = useState({})
+  const [loadingSpecs, setLoadingSpecs] = useState(false)
+  const [savingSpecs, setSavingSpecs] = useState(false)
 
   const [form, setForm] = useState({
     name: '',
@@ -80,12 +87,13 @@ export default function AdminProductPage() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)
 
-  // Fetch brands & categories for dropdowns
+  // Fetch brands, categories & spec definitions
   useEffect(() => {
     Promise.allSettled([
       axiosClient.get(EP.BRANDS),
       axiosClient.get(EP.CATEGORIES),
-    ]).then(([bRes, cRes]) => {
+      axiosClient.get(EP.SPEC_DEFINITIONS),
+    ]).then(([bRes, cRes, sRes]) => {
       if (bRes.status === 'fulfilled') {
         const bData = bRes.value.data.data ?? bRes.value.data
         setBrands(Array.isArray(bData) ? bData : (bData?.data ?? []))
@@ -93,6 +101,10 @@ export default function AdminProductPage() {
       if (cRes.status === 'fulfilled') {
         const cData = cRes.value.data.data ?? cRes.value.data
         setCategories(Array.isArray(cData) ? cData : (cData?.data ?? []))
+      }
+      if (sRes.status === 'fulfilled') {
+        const sData = sRes.value.data.data ?? sRes.value.data
+        setSpecDefinitions(Array.isArray(sData) ? sData : [])
       }
     })
   }, [])
@@ -133,6 +145,8 @@ export default function AdminProductPage() {
 
   const handleOpenCreate = () => {
     setEditingProduct(null)
+    setActiveTab('info')
+    setProductSpecs({})
     setForm({
       name: '',
       slug: '',
@@ -151,6 +165,8 @@ export default function AdminProductPage() {
 
   const handleOpenEdit = (p) => {
     setEditingProduct(p)
+    setActiveTab('info')
+    setProductSpecs({})
     const firstVar = p.variants?.[0]
     const primaryImg = p.images?.find((img) => img.is_primary) || p.images?.[0]
     setForm({
@@ -167,6 +183,53 @@ export default function AdminProductPage() {
     })
     setErrors({})
     setModalOpen(true)
+
+    // Load specifications for this product
+    setLoadingSpecs(true)
+    axiosClient
+      .get(EP.PRODUCT_DETAIL(p.id))
+      .then(({ data }) => {
+        const prod = data.data ?? data
+        const map = {}
+        if (prod.specifications && Array.isArray(prod.specifications)) {
+          prod.specifications.forEach((s) => {
+            const defId = s.specification_definition_id || s.definition?.id
+            if (defId) {
+              map[defId] =
+                s.value_text ??
+                (s.numeric_value != null
+                  ? String(s.numeric_value)
+                  : s.value_boolean != null
+                  ? s.value_boolean
+                  : '')
+            }
+          })
+        }
+        setProductSpecs(map)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingSpecs(false))
+  }
+
+  const handleSaveSpecs = async () => {
+    if (!editingProduct) return
+    setSavingSpecs(true)
+    try {
+      const specsPayload = Object.entries(productSpecs)
+        .filter(([_, val]) => val !== '' && val !== null && val !== undefined)
+        .map(([defId, val]) => ({
+          definition_id: Number(defId),
+          value: val,
+        }))
+      await axiosClient.post(EP.ADMIN_PRODUCT_SPECIFICATIONS(editingProduct.id), {
+        specs: specsPayload,
+      })
+      showToast('Đã lưu thông số kỹ thuật thành công!', 'success')
+    } catch (err) {
+      showToast(err.response?.data?.message || err.message || 'Lỗi khi lưu thông số', 'error')
+    } finally {
+      setSavingSpecs(false)
+    }
   }
 
   const handleNameChange = (e) => {
@@ -199,6 +262,24 @@ export default function AdminProductPage() {
     try {
       if (editingProduct) {
         await axiosClient.put(EP.ADMIN_PRODUCT_DETAIL(editingProduct.id), payload)
+
+        // Sync specs if any
+        const specsPayload = Object.entries(productSpecs)
+          .filter(([_, val]) => val !== '' && val !== null && val !== undefined)
+          .map(([defId, val]) => ({
+            definition_id: Number(defId),
+            value: val,
+          }))
+        if (specsPayload.length > 0) {
+          try {
+            await axiosClient.post(EP.ADMIN_PRODUCT_SPECIFICATIONS(editingProduct.id), {
+              specs: specsPayload,
+            })
+          } catch (_) {
+            // Ignore non-blocking spec sync errors
+          }
+        }
+
         showToast('Cập nhật sản phẩm thành công!', 'success')
       } else {
         await axiosClient.post(EP.ADMIN_PRODUCTS, payload)
@@ -462,145 +543,342 @@ export default function AdminProductPage() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         title={editingProduct ? `Chỉnh sửa sản phẩm: ${editingProduct.name}` : 'Thêm sản phẩm mới'}
-        size="lg"
+        size="xl"
       >
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            label="Tên sản phẩm *"
-            value={form.name}
-            onChange={handleNameChange}
-            placeholder="Ví dụ: iPhone 16 Pro Max 256GB"
-            error={errors.name?.[0]}
-            required
-          />
-
-          <Input
-            label="Đường dẫn URL (Slug) *"
-            value={form.slug}
-            onChange={(e) => setForm({ ...form, slug: e.target.value })}
-            placeholder="iphone-16-pro-max-256gb"
-            error={errors.slug?.[0]}
-            required
-            className="font-mono text-xs"
-          />
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-on-surface-variant">Thương hiệu</label>
-              <select
-                value={form.brand_id}
-                onChange={(e) => setForm({ ...form, brand_id: e.target.value })}
-                className="w-full bg-surface-container-low text-on-surface rounded-xl px-4 py-2.5 text-sm border border-outline-variant/50 focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option value="">-- Chọn thương hiệu --</option>
-                {brands.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-on-surface-variant">Danh mục</label>
-              <select
-                value={form.category_id}
-                onChange={(e) => setForm({ ...form, category_id: e.target.value })}
-                className="w-full bg-surface-container-low text-on-surface rounded-xl px-4 py-2.5 text-sm border border-outline-variant/50 focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option value="">-- Chọn danh mục --</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-on-surface-variant">Trạng thái</label>
-              <select
-                value={form.status}
-                onChange={(e) => setForm({ ...form, status: e.target.value })}
-                className="w-full bg-surface-container-low text-on-surface rounded-xl px-4 py-2.5 text-sm border border-outline-variant/50 focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option value="active">Đang bán</option>
-                <option value="draft">Bản nháp</option>
-                <option value="inactive">Tạm ẩn</option>
-                <option value="out_of_stock">Hết hàng</option>
-              </select>
-            </div>
+        {/* Modal Tab Navigation for editing product */}
+        {editingProduct && (
+          <div className="flex border-b border-outline-variant/30 mb-5 gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveTab('info')}
+              className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 ${
+                activeTab === 'info'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-on-surface-variant hover:text-on-surface'
+              }`}
+            >
+              <span className="material-symbols-outlined text-base">info</span>
+              Thông tin chung
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('specs')}
+              className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 ${
+                activeTab === 'specs'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-on-surface-variant hover:text-on-surface'
+              }`}
+            >
+              <span className="material-symbols-outlined text-base">tune</span>
+              Thông số kỹ thuật
+              {Object.keys(productSpecs).length > 0 && (
+                <span className="ml-1 text-xs px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
+                  {Object.keys(productSpecs).length}
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('images')}
+              className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 ${
+                activeTab === 'images'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-on-surface-variant hover:text-on-surface'
+              }`}
+            >
+              <span className="material-symbols-outlined text-base">photo_library</span>
+              Thư viện ảnh
+            </button>
           </div>
+        )}
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Tab 1: Thông tin chung */}
+        {activeTab === 'info' && (
+          <form onSubmit={handleSubmit} className="space-y-4">
             <Input
-              label="Giá bán (VNĐ) *"
-              type="number"
-              min="0"
-              value={form.price}
-              onChange={(e) => setForm({ ...form, price: e.target.value })}
-              placeholder="Ví dụ: 15990000"
-              error={errors.price?.[0]}
+              label="Tên sản phẩm *"
+              value={form.name}
+              onChange={handleNameChange}
+              placeholder="Ví dụ: iPhone 16 Pro Max 256GB"
+              error={errors.name?.[0]}
               required
             />
 
             <Input
-              label="Giá niêm yết (VNĐ)"
-              type="number"
-              min="0"
-              value={form.compare_price}
-              onChange={(e) => setForm({ ...form, compare_price: e.target.value })}
-              placeholder="Ví dụ: 17990000"
-              error={errors.compare_price?.[0]}
+              label="Đường dẫn URL (Slug) *"
+              value={form.slug}
+              onChange={(e) => setForm({ ...form, slug: e.target.value })}
+              placeholder="iphone-16-pro-max-256gb"
+              error={errors.slug?.[0]}
+              required
+              className="font-mono text-xs"
             />
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-on-surface-variant">Thương hiệu</label>
+                <select
+                  value={form.brand_id}
+                  onChange={(e) => setForm({ ...form, brand_id: e.target.value })}
+                  className="w-full bg-surface-container-low text-on-surface rounded-xl px-4 py-2.5 text-sm border border-outline-variant/50 focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">-- Chọn thương hiệu --</option>
+                  {brands.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-on-surface-variant">Danh mục</label>
+                <select
+                  value={form.category_id}
+                  onChange={(e) => setForm({ ...form, category_id: e.target.value })}
+                  className="w-full bg-surface-container-low text-on-surface rounded-xl px-4 py-2.5 text-sm border border-outline-variant/50 focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">-- Chọn danh mục --</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-on-surface-variant">Trạng thái</label>
+                <select
+                  value={form.status}
+                  onChange={(e) => setForm({ ...form, status: e.target.value })}
+                  className="w-full bg-surface-container-low text-on-surface rounded-xl px-4 py-2.5 text-sm border border-outline-variant/50 focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="active">Đang bán</option>
+                  <option value="draft">Bản nháp</option>
+                  <option value="inactive">Tạm ẩn</option>
+                  <option value="out_of_stock">Hết hàng</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Input
+                label="Giá bán (VNĐ) *"
+                type="number"
+                min="0"
+                value={form.price}
+                onChange={(e) => setForm({ ...form, price: e.target.value })}
+                placeholder="Ví dụ: 15990000"
+                error={errors.price?.[0]}
+                required
+              />
+
+              <Input
+                label="Giá niêm yết (VNĐ)"
+                type="number"
+                min="0"
+                value={form.compare_price}
+                onChange={(e) => setForm({ ...form, compare_price: e.target.value })}
+                placeholder="Ví dụ: 17990000"
+                error={errors.compare_price?.[0]}
+              />
+
+              <Input
+                label="Số lượng tồn kho *"
+                type="number"
+                min="0"
+                value={form.stock_quantity}
+                onChange={(e) => setForm({ ...form, stock_quantity: e.target.value })}
+                placeholder="Ví dụ: 50"
+                error={errors.stock_quantity?.[0]}
+                required
+              />
+            </div>
 
             <Input
-              label="Số lượng tồn kho *"
-              type="number"
-              min="0"
-              value={form.stock_quantity}
-              onChange={(e) => setForm({ ...form, stock_quantity: e.target.value })}
-              placeholder="Ví dụ: 50"
-              error={errors.stock_quantity?.[0]}
-              required
+              label="Đường dẫn ảnh đại diện (URL)"
+              value={form.image_url}
+              onChange={(e) => setForm({ ...form, image_url: e.target.value })}
+              placeholder="https://example.com/image.jpg hoặc để trống dùng ảnh mẫu"
+              error={errors.image_url?.[0]}
             />
-          </div>
 
-          <Input
-            label="Đường dẫn ảnh đại diện (URL)"
-            value={form.image_url}
-            onChange={(e) => setForm({ ...form, image_url: e.target.value })}
-            placeholder="https://example.com/image.jpg hoặc để trống dùng ảnh mẫu"
-            error={errors.image_url?.[0]}
-          />
-
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-on-surface-variant">Mô tả sản phẩm (HTML hoặc Text)</label>
-            <textarea
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              rows={4}
-              placeholder="Nhập thông tin giới thiệu, thông số nổi bật..."
-              className="w-full bg-surface-container-low text-on-surface placeholder:text-outline rounded-xl px-3 py-2 text-sm border border-outline-variant/50 focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-            />
-          </div>
-
-          {/* Product Image Gallery Management — Available when editing existing product */}
-          {editingProduct?.id && (
-            <div className="border-t border-outline-variant/20 pt-4 mt-2">
-              <ProductImageGallery productId={editingProduct.id} />
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-on-surface-variant">Mô tả sản phẩm (HTML hoặc Text)</label>
+              <textarea
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                rows={4}
+                placeholder="Nhập thông tin giới thiệu, thông số nổi bật..."
+                className="w-full bg-surface-container-low text-on-surface placeholder:text-outline rounded-xl px-3 py-2 text-sm border border-outline-variant/50 focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+              />
             </div>
-          )}
 
-          <div className="flex justify-end gap-3 pt-3 border-t border-outline-variant/10">
-            <Button type="button" variant="ghost" onClick={() => setModalOpen(false)} disabled={submitting}>
-              Hủy
-            </Button>
-            <Button type="submit" variant="primary" loading={submitting}>
-              {editingProduct ? 'Lưu thay đổi' : 'Tạo mới'}
-            </Button>
+            <div className="flex justify-end gap-3 pt-3 border-t border-outline-variant/10">
+              <Button type="button" variant="ghost" onClick={() => setModalOpen(false)} disabled={submitting}>
+                Hủy
+              </Button>
+              <Button type="submit" variant="primary" loading={submitting}>
+                {editingProduct ? 'Lưu thay đổi' : 'Tạo mới'}
+              </Button>
+            </div>
+          </form>
+        )}
+
+        {/* Tab 2: Thông số kỹ thuật */}
+        {activeTab === 'specs' && editingProduct && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-outline-variant/20">
+              <div>
+                <h4 className="text-sm font-semibold text-on-surface">Cấu hình thông số kỹ thuật</h4>
+                <p className="text-xs text-on-surface-variant">
+                  Cập nhật các thông số để hiển thị trên trang chi tiết và hỗ trợ khách hàng so sánh sản phẩm.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={handleSaveSpecs}
+                loading={savingSpecs}
+              >
+                <span className="material-symbols-outlined text-sm">save</span>
+                Lưu thông số
+              </Button>
+            </div>
+
+            {loadingSpecs ? (
+              <div className="py-12 flex justify-center">
+                <Spinner size="md" />
+              </div>
+            ) : specDefinitions.length === 0 ? (
+              <div className="text-center py-8 text-on-surface-variant text-sm bg-surface-container-low rounded-xl">
+                Chưa có định nghĩa thông số nào trong hệ thống.{' '}
+                <Link to="/admin/specs" className="text-primary hover:underline font-semibold">
+                  Tới trang quản lý định nghĩa thông số →
+                </Link>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[50vh] overflow-y-auto pr-1">
+                {specDefinitions.map((def) => {
+                  const val = productSpecs[def.id] ?? ''
+                  return (
+                    <div
+                      key={def.id}
+                      className="p-3 rounded-xl bg-surface-container-low border border-outline-variant/30 space-y-1.5"
+                    >
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-semibold text-on-surface flex items-center gap-1">
+                          {def.name}
+                          {def.unit && (
+                            <span className="text-[11px] font-normal text-on-surface-variant">
+                              ({def.unit})
+                            </span>
+                          )}
+                        </label>
+                        <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant">
+                          {def.value_type}
+                        </span>
+                      </div>
+
+                      {def.value_type === 'boolean' ? (
+                        <div className="flex items-center gap-3 pt-1">
+                          <label className="flex items-center gap-1.5 cursor-pointer text-xs text-on-surface">
+                            <input
+                              type="radio"
+                              name={`spec_${def.id}`}
+                              checked={val === true || val === '1' || val === 1}
+                              onChange={() =>
+                                setProductSpecs((prev) => ({ ...prev, [def.id]: true }))
+                              }
+                              className="accent-primary"
+                            />
+                            <span>Có</span>
+                          </label>
+                          <label className="flex items-center gap-1.5 cursor-pointer text-xs text-on-surface">
+                            <input
+                              type="radio"
+                              name={`spec_${def.id}`}
+                              checked={val === false || val === '0' || val === 0}
+                              onChange={() =>
+                                setProductSpecs((prev) => ({ ...prev, [def.id]: false }))
+                              }
+                              className="accent-primary"
+                            />
+                            <span>Không</span>
+                          </label>
+                          {val !== '' && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setProductSpecs((prev) => {
+                                  const next = { ...prev }
+                                  delete next[def.id]
+                                  return next
+                                })
+                              }
+                              className="text-[11px] text-outline hover:text-error ml-auto"
+                            >
+                              Xóa
+                            </button>
+                          )}
+                        </div>
+                      ) : def.value_type === 'number' ? (
+                        <input
+                          type="number"
+                          step="any"
+                          value={val}
+                          onChange={(e) =>
+                            setProductSpecs((prev) => ({ ...prev, [def.id]: e.target.value }))
+                          }
+                          placeholder={`Nhập ${def.name.toLowerCase()}...`}
+                          className="w-full bg-surface-container text-on-surface rounded-lg px-3 py-1.5 text-xs border border-outline-variant/40 focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      ) : (
+                        <input
+                          type="text"
+                          value={val}
+                          onChange={(e) =>
+                            setProductSpecs((prev) => ({ ...prev, [def.id]: e.target.value }))
+                          }
+                          placeholder={`Nhập ${def.name.toLowerCase()}...`}
+                          className="w-full bg-surface-container text-on-surface rounded-lg px-3 py-1.5 text-xs border border-outline-variant/40 focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 pt-3 border-t border-outline-variant/10">
+              <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>
+                Đóng
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                onClick={handleSaveSpecs}
+                loading={savingSpecs}
+              >
+                Lưu thông số kỹ thuật
+              </Button>
+            </div>
           </div>
-        </form>
+        )}
+
+        {/* Tab 3: Thư viện hình ảnh */}
+        {activeTab === 'images' && editingProduct && (
+          <div className="space-y-4">
+            <ProductImageGallery productId={editingProduct.id} />
+            <div className="flex justify-end pt-3 border-t border-outline-variant/10">
+              <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>
+                Đóng
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Delete Confirmation */}
