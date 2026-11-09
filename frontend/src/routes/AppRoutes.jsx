@@ -30,6 +30,10 @@ const PaymentReturnPage = lazy(() => import('../features/checkout/PaymentReturnP
 const OrderHistoryPage = lazy(() => import('../features/orders/OrderHistoryPage'))
 const OrderDetailPage  = lazy(() => import('../features/orders/OrderDetailPage'))
 
+// Account
+const ProfilePage      = lazy(() => import('../features/account/ProfilePage'))
+const AddressBookPage  = lazy(() => import('../features/account/AddressBookPage'))
+
 // Admin
 const AdminDashboard       = lazy(() => import('../features/admin/AdminDashboard'))
 const AdminOrderListPage   = lazy(() => import('../features/admin/AdminOrderListPage'))
@@ -127,6 +131,24 @@ export default function AppRoutes() {
             element={
               <ProtectedRoute>
                 <OrderDetailPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── Customer Account ── */}
+          <Route
+            path="account/profile"
+            element={
+              <ProtectedRoute>
+                <ProfilePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="account/addresses"
+            element={
+              <ProtectedRoute>
+                <AddressBookPage />
               </ProtectedRoute>
             }
           />

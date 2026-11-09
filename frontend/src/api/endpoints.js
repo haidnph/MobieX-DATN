@@ -33,6 +33,10 @@ const EP = {
   ADDRESS_DETAIL: (id) => `/addresses/${id}`,
   ADDRESS_DEFAULT: (id) => `/addresses/${id}/default`,
 
+  // ── Profile ───────────────────────────────────────────
+  PROFILE: '/profile',
+  PROFILE_PASSWORD: '/profile/password',
+
   // ── Orders ────────────────────────────────────────────
   ORDERS: '/orders',
   ORDER_DETAIL: (id) => `/orders/${id}`,

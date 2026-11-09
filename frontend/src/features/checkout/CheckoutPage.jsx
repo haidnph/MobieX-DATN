@@ -1,7 +1,7 @@
 // src/features/checkout/CheckoutPage.jsx
 // Order checkout page: shipping information, payment method selection, and atomic order creation.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useCart } from '../../contexts/CartContext'
 import { useAuth } from '../../contexts/AuthContext'
@@ -26,8 +26,54 @@ export default function CheckoutPage() {
     note: '',
     payment_method: 'cod', // 'cod' or 'vnpay'
   })
-  const [submitting, setSubmitting] = useState(false)
-  const [errors, setErrors] = useState({})
+  const [savedAddresses, setSavedAddresses] = useState([])
+  const [selectedAddressId, setSelectedAddressId] = useState(null)
+  const [useCustomAddress, setUseCustomAddress] = useState(false)
+
+  // ── Fetch saved addresses ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (!user) return
+    axiosClient
+      .get(EP.ADDRESSES)
+      .then(({ data }) => {
+        const payload = data.data ?? data
+        const list = Array.isArray(payload) ? payload : (payload.data ?? [])
+        setSavedAddresses(list)
+        if (list.length > 0) {
+          const defaultAddr = list.find((a) => a.is_default) || list[0]
+          setSelectedAddressId(defaultAddr.id)
+          const fullAddress = [defaultAddr.address_line, defaultAddr.ward, defaultAddr.district]
+            .filter(Boolean)
+            .join(', ')
+          setForm((prev) => ({
+            ...prev,
+            recipient_name: defaultAddr.full_name || prev.recipient_name,
+            phone: defaultAddr.phone || prev.phone,
+            shipping_address: fullAddress || prev.shipping_address,
+            city: defaultAddr.city || prev.city,
+          }))
+        } else {
+          setUseCustomAddress(true)
+        }
+      })
+      .catch(() => {
+        setUseCustomAddress(true)
+      })
+  }, [user])
+
+  const handleSelectSavedAddress = (addr) => {
+    setSelectedAddressId(addr.id)
+    setUseCustomAddress(false)
+    const fullAddress = [addr.address_line, addr.ward, addr.district].filter(Boolean).join(', ')
+    setForm((prev) => ({
+      ...prev,
+      recipient_name: addr.full_name,
+      phone: addr.phone,
+      shipping_address: fullAddress,
+      city: addr.city,
+    }))
+    setErrors({})
+  }
 
   const handleChange = (e) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
@@ -112,61 +158,148 @@ export default function CheckoutPage() {
         <div className="lg:col-span-7 space-y-6">
           {/* Shipping info */}
           <div className="bg-surface-container rounded-2xl border border-outline-variant/20 p-6 space-y-4">
-            <div className="flex items-center gap-2 text-base font-bold text-on-surface">
-              <span className="material-symbols-outlined text-primary text-xl">local_shipping</span>
-              Thông tin nhận hàng
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-base font-bold text-on-surface">
+                <span className="material-symbols-outlined text-primary text-xl">local_shipping</span>
+                Thông tin nhận hàng
+              </div>
+              {user && (
+                <Link
+                  to="/account/addresses"
+                  target="_blank"
+                  className="text-xs text-primary hover:underline flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-xs">edit_note</span>
+                  Quản lý sổ địa chỉ
+                </Link>
+              )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* 1-Click Saved Addresses Selector */}
+            {savedAddresses.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-outline uppercase tracking-wider">
+                  Chọn địa chỉ đã lưu (1-Click):
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {savedAddresses.map((addr) => {
+                    const isSelected = !useCustomAddress && selectedAddressId === addr.id
+                    return (
+                      <div
+                        key={addr.id}
+                        onClick={() => handleSelectSavedAddress(addr)}
+                        className={[
+                          'p-3.5 rounded-xl border text-xs cursor-pointer transition-all flex flex-col justify-between relative',
+                          isSelected
+                            ? 'bg-primary/5 border-primary ring-2 ring-primary/20 shadow-sm'
+                            : 'bg-surface-container-low border-outline-variant/30 hover:border-outline',
+                        ].join(' ')}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-bold text-on-surface">{addr.full_name}</span>
+                            {addr.label && (
+                              <span className="text-[10px] bg-surface-container-high px-1.5 py-0.5 rounded text-outline font-medium">
+                                {addr.label}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-outline font-mono mb-1">{addr.phone}</p>
+                          <p className="text-on-surface-variant line-clamp-2">
+                            {addr.address_line}, {addr.ward ? `${addr.ward}, ` : ''}{addr.district ? `${addr.district}, ` : ''}{addr.city}
+                          </p>
+                        </div>
+                        {isSelected && (
+                          <div className="mt-2 flex items-center gap-1 text-primary font-semibold text-[11px]">
+                            <span className="material-symbols-outlined text-sm">check_circle</span>
+                            Giao tới địa chỉ này
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUseCustomAddress(true)
+                      setSelectedAddressId(null)
+                    }}
+                    className={[
+                      'text-xs font-medium flex items-center gap-1.5 transition-colors',
+                      useCustomAddress ? 'text-primary font-bold' : 'text-outline hover:text-on-surface',
+                    ].join(' ')}
+                  >
+                    <span className="material-symbols-outlined text-sm">
+                      {useCustomAddress ? 'radio_button_checked' : 'radio_button_unchecked'}
+                    </span>
+                    Nhập địa chỉ giao hàng khác
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Inputs: Always visible or expanded when custom address */}
+            <div className={`space-y-4 pt-2 ${!useCustomAddress && savedAddresses.length > 0 ? 'bg-surface-container-low/50 p-4 rounded-xl border border-outline-variant/15' : ''}`}>
+              {!useCustomAddress && savedAddresses.length > 0 && (
+                <p className="text-xs font-medium text-outline">
+                  Thông tin được điền tự động từ địa chỉ đã chọn (có thể chỉnh sửa nếu cần):
+                </p>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  label="Họ và tên người nhận"
+                  name="recipient_name"
+                  value={form.recipient_name}
+                  onChange={handleChange}
+                  placeholder="Nguyễn Văn A"
+                  error={errors.recipient_name?.[0]}
+                  required
+                />
+                <Input
+                  label="Số điện thoại"
+                  name="phone"
+                  value={form.phone}
+                  onChange={handleChange}
+                  placeholder="0912345678"
+                  error={errors.phone?.[0] || errors.recipient_phone?.[0]}
+                  required
+                />
+              </div>
+
               <Input
-                label="Họ và tên người nhận"
-                name="recipient_name"
-                value={form.recipient_name}
+                label="Địa chỉ chi tiết (số nhà, đường, phường/xã)"
+                name="shipping_address"
+                value={form.shipping_address}
                 onChange={handleChange}
-                placeholder="Nguyễn Văn A"
-                error={errors.recipient_name?.[0]}
+                placeholder="Số 123 đường Cầu Giấy, Phường Dịch Vọng"
+                error={errors.shipping_address?.[0]}
                 required
               />
+
               <Input
-                label="Số điện thoại"
-                name="phone"
-                value={form.phone}
+                label="Tỉnh / Thành phố"
+                name="city"
+                value={form.city}
                 onChange={handleChange}
-                placeholder="0912345678"
-                error={errors.phone?.[0] || errors.recipient_phone?.[0]}
+                placeholder="Hà Nội, TP.HCM, ..."
                 required
               />
-            </div>
 
-            <Input
-              label="Địa chỉ chi tiết (số nhà, đường, phường/xã)"
-              name="shipping_address"
-              value={form.shipping_address}
-              onChange={handleChange}
-              placeholder="Số 123 đường Cầu Giấy, Phường Dịch Vọng"
-              error={errors.shipping_address?.[0]}
-              required
-            />
-
-            <Input
-              label="Tỉnh / Thành phố"
-              name="city"
-              value={form.city}
-              onChange={handleChange}
-              placeholder="Hà Nội, TP.HCM, ..."
-              required
-            />
-
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-on-surface-variant">Ghi chú đơn hàng (tùy chọn)</label>
-              <textarea
-                name="note"
-                value={form.note}
-                onChange={handleChange}
-                rows={2}
-                placeholder="Ví dụ: Giao giờ hành chính, gọi trước khi đến..."
-                className="w-full bg-surface-container-low text-on-surface placeholder:text-outline rounded-xl px-4 py-2.5 text-sm border border-outline-variant/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all resize-none"
-              />
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-on-surface-variant">Ghi chú đơn hàng (tùy chọn)</label>
+                <textarea
+                  name="note"
+                  value={form.note}
+                  onChange={handleChange}
+                  rows={2}
+                  placeholder="Ví dụ: Giao giờ hành chính, gọi trước khi đến..."
+                  className="w-full bg-surface-container-low text-on-surface placeholder:text-outline rounded-xl px-4 py-2.5 text-sm border border-outline-variant/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all resize-none"
+                />
+              </div>
             </div>
           </div>
 

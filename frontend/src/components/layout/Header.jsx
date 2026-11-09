@@ -145,6 +145,22 @@ export default function Header() {
                     <p className="text-xs text-outline truncate">{user.email}</p>
                   </div>
                   <Link
+                    to="/account/profile"
+                    onClick={() => setUserMenuOpen(false)}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-bright hover:text-on-surface transition-colors text-sm"
+                  >
+                    <span className="material-symbols-outlined text-base">manage_accounts</span>
+                    Tài khoản của tôi
+                  </Link>
+                  <Link
+                    to="/account/addresses"
+                    onClick={() => setUserMenuOpen(false)}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-bright hover:text-on-surface transition-colors text-sm"
+                  >
+                    <span className="material-symbols-outlined text-base">pin_drop</span>
+                    Sổ địa chỉ nhận hàng
+                  </Link>
+                  <Link
                     to="/orders"
                     onClick={() => setUserMenuOpen(false)}
                     className="flex items-center gap-2 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-bright hover:text-on-surface transition-colors text-sm"
