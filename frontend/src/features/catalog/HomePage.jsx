@@ -9,6 +9,7 @@ import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
 import Spinner from '../../components/common/Spinner'
 import { useCompare } from '../../contexts/CompareContext'
 import { useWishlist } from '../../contexts/WishlistContext'
+import { useRecentlyViewed } from '../../hooks/useRecentlyViewed'
 
 // ── Skeleton ─────────────────────────────────────────────────────────────────
 function SkeletonCard() {
@@ -227,6 +228,55 @@ function ProductCard({ product }) {
   )
 }
 
+// ── Recently Viewed Row ───────────────────────────────────────────────────────
+function RecentlyViewedRow() {
+  const { viewed } = useRecentlyViewed()
+
+  if (viewed.length === 0) return null
+
+  return (
+    <section>
+      <div className="flex items-center gap-3 mb-4">
+        <span className="w-1 h-6 bg-secondary rounded-full" />
+        <h2 className="text-xl font-bold text-on-surface">Đã xem gần đây</h2>
+      </div>
+      <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
+        {viewed.map((item) => (
+          <Link
+            key={item.id}
+            to={`/products/${item.slug || item.id}`}
+            className="shrink-0 w-36 group bg-surface-container rounded-xl overflow-hidden border border-outline-variant/10 hover:border-primary/30 hover:shadow-[0_0_20px_rgba(77,142,255,0.12)] transition-all duration-300"
+          >
+            <div className="h-28 bg-surface-container-high overflow-hidden flex items-center justify-center p-2">
+              {item.primary_image ? (
+                <img
+                  src={item.primary_image}
+                  alt={item.name}
+                  className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
+                  onError={(e) => {
+                    e.target.onerror = null
+                    e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2UyZThmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1NSIgZm9udC1zaXplPSIxMiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzk0YTNiOCI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+'
+                  }}
+                />
+              ) : (
+                <span className="material-symbols-outlined text-4xl text-outline">smartphone</span>
+              )}
+            </div>
+            <div className="p-2.5">
+              <p className="text-xs font-semibold text-on-surface leading-snug line-clamp-2 group-hover:text-primary transition-colors mb-1">
+                {item.name}
+              </p>
+              {item.price != null && (
+                <p className="text-xs font-extrabold text-primary">{formatCurrencyVND(Number(item.price))}</p>
+              )}
+            </div>
+          </Link>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────────
 export default function HomePage() {
   const [banners, setBanners] = useState([])
@@ -339,6 +389,9 @@ export default function HomePage() {
           <span className="material-symbols-outlined text-lg">shopping_bag</span>
         </Link>
       </section>
+
+      {/* Recently Viewed */}
+      <RecentlyViewedRow />
     </div>
   )
 }

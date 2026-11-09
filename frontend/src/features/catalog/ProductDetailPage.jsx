@@ -14,6 +14,7 @@ import { formatDate } from '../../utils/formatDate'
 import Button from '../../components/common/Button'
 import Badge from '../../components/common/Badge'
 import Spinner from '../../components/common/Spinner'
+import { useRecentlyViewed } from '../../hooks/useRecentlyViewed'
 
 export default function ProductDetailPage() {
   const { id } = useParams()
@@ -21,6 +22,7 @@ export default function ProductDetailPage() {
   const { toggleCompare, isInCompare } = useCompare()
   const { toggleWishlist, isInWishlist } = useWishlist()
   const { showToast } = useToast()
+  const { addViewed } = useRecentlyViewed()
 
   const [product, setProduct] = useState(null)
   const [selectedVariant, setSelectedVariant] = useState(null)
@@ -30,6 +32,7 @@ export default function ProductDetailPage() {
   const [reviews, setReviews] = useState([])
   const [loading, setLoading] = useState(true)
   const [addingToCart, setAddingToCart] = useState(false)
+  const [relatedProducts, setRelatedProducts] = useState([])
 
   useEffect(() => {
     setLoading(true)
@@ -50,6 +53,7 @@ export default function ProductDetailPage() {
         if (prodRes.status === 'fulfilled') {
           const prodData = prodRes.value.data.data ?? prodRes.value.data
           setProduct(prodData)
+          addViewed(prodData)
 
           if (imgs.length === 0 && prodData.images?.length > 0) {
             imgs = [...prodData.images].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
@@ -72,6 +76,18 @@ export default function ProductDetailPage() {
             firstVariant?.image_url ||
             null
           setActiveImage(primaryImg)
+
+          // Fetch related products by category
+          if (prodData.category_id) {
+            axiosClient
+              .get(EP.PRODUCTS, { params: { category_id: prodData.category_id, per_page: 5 } })
+              .then(({ data }) => {
+                const list = data.data?.data ?? data.data ?? data ?? []
+                const items = Array.isArray(list) ? list : []
+                setRelatedProducts(items.filter((p) => p.id !== prodData.id).slice(0, 4))
+              })
+              .catch(() => {})
+          }
         }
         if (revRes.status === 'fulfilled') {
           const revData = revRes.value.data.data ?? revRes.value.data
@@ -524,6 +540,63 @@ export default function ProductDetailPage() {
           </div>
         )}
       </section>
+
+      {/* Related Products Section */}
+      {relatedProducts.length > 0 && (
+        <section className="pt-8 border-t border-outline-variant/20">
+          <div className="flex items-center gap-3 mb-6">
+            <span className="w-1 h-6 bg-primary rounded-full" />
+            <h2 className="text-xl font-bold text-on-surface">Sản phẩm liên quan</h2>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+            {relatedProducts.map((p) => {
+              const thumb =
+                p.images?.find((img) => img.is_primary)?.image_url ||
+                p.images?.[0]?.image_url ||
+                p.thumbnail ||
+                null
+              const price =
+                p.min_price && Number(p.min_price) > 0
+                  ? Number(p.min_price)
+                  : Number(p.base_price) || 0
+              return (
+                <Link
+                  key={p.id}
+                  to={`/products/${p.id}`}
+                  className="group bg-surface-container rounded-xl overflow-hidden border border-outline-variant/10 hover:border-primary/30 hover:shadow-[0_0_30px_rgba(77,142,255,0.15)] transition-all duration-300"
+                >
+                  <div className="relative h-40 bg-surface-container-high overflow-hidden">
+                    {thumb ? (
+                      <img
+                        src={thumb}
+                        alt={p.name}
+                        className="w-full h-full object-contain p-3 group-hover:scale-105 transition-transform duration-500"
+                        onError={(e) => {
+                          e.target.onerror = null
+                          e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2UyZThmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1NSIgZm9udC1zaXplPSIxMiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzk0YTNiOCI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+'
+                        }}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <span className="material-symbols-outlined text-5xl text-outline">smartphone</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-3">
+                    <p className="text-xs text-primary font-medium mb-0.5">{p.brand?.name}</p>
+                    <h3 className="text-sm font-semibold text-on-surface leading-snug line-clamp-2 mb-1.5 group-hover:text-primary transition-colors">
+                      {p.name}
+                    </h3>
+                    <span className="text-sm font-extrabold text-on-surface">
+                      {formatCurrencyVND(price)}
+                    </span>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        </section>
+      )}
     </div>
   )
 }
