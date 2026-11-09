@@ -14,6 +14,7 @@ import ConfirmDialog from '../../components/feedback/ConfirmDialog'
 import Pagination from '../../components/common/Pagination'
 import Spinner from '../../components/common/Spinner'
 import Badge from '../../components/common/Badge'
+import ProductImageGallery from '../../components/admin/ProductImageGallery'
 
 const STATUS_BADGES = {
   active: { label: 'Đang bán', variant: 'success' },
@@ -509,6 +510,13 @@ export default function AdminProductPage() {
               className="w-full bg-surface-container-low text-on-surface placeholder:text-outline rounded-xl px-3 py-2 text-sm border border-outline-variant/50 focus:outline-none focus:ring-2 focus:ring-primary resize-none"
             />
           </div>
+
+          {/* Product Image Gallery Management — Available when editing existing product */}
+          {editingProduct?.id && (
+            <div className="border-t border-outline-variant/20 pt-4 mt-2">
+              <ProductImageGallery productId={editingProduct.id} />
+            </div>
+          )}
 
           <div className="flex justify-end gap-3 pt-3 border-t border-outline-variant/10">
             <Button type="button" variant="ghost" onClick={() => setModalOpen(false)} disabled={submitting}>
