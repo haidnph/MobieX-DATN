@@ -31,6 +31,7 @@ const PaymentReturnPage = lazy(() => import('../features/checkout/PaymentReturnP
 // Orders
 const OrderHistoryPage = lazy(() => import('../features/orders/OrderHistoryPage'))
 const OrderDetailPage  = lazy(() => import('../features/orders/OrderDetailPage'))
+const OrderInvoicePage = lazy(() => import('../features/orders/OrderInvoicePage'))
 
 // Account
 const ProfilePage      = lazy(() => import('../features/account/ProfilePage'))
@@ -135,6 +136,15 @@ export default function AppRoutes() {
             element={
               <ProtectedRoute>
                 <OrderDetailPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="orders/:id/invoice"
+            element={
+              <ProtectedRoute>
+                <OrderInvoicePage />
               </ProtectedRoute>
             }
           />

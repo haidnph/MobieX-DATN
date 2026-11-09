@@ -2,7 +2,7 @@
 // Order details view with live timeline, cancellation modal, and verified review triggers.
 
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import axiosClient from '../../api/axiosClient'
 import EP from '../../api/endpoints'
 import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
@@ -26,6 +26,7 @@ const STATUS_CONFIG = {
 export default function OrderDetailPage() {
   const { id } = useParams()
   const { showToast } = useToast()
+  const navigate = useNavigate()
 
   const [order, setOrder] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -109,6 +110,19 @@ export default function OrderDetailPage() {
         {isCancellable && (
           <Button variant="danger" size="sm" onClick={() => setCancelOpen(true)}>
             Hủy đơn hàng
+          </Button>
+        )}
+
+        {/* Invoice print link — available once order is confirmed */}
+        {order.status !== 'pending' && order.status !== 'cancelled' && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate(`/orders/${id}/invoice`)}
+            className="border-outline-variant/40 text-on-surface-variant hover:border-primary hover:text-primary"
+          >
+            <span className="material-symbols-outlined text-base">receipt_long</span>
+            In hóa đơn
           </Button>
         )}
       </div>

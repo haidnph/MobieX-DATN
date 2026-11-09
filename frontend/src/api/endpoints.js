@@ -42,6 +42,7 @@ const EP = {
   ORDERS: '/orders',
   ORDER_DETAIL: (id) => `/orders/${id}`,
   ORDER_CANCEL: (id) => `/orders/${id}/cancel`,
+  ORDER_INVOICE: (id) => `/orders/${id}/invoice`,
 
   // ── Payments ──────────────────────────────────────────
   PAYMENT_VNPAY_CREATE: '/payments/vnpay/create',
