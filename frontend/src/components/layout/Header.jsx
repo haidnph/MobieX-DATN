@@ -8,11 +8,13 @@ import axiosClient from '../../api/axiosClient'
 import EP from '../../api/endpoints'
 import { useAuth } from '../../contexts/AuthContext'
 import { useCart } from '../../contexts/CartContext'
+import { useTheme } from '../../contexts/ThemeContext'
 import { useDebounce } from '../../hooks/useDebounce'
 
 export default function Header() {
   const { user, logout, isAdmin } = useAuth()
   const { itemCount, cartBadgeCount } = useCart()
+  const { isDark, toggleTheme } = useTheme()
   const navigate = useNavigate()
 
   const [categories, setCategories] = useState([])
@@ -107,6 +109,19 @@ export default function Header() {
 
         {/* Right actions */}
         <div className="flex items-center gap-2 shrink-0">
+          {/* Theme Toggle Button */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={isDark ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
+            title={isDark ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
+            className="p-2 rounded-xl text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors flex items-center justify-center"
+          >
+            <span className="material-symbols-outlined text-xl">
+              {isDark ? 'light_mode' : 'dark_mode'}
+            </span>
+          </button>
+
           {/* Cart */}
           <Link
             to="/cart"
