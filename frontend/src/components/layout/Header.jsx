@@ -11,6 +11,7 @@ import { useCart } from '../../contexts/CartContext'
 import { useCompare } from '../../contexts/CompareContext'
 import { useWishlist } from '../../contexts/WishlistContext'
 import { useTheme } from '../../contexts/ThemeContext'
+import { useLanguage } from '../../contexts/LanguageContext'
 import { useToast } from '../../contexts/ToastContext'
 import { useDebounce } from '../../hooks/useDebounce'
 import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
@@ -21,6 +22,7 @@ export default function Header() {
   const { compareCount } = useCompare()
   const { wishlistCount } = useWishlist()
   const { isDark, toggleTheme } = useTheme()
+  const { lang, toggleLang, t } = useLanguage()
   const { showToast } = useToast()
   const navigate = useNavigate()
 
@@ -330,13 +332,13 @@ export default function Header() {
         {/* Desktop navigation */}
         <nav className="hidden lg:flex items-center gap-4">
           <Link to="/" className="text-sm text-on-surface-variant hover:text-on-surface transition-colors">
-            Trang chủ
+            {t('home')}
           </Link>
           <Link to="/products?category=phones" className="text-sm text-on-surface-variant hover:text-on-surface transition-colors">
-            Điện thoại
+            {t('phones')}
           </Link>
           <Link to="/products?category=accessories" className="text-sm text-on-surface-variant hover:text-on-surface transition-colors">
-            Phụ kiện
+            {t('accessories')}
           </Link>
           {categories.slice(0, 3).map((cat) => (
             <Link
@@ -351,6 +353,17 @@ export default function Header() {
 
         {/* Right actions */}
         <div className="flex items-center gap-2 shrink-0">
+          {/* Language Switcher */}
+          <button
+            type="button"
+            onClick={toggleLang}
+            title={lang === 'vi' ? 'Switch to English' : 'Chuyển sang Tiếng Việt'}
+            className="px-2 py-1 rounded-xl text-xs font-bold bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant/30 transition-colors flex items-center gap-1 shrink-0"
+          >
+            <span>{lang === 'vi' ? '🇻🇳' : '🇬🇧'}</span>
+            <span className="uppercase text-[10px]">{lang}</span>
+          </button>
+
           {/* Theme Toggle Button */}
           <button
             type="button"

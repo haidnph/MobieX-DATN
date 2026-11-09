@@ -3,6 +3,7 @@
 
 import { BrowserRouter } from 'react-router-dom'
 import { ThemeProvider } from './contexts/ThemeContext'
+import { LanguageProvider } from './contexts/LanguageContext'
 import { AuthProvider } from './contexts/AuthContext'
 import { CartProvider } from './contexts/CartContext'
 import { CompareProvider } from './contexts/CompareContext'
@@ -15,19 +16,21 @@ export default function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
-        <BrowserRouter>
-          <AuthProvider>
-            <CartProvider>
-              <ToastProvider>
-                <CompareProvider>
-                  <WishlistProvider>
-                    <AppRoutes />
-                  </WishlistProvider>
-                </CompareProvider>
-              </ToastProvider>
-            </CartProvider>
-          </AuthProvider>
-        </BrowserRouter>
+        <LanguageProvider>
+          <BrowserRouter>
+            <AuthProvider>
+              <CartProvider>
+                <ToastProvider>
+                  <CompareProvider>
+                    <WishlistProvider>
+                      <AppRoutes />
+                    </WishlistProvider>
+                  </CompareProvider>
+                </ToastProvider>
+              </CartProvider>
+            </AuthProvider>
+          </BrowserRouter>
+        </LanguageProvider>
       </ThemeProvider>
     </ErrorBoundary>
   )
