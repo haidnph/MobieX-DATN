@@ -15,6 +15,13 @@ class ProductController extends Controller
     // API hiển thị danh sách điện thoại, hỗ trợ tìm kiếm
     public function index(Request $request)
     {
+        // Support 'q' and 'search' query aliases for 'keyword'
+        if ($request->filled('q') && ! $request->filled('keyword')) {
+            $request->merge(['keyword' => $request->q]);
+        } elseif ($request->filled('search') && ! $request->filled('keyword')) {
+            $request->merge(['keyword' => $request->search]);
+        }
+
         // Kiểm tra các tham số lọc
         $validated = $request->validate([
             'keyword' => 'nullable|string|max:255',

@@ -12,6 +12,7 @@ import { useCompare } from '../../contexts/CompareContext'
 import { useWishlist } from '../../contexts/WishlistContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { useDebounce } from '../../hooks/useDebounce'
+import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
 
 export default function Header() {
   const { user, logout, isAdmin } = useAuth()
@@ -25,7 +26,15 @@ export default function Header() {
   const [searchQuery, setSearchQuery] = useState('')
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
+  // Live autocomplete search states
+  const [searchSuggestions, setSearchSuggestions] = useState([])
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false)
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false)
+
   const userMenuRef = useRef(null)
+  const searchRef = useRef(null)
+  const mobileSearchRef = useRef(null)
 
   const debouncedSearch = useDebounce(searchQuery, 300)
 
@@ -37,23 +46,70 @@ export default function Header() {
       .catch(() => {})
   }, [])
 
+  // Live autocomplete search fetch
+  useEffect(() => {
+    const query = debouncedSearch.trim()
+    if (query.length < 2) {
+      setSearchSuggestions([])
+      setShowSearchDropdown(false)
+      return
+    }
+
+    setLoadingSuggestions(true)
+    setShowSearchDropdown(true)
+    axiosClient
+      .get(EP.PRODUCTS, { params: { keyword: query, per_page: 5 } })
+      .then(({ data }) => {
+        const payload = data.data ?? data
+        const items = Array.isArray(payload) ? payload : (payload.data ?? [])
+        setSearchSuggestions(items)
+      })
+      .catch(() => {
+        setSearchSuggestions([])
+      })
+      .finally(() => {
+        setLoadingSuggestions(false)
+      })
+  }, [debouncedSearch])
+
   // Navigate on search submit
   const handleSearch = (e) => {
     e.preventDefault()
-    if (debouncedSearch.trim()) {
-      navigate(`/products?q=${encodeURIComponent(debouncedSearch.trim())}`)
+    setShowSearchDropdown(false)
+    if (searchQuery.trim()) {
+      navigate(`/products?q=${encodeURIComponent(searchQuery.trim())}`)
     }
   }
 
-  // Close user menu on outside click
+  // Close menus on outside click or ESC key
   useEffect(() => {
-    const handler = (e) => {
+    const clickHandler = (e) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
         setUserMenuOpen(false)
       }
+      if (
+        searchRef.current &&
+        !searchRef.current.contains(e.target) &&
+        mobileSearchRef.current &&
+        !mobileSearchRef.current.contains(e.target)
+      ) {
+        setShowSearchDropdown(false)
+      }
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+
+    const keyHandler = (e) => {
+      if (e.key === 'Escape') {
+        setShowSearchDropdown(false)
+        setUserMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', clickHandler)
+    document.addEventListener('keydown', keyHandler)
+    return () => {
+      document.removeEventListener('mousedown', clickHandler)
+      document.removeEventListener('keydown', keyHandler)
+    }
   }, [])
 
   const handleLogout = async () => {
@@ -72,22 +128,126 @@ export default function Header() {
           </span>
         </Link>
 
-        {/* Search bar */}
-        <form
-          onSubmit={handleSearch}
-          className="relative flex-1 max-w-xl mx-2 hidden md:block"
-        >
-          <div className="relative flex items-center w-full bg-surface-container-low rounded-xl px-4 py-2 transition-all duration-300 focus-within:ring-2 focus-within:ring-primary focus-within:bg-surface-container">
-            <span className="material-symbols-outlined text-outline mr-2 text-lg select-none">search</span>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-transparent text-sm text-on-surface placeholder:text-outline focus:outline-none"
-              placeholder="Tìm kiếm điện thoại, phụ kiện..."
-            />
-          </div>
-        </form>
+        {/* Search bar with live autocomplete dropdown */}
+        <div ref={searchRef} className="relative flex-1 max-w-xl mx-2 hidden md:block">
+          <form onSubmit={handleSearch}>
+            <div className="relative flex items-center w-full bg-surface-container-low rounded-xl px-4 py-2 transition-all duration-300 focus-within:ring-2 focus-within:ring-primary focus-within:bg-surface-container">
+              <span className="material-symbols-outlined text-outline mr-2 text-lg select-none">search</span>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value)
+                  if (!showSearchDropdown && e.target.value.trim().length >= 2) {
+                    setShowSearchDropdown(true)
+                  }
+                }}
+                onFocus={() => {
+                  if (searchSuggestions.length > 0 || searchQuery.trim().length >= 2) {
+                    setShowSearchDropdown(true)
+                  }
+                }}
+                className="w-full bg-transparent text-sm text-on-surface placeholder:text-outline focus:outline-none"
+                placeholder="Tìm kiếm điện thoại, phụ kiện..."
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('')
+                    setSearchSuggestions([])
+                    setShowSearchDropdown(false)
+                  }}
+                  className="text-outline hover:text-on-surface text-sm ml-1"
+                >
+                  <span className="material-symbols-outlined text-base">close</span>
+                </button>
+              )}
+            </div>
+          </form>
+
+          {/* Autocomplete Dropdown */}
+          {showSearchDropdown && searchQuery.trim().length >= 2 && (
+            <div className="absolute top-full left-0 right-0 mt-2 bg-surface-container-high rounded-2xl shadow-2xl border border-outline-variant/30 overflow-hidden z-50">
+              <div className="px-4 py-2.5 border-b border-outline-variant/20 flex items-center justify-between text-xs text-on-surface-variant font-medium">
+                <span>Gợi ý tìm kiếm ({searchSuggestions.length})</span>
+                {loadingSuggestions && (
+                  <span className="flex items-center gap-1.5 text-primary">
+                    <span className="inline-block w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    Đang tìm...
+                  </span>
+                )}
+              </div>
+
+              {loadingSuggestions && searchSuggestions.length === 0 ? (
+                <div className="py-6 text-center text-xs text-on-surface-variant">
+                  Đang tìm sản phẩm phù hợp...
+                </div>
+              ) : searchSuggestions.length === 0 ? (
+                <div className="py-6 px-4 text-center text-xs text-on-surface-variant">
+                  Không tìm thấy sản phẩm nào khớp với &ldquo;{searchQuery}&rdquo;
+                </div>
+              ) : (
+                <div className="divide-y divide-outline-variant/10 max-h-80 overflow-y-auto">
+                  {searchSuggestions.map((item) => {
+                    const img =
+                      item.images?.find((i) => i.is_primary)?.image_path ||
+                      item.thumbnail ||
+                      item.images?.[0]?.image_path
+                    const price =
+                      item.min_price || item.price || item.base_price || item.variants?.[0]?.price
+                    return (
+                      <Link
+                        key={item.id}
+                        to={`/products/${item.slug || item.id}`}
+                        onClick={() => {
+                          setShowSearchDropdown(false)
+                          setSearchQuery('')
+                        }}
+                        className="flex items-center gap-3 px-4 py-2.5 hover:bg-surface-bright transition-colors group"
+                      >
+                        <div className="w-10 h-10 rounded-lg bg-surface-container-low shrink-0 overflow-hidden border border-outline-variant/30 flex items-center justify-center p-1">
+                          {img ? (
+                            <img src={img} alt={item.name} className="w-full h-full object-contain" />
+                          ) : (
+                            <span className="material-symbols-outlined text-outline text-lg">smartphone</span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-on-surface truncate group-hover:text-primary transition-colors">
+                            {item.name}
+                          </p>
+                          {price && (
+                            <p className="text-[11px] font-bold text-primary">
+                              {formatCurrencyVND(price)}
+                            </p>
+                          )}
+                        </div>
+                        <span className="material-symbols-outlined text-outline-variant group-hover:text-primary text-base">
+                          chevron_right
+                        </span>
+                      </Link>
+                    )
+                  })}
+                </div>
+              )}
+
+              {searchQuery.trim() && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSearchDropdown(false)
+                    navigate(`/products?q=${encodeURIComponent(searchQuery.trim())}`)
+                  }}
+                  className="w-full px-4 py-2.5 bg-surface-container-low hover:bg-surface-container text-xs text-primary font-semibold text-center border-t border-outline-variant/20 transition-colors flex items-center justify-center gap-1"
+                >
+                  <span>Xem tất cả kết quả cho &ldquo;{searchQuery}&rdquo;</span>
+                  <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Desktop navigation */}
         <nav className="hidden lg:flex items-center gap-4">
@@ -262,18 +422,57 @@ export default function Header() {
       {/* Mobile menu */}
       {mobileMenuOpen && (
         <div className="lg:hidden bg-surface-container-low border-t border-outline-variant/20 px-4 py-4">
-          <form onSubmit={handleSearch} className="mb-4">
-            <div className="flex items-center bg-surface-container rounded-xl px-4 py-2">
-              <span className="material-symbols-outlined text-outline mr-2 text-lg">search</span>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-transparent text-sm text-on-surface placeholder:text-outline focus:outline-none"
-                placeholder="Tìm kiếm..."
-              />
-            </div>
-          </form>
+          <div ref={mobileSearchRef} className="relative mb-4">
+            <form onSubmit={handleSearch}>
+              <div className="flex items-center bg-surface-container rounded-xl px-4 py-2">
+                <span className="material-symbols-outlined text-outline mr-2 text-lg">search</span>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value)
+                    if (!showSearchDropdown && e.target.value.trim().length >= 2) {
+                      setShowSearchDropdown(true)
+                    }
+                  }}
+                  onFocus={() => {
+                    if (searchSuggestions.length > 0 || searchQuery.trim().length >= 2) {
+                      setShowSearchDropdown(true)
+                    }
+                  }}
+                  className="w-full bg-transparent text-sm text-on-surface placeholder:text-outline focus:outline-none"
+                  placeholder="Tìm kiếm sản phẩm..."
+                />
+              </div>
+            </form>
+
+            {/* Mobile Autocomplete Dropdown */}
+            {showSearchDropdown && searchQuery.trim().length >= 2 && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-surface-container-high rounded-2xl shadow-2xl border border-outline-variant/30 overflow-hidden z-50">
+                <div className="px-4 py-2 border-b border-outline-variant/20 flex items-center justify-between text-xs text-on-surface-variant font-medium">
+                  <span>Gợi ý ({searchSuggestions.length})</span>
+                  {loadingSuggestions && (
+                    <span className="text-primary text-[11px]">Đang tìm...</span>
+                  )}
+                </div>
+                {searchSuggestions.slice(0, 4).map((item) => (
+                  <Link
+                    key={item.id}
+                    to={`/products/${item.slug || item.id}`}
+                    onClick={() => {
+                      setShowSearchDropdown(false)
+                      setMobileMenuOpen(false)
+                      setSearchQuery('')
+                    }}
+                    className="flex items-center gap-2 px-3 py-2 hover:bg-surface-bright text-xs text-on-surface border-b border-outline-variant/10"
+                  >
+                    <span className="truncate flex-1 font-semibold">{item.name}</span>
+                    <span className="material-symbols-outlined text-xs text-outline">arrow_forward</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
           <nav className="flex flex-col gap-1">
             {[
               { to: '/', label: 'Trang chủ' },
