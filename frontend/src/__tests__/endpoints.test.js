@@ -10,6 +10,7 @@ describe('API Endpoints Definition', () => {
   })
 
   it('generates dynamic product detail endpoint correctly', () => {
+    expect(EP.PRODUCT_COMPARE).toBe('/products/compare')
     expect(EP.PRODUCT_DETAIL(42)).toBe('/products/42')
   })
 

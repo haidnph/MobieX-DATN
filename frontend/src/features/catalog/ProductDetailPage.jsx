@@ -6,6 +6,7 @@ import { useParams, Link } from 'react-router-dom'
 import axiosClient from '../../api/axiosClient'
 import EP from '../../api/endpoints'
 import { useCart } from '../../contexts/CartContext'
+import { useCompare } from '../../contexts/CompareContext'
 import { useToast } from '../../contexts/ToastContext'
 import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
 import { formatDate } from '../../utils/formatDate'
@@ -16,6 +17,7 @@ import Spinner from '../../components/common/Spinner'
 export default function ProductDetailPage() {
   const { id } = useParams()
   const { addToCart } = useCart()
+  const { toggleCompare, isInCompare } = useCompare()
   const { showToast } = useToast()
 
   const [product, setProduct] = useState(null)
@@ -367,6 +369,20 @@ export default function ProductDetailPage() {
                 <span className="material-symbols-outlined text-xl">shopping_cart</span>
                 {hasNoVariants ? 'Chưa có phiên bản' : isOutOfStock ? 'Tạm hết hàng' : 'Thêm vào giỏ hàng'}
               </Button>
+
+              <Button
+                variant={isInCompare(product.id) ? 'outline' : 'secondary'}
+                size="lg"
+                type="button"
+                className={`px-4 rounded-xl ${isInCompare(product.id) ? 'border-primary text-primary bg-primary/10' : ''}`}
+                title={isInCompare(product.id) ? 'Đã thêm vào so sánh (bấm để bỏ)' : 'Thêm vào so sánh cấu hình'}
+                onClick={() => toggleCompare(product)}
+              >
+                <span className="material-symbols-outlined text-xl">compare_arrows</span>
+                <span className="hidden sm:inline">
+                  {isInCompare(product.id) ? 'Đang so sánh' : 'So sánh'}
+                </span>
+              </Button>
             </div>
           </div>
 
@@ -382,6 +398,69 @@ export default function ProductDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Specifications Section */}
+      {product.specifications && product.specifications.length > 0 && (
+        <section className="pt-8 border-t border-outline-variant/20">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <span className="w-1 h-6 bg-primary rounded-full" />
+              <h2 className="text-xl font-bold text-on-surface">Thông số kỹ thuật</h2>
+            </div>
+            <Link
+              to="/compare"
+              className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+            >
+              <span>So sánh cấu hình với máy khác</span>
+              <span className="material-symbols-outlined text-sm">arrow_forward</span>
+            </Link>
+          </div>
+
+          <div className="bg-surface-container rounded-2xl border border-outline-variant/20 overflow-hidden shadow-sm">
+            <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-outline-variant/15">
+              {/* Left col */}
+              <div className="divide-y divide-outline-variant/10">
+                {product.specifications
+                  .slice(0, Math.ceil(product.specifications.length / 2))
+                  .map((spec) => (
+                    <div key={spec.id} className="p-4 flex items-center justify-between gap-4">
+                      <span className="text-xs md:text-sm font-medium text-on-surface-variant">
+                        {spec.definition?.name || spec.name || 'Thông số'}
+                      </span>
+                      <span className="text-xs md:text-sm font-semibold text-on-surface text-right">
+                        {spec.numeric_value !== null && spec.numeric_value !== undefined
+                          ? `${Number(spec.numeric_value)} ${spec.definition?.unit || ''}`
+                          : spec.value_boolean !== null && spec.value_boolean !== undefined
+                          ? (spec.value_boolean ? 'Có' : 'Không')
+                          : spec.value_text || '—'}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+
+              {/* Right col */}
+              <div className="divide-y divide-outline-variant/10">
+                {product.specifications
+                  .slice(Math.ceil(product.specifications.length / 2))
+                  .map((spec) => (
+                    <div key={spec.id} className="p-4 flex items-center justify-between gap-4">
+                      <span className="text-xs md:text-sm font-medium text-on-surface-variant">
+                        {spec.definition?.name || spec.name || 'Thông số'}
+                      </span>
+                      <span className="text-xs md:text-sm font-semibold text-on-surface text-right">
+                        {spec.numeric_value !== null && spec.numeric_value !== undefined
+                          ? `${Number(spec.numeric_value)} ${spec.definition?.unit || ''}`
+                          : spec.value_boolean !== null && spec.value_boolean !== undefined
+                          ? (spec.value_boolean ? 'Có' : 'Không')
+                          : spec.value_text || '—'}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Reviews Section */}
       <section className="pt-8 border-t border-outline-variant/20">

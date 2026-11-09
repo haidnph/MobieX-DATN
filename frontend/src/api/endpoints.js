@@ -15,6 +15,7 @@ const EP = {
   CATEGORIES: '/categories',
   BRANDS: '/brands',
   PRODUCTS: '/products',
+  PRODUCT_COMPARE: '/products/compare',
   PRODUCT_DETAIL: (id) => `/products/${id}`,
   PRODUCT_REVIEWS: (id) => `/products/${id}/reviews`,
 

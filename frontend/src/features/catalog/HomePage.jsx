@@ -7,6 +7,7 @@ import axiosClient from '../../api/axiosClient'
 import EP from '../../api/endpoints'
 import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
 import Spinner from '../../components/common/Spinner'
+import { useCompare } from '../../contexts/CompareContext'
 
 // ── Skeleton ─────────────────────────────────────────────────────────────────
 function SkeletonCard() {
@@ -110,6 +111,7 @@ function HeroBanner({ banners }) {
 
 // ── Product Card ──────────────────────────────────────────────────────────────
 function ProductCard({ product }) {
+  const { toggleCompare, isInCompare } = useCompare()
   const thumbnail =
     product.images?.find((img) => img.is_primary)?.image_url ||
     product.images?.find((img) => img.is_primary)?.image_path ||
@@ -165,6 +167,22 @@ function ProductCard({ product }) {
             -{discountPercent}%
           </span>
         )}
+        <button
+          type="button"
+          title={isInCompare(product.id) ? 'Đã thêm so sánh (bấm để bỏ)' : 'Thêm vào so sánh cấu hình'}
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            toggleCompare(product)
+          }}
+          className={`absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center transition-all ${
+            isInCompare(product.id)
+              ? 'bg-primary text-on-primary shadow-md scale-110'
+              : 'bg-surface-container/80 text-on-surface-variant hover:text-primary hover:bg-surface-bright backdrop-blur-xs'
+          }`}
+        >
+          <span className="material-symbols-outlined text-sm">compare_arrows</span>
+        </button>
       </div>
       <div className="p-4">
         <p className="text-xs text-primary font-medium mb-1">{product.brand?.name}</p>

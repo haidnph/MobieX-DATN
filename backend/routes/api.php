@@ -104,6 +104,12 @@ Route::get(
     '/products',
     [ProductController::class, 'index'],
 )->name('api.products.index');
+
+Route::get(
+    '/products/compare',
+    [ProductController::class, 'compare'],
+)->name('api.products.compare');
+
 Route::get(
     '/products/{id}',
     [ProductController::class, 'show'],

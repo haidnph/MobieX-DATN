@@ -19,6 +19,7 @@ const RegisterPage   = lazy(() => import('../features/auth/RegisterPage'))
 const HomePage           = lazy(() => import('../features/catalog/HomePage'))
 const ProductListPage    = lazy(() => import('../features/catalog/ProductListPage'))
 const ProductDetailPage  = lazy(() => import('../features/catalog/ProductDetailPage'))
+const ProductComparePage = lazy(() => import('../features/catalog/ProductComparePage'))
 
 // Cart & Checkout
 const CartPage          = lazy(() => import('../features/cart/CartPage'))
@@ -97,6 +98,7 @@ export default function AppRoutes() {
           <Route index element={<HomePage />} />
           <Route path="products"     element={<ProductListPage />} />
           <Route path="products/:id" element={<ProductDetailPage />} />
+          <Route path="compare"      element={<ProductComparePage />} />
           <Route path="cart"         element={<CartPage />} />
 
           {/* ── Customer-protected routes ── */}

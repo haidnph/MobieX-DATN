@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\ProductSpecificationDefinition;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -137,13 +138,65 @@ class ProductController extends Controller
         ], 200);
     }
 
+    public function compare(Request $request)
+    {
+        $idsParam = $request->input('ids');
+        if (empty($idsParam)) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Vui lòng cung cấp danh sách ID sản phẩm cần so sánh (tham số ids)',
+            ], 422);
+        }
+
+        if (is_string($idsParam)) {
+            $ids = array_filter(array_map('intval', explode(',', $idsParam)));
+        } elseif (is_array($idsParam)) {
+            $ids = array_filter(array_map('intval', $idsParam));
+        } else {
+            $ids = [];
+        }
+
+        if (empty($ids)) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Danh sách ID sản phẩm không hợp lệ',
+            ], 422);
+        }
+
+        // Tối đa 4 sản phẩm so sánh cùng lúc
+        $ids = array_slice(array_unique($ids), 0, 4);
+
+        $products = Product::with([
+            'brand',
+            'category',
+            'images',
+            'specifications.definition',
+            'variants.inventory',
+            'variants.attributeValues.attribute',
+        ])->whereIn('id', $ids)->get();
+
+        $comparableDefinitions = ProductSpecificationDefinition::where('is_active', true)
+            ->where('is_comparable', true)
+            ->orderBy('sort_order')
+            ->get();
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Lấy dữ liệu so sánh sản phẩm thành công',
+            'data' => [
+                'products' => $products,
+                'comparable_definitions' => $comparableDefinitions,
+            ],
+        ], 200);
+    }
+
     public function show($id)
     {
         $product = Product::with([
             'brand',
             'category',
             'images',
-            'specifications',
+            'specifications.definition',
             'variants.inventory',
             'variants.images',
             'variants.attributeValues.attribute',
