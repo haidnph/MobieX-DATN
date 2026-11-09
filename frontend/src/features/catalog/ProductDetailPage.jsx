@@ -21,6 +21,7 @@ export default function ProductDetailPage() {
   const [product, setProduct] = useState(null)
   const [selectedVariant, setSelectedVariant] = useState(null)
   const [activeImage, setActiveImage] = useState(null)
+  const [productImages, setProductImages] = useState([])
   const [quantity, setQuantity] = useState(1)
   const [reviews, setReviews] = useState([])
   const [loading, setLoading] = useState(true)
@@ -31,24 +32,42 @@ export default function ProductDetailPage() {
     Promise.allSettled([
       axiosClient.get(EP.PRODUCT_DETAIL(id)),
       axiosClient.get(EP.PRODUCT_REVIEWS(id)),
+      axiosClient.get(`/api/product-images?product_id=${id}`),
     ])
-      .then(([prodRes, revRes]) => {
+      .then(([prodRes, revRes, imgRes]) => {
+        let imgs = []
+        if (imgRes.status === 'fulfilled') {
+          const raw = imgRes.value.data?.data ?? imgRes.value.data
+          if (Array.isArray(raw)) {
+            imgs = [...raw].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+          }
+        }
+
         if (prodRes.status === 'fulfilled') {
           const prodData = prodRes.value.data.data ?? prodRes.value.data
           setProduct(prodData)
+
+          if (imgs.length === 0 && prodData.images?.length > 0) {
+            imgs = [...prodData.images].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+          }
+          setProductImages(imgs)
+
           // Default to first available or active variant
           const firstVariant =
             prodData.variants?.find((v) => (v.is_active ?? true) && ((v.inventory?.available_quantity ?? v.available_quantity ?? 0) > 0)) ||
             prodData.variants?.[0] ||
             null
           setSelectedVariant(firstVariant)
-          const defaultImg =
+
+          const primaryImg =
+            imgs.find((img) => img.is_primary)?.image_url ||
+            imgs.find((img) => img.is_primary)?.image_path ||
+            imgs[0]?.image_url ||
+            imgs[0]?.image_path ||
             prodData.thumbnail ||
-            prodData.images?.find((img) => img.is_primary)?.image_path ||
-            prodData.images?.[0]?.image_path ||
             firstVariant?.image_url ||
             null
-          setActiveImage(defaultImg)
+          setActiveImage(primaryImg)
         }
         if (revRes.status === 'fulfilled') {
           const revData = revRes.value.data.data ?? revRes.value.data
@@ -85,11 +104,37 @@ export default function ProductDetailPage() {
   const originalPrice = selectedVariant?.compare_price ?? selectedVariant?.original_price ?? product.max_price ?? null
   const isOutOfStock = hasNoVariants || availableStock <= 0 || product.status !== 'active'
 
-  const handleVariantSelect = (variant) => {
+  const handleVariantSelect = async (variant) => {
     setSelectedVariant(variant)
     setQuantity(1)
-    if (variant.image_url) {
+
+    if (variant?.id && product?.id) {
+      try {
+        const { data } = await axiosClient.get(`/api/product-images?product_id=${product.id}&product_variant_id=${variant.id}`)
+        const variantImages = (data.data ?? []).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+        if (variantImages.length > 0) {
+          setProductImages(variantImages)
+          const primary = variantImages.find((img) => img.is_primary) || variantImages[0]
+          setActiveImage(primary.image_url ?? primary.image_path)
+          return
+        }
+      } catch {
+        // Fallback to variant image_url or general product images
+      }
+    }
+
+    if (variant?.image_url) {
       setActiveImage(variant.image_url)
+    } else if (product?.id) {
+      try {
+        const { data } = await axiosClient.get(`/api/product-images?product_id=${product.id}`)
+        const generalImages = (data.data ?? []).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+        if (generalImages.length > 0) {
+          setProductImages(generalImages)
+          const primary = generalImages.find((img) => img.is_primary) || generalImages[0]
+          setActiveImage(primary.image_url ?? primary.image_path)
+        }
+      } catch {}
     }
   }
 
@@ -135,6 +180,10 @@ export default function ProductDetailPage() {
                 src={activeImage}
                 alt={product.name}
                 className="w-full h-full object-contain transition-all duration-300"
+                onError={(e) => {
+                  e.target.onerror = null
+                  e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2UyZThmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1NSIgZm9udC1zaXplPSIxMiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzk0YTNiOCI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+'
+                }}
               />
             ) : (
               <span className="material-symbols-outlined text-8xl text-outline">smartphone</span>
@@ -148,26 +197,37 @@ export default function ProductDetailPage() {
 
           {/* Thumbnails */}
           {(() => {
-            const gallery = (product.images && product.images.length > 0)
-              ? product.images.map((img) => img.image_path || img.image_url).filter(Boolean)
-              : [product.thumbnail].filter(Boolean)
+            const gallery = (productImages && productImages.length > 0)
+              ? productImages.map((img) => img.image_url || img.image_path).filter(Boolean)
+              : [product.thumbnail, activeImage].filter(Boolean)
 
-            if (gallery.length <= 1) return null
+            const uniqueGallery = [...new Set(gallery)]
+
+            if (uniqueGallery.length <= 1) return null
 
             return (
               <div className="flex gap-2 overflow-x-auto pb-2">
-                {gallery.map((imgSrc, idx) => (
+                {uniqueGallery.map((imgSrc, idx) => (
                   <button
                     key={idx}
+                    type="button"
                     onClick={() => setActiveImage(imgSrc)}
                     className={[
                       'w-16 h-16 rounded-xl border-2 overflow-hidden shrink-0 transition-all bg-surface-container flex items-center justify-center p-1',
                       activeImage === imgSrc
-                        ? 'border-primary ring-2 ring-primary/30'
+                        ? 'border-primary ring-2 ring-primary/30 scale-105'
                         : 'border-outline-variant/30 hover:border-outline',
                     ].join(' ')}
                   >
-                    <img src={imgSrc} alt={`${product.name} ${idx + 1}`} className="w-full h-full object-contain" />
+                    <img
+                      src={imgSrc}
+                      alt={`${product.name} ${idx + 1}`}
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                        e.target.onerror = null
+                        e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2UyZThmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1NSIgZm9udC1zaXplPSIxMiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzk0YTNiOCI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+'
+                      }}
+                    />
                   </button>
                 ))}
               </div>
