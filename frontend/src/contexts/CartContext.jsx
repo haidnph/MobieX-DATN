@@ -86,7 +86,10 @@ export function CartProvider({ children }) {
   }, [])
 
   // ── Computed ───────────────────────────────────────────────────────────
-  const itemCount = cartItems.reduce((sum, item) => sum + (item.quantity ?? 0), 0)
+  // Distinct line items count (not sum of quantities)
+  // Badge shows number of different products in cart, capped at 99
+  const itemCount = cartItems.length
+  const cartBadgeCount = itemCount > 99 ? '99+' : itemCount
 
   return (
     <CartContext.Provider
@@ -94,6 +97,7 @@ export function CartProvider({ children }) {
         cartItems,
         cartSummary,
         itemCount,
+        cartBadgeCount,
         loading,
         fetchCart,
         addToCart,

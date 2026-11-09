@@ -12,7 +12,7 @@ import { useDebounce } from '../../hooks/useDebounce'
 
 export default function Header() {
   const { user, logout, isAdmin } = useAuth()
-  const { itemCount } = useCart()
+  const { itemCount, cartBadgeCount } = useCart()
   const navigate = useNavigate()
 
   const [categories, setCategories] = useState([])
@@ -116,7 +116,7 @@ export default function Header() {
             <span className="material-symbols-outlined text-xl">shopping_bag</span>
             {itemCount > 0 && (
               <span className="absolute top-1.5 right-1.5 flex h-4 min-w-[1rem] px-1 items-center justify-center rounded-full bg-secondary-container text-on-secondary-container text-[10px] font-bold shadow-[0_0_10px_rgba(74,225,118,0.5)]">
-                {itemCount > 99 ? '99+' : itemCount}
+                {cartBadgeCount}
               </span>
             )}
           </Link>
