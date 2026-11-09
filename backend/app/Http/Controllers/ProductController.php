@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class ProductController extends Controller
@@ -220,8 +221,8 @@ class ProductController extends Controller
     // API xóa sản phẩm
     public function destroy($id)
     {
-        // Tìm sản phẩm theo ID
-        $product = Product::find($id);
+        // Tìm sản phẩm theo ID kèm các quan hệ
+        $product = Product::with(['variants.inventory', 'images', 'specifications'])->find($id);
 
         if (! $product) {
             return response()->json([
@@ -230,12 +231,79 @@ class ProductController extends Controller
             ], 404);
         }
 
-        // Xóa sản phẩm
-        $product->delete();
+        // Kiểm tra xem sản phẩm hoặc bất kỳ biến thể nào đã từng phát sinh đơn hàng chưa
+        $variantIds = $product->variants->pluck('id')->toArray();
+        $hasOrders = DB::table('order_items')
+            ->where('product_id', $product->id)
+            ->exists();
 
-        return response()->json([
-            'status' => true,
-            'message' => 'Xóa sản phẩm thành công',
-        ], 200);
+        if ($hasOrders) {
+            // Không được hard delete để bảo vệ toàn vẹn lịch sử hóa đơn & kế toán
+            $product->update(['status' => 'inactive']);
+            $product->variants()->update(['is_active' => false]);
+
+            return response()->json([
+                'status' => true,
+                'is_deactivated' => true,
+                'message' => 'Sản phẩm "'.$product->name.'" đã có đơn hàng trong hệ thống nên không thể xóa vĩnh viễn. Hệ thống đã chuyển trạng thái sang "Ngừng kinh doanh" (inactive) để ẩn khỏi cửa hàng và bảo toàn lịch sử đơn hàng.',
+                'data' => $product,
+            ], 200);
+        }
+
+        // Nếu sản phẩm chưa có đơn hàng nào, tiến hành xóa sạch an toàn trong DB Transaction
+        try {
+            DB::transaction(function () use ($product) {
+                // 1. Xóa ảnh sản phẩm
+                $product->images()->delete();
+
+                // 2. Xóa thông số kỹ thuật
+                $product->specifications()->delete();
+
+                // 3. Xóa các liên kết thuộc tính
+                $product->attributeValues()->delete();
+
+                // 4. Xóa đánh giá (nếu có)
+                $product->reviews()->delete();
+
+                // 5. Xóa các biến thể và tồn kho
+                foreach ($product->variants as $variant) {
+                    DB::table('cart_items')
+                        ->where('product_variant_id', $variant->id)
+                        ->delete();
+
+                    DB::table('product_variant_attribute_values')
+                        ->where('product_variant_id', $variant->id)
+                        ->delete();
+
+                    DB::table('inventory_transactions')
+                        ->where('product_variant_id', $variant->id)
+                        ->delete();
+
+                    DB::table('inventories')
+                        ->where('product_variant_id', $variant->id)
+                        ->delete();
+
+                    $variant->delete();
+                }
+
+                // 6. Xóa chính sản phẩm
+                $product->delete();
+            });
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Xóa sản phẩm thành công',
+            ], 200);
+        } catch (\Throwable $e) {
+            $product->update(['status' => 'inactive']);
+            $product->variants()->update(['is_active' => false]);
+
+            return response()->json([
+                'status' => true,
+                'is_deactivated' => true,
+                'message' => 'Sản phẩm có dữ liệu ràng buộc nên đã được chuyển sang trạng thái "Ngừng kinh doanh".',
+                'data' => $product,
+            ], 200);
+        }
     }
 }

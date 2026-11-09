@@ -193,8 +193,11 @@ export default function AdminProductPage() {
     if (!deleteTarget) return
     setDeleting(true)
     try {
-      await axiosClient.delete(EP.ADMIN_PRODUCT_DETAIL(deleteTarget.id))
-      showToast('Đã xóa sản phẩm khỏi hệ thống!', 'info')
+      const res = await axiosClient.delete(EP.ADMIN_PRODUCT_DETAIL(deleteTarget.id))
+      const data = res.data?.data ?? res.data
+      const msg = res.data?.message || 'Đã xóa sản phẩm khỏi hệ thống!'
+      const toastType = res.data?.is_deactivated ? 'warning' : 'info'
+      showToast(msg, toastType)
       setDeleteTarget(null)
       fetchProducts()
     } catch (err) {
