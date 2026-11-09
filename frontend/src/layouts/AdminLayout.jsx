@@ -6,12 +6,14 @@ import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
 const NAV_ITEMS = [
-  { to: '/admin',          icon: 'dashboard',           label: 'Tổng quan',       end: true },
-  { to: '/admin/orders',   icon: 'receipt_long',        label: 'Đơn hàng' },
-  { to: '/admin/products', icon: 'inventory_2',         label: 'Sản phẩm' },
-  { to: '/admin/coupons',  icon: 'local_offer',         label: 'Mã giảm giá' },
-  { to: '/admin/reviews',  icon: 'rate_review',         label: 'Đánh giá' },
-  { to: '/admin/banners',  icon: 'image',               label: 'Banner' },
+  { to: '/admin',            icon: 'dashboard',           label: 'Tổng quan',       end: true },
+  { to: '/admin/orders',     icon: 'receipt_long',        label: 'Đơn hàng' },
+  { to: '/admin/products',   icon: 'inventory_2',         label: 'Sản phẩm' },
+  { to: '/admin/categories', icon: 'category',            label: 'Danh mục' },
+  { to: '/admin/brands',     icon: 'store',               label: 'Thương hiệu' },
+  { to: '/admin/coupons',    icon: 'local_offer',         label: 'Mã giảm giá' },
+  { to: '/admin/reviews',    icon: 'rate_review',         label: 'Đánh giá' },
+  { to: '/admin/banners',    icon: 'image',               label: 'Banner' },
 ]
 
 export default function AdminLayout() {
