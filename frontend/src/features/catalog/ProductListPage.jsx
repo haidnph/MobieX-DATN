@@ -25,10 +25,14 @@ function SkeletonCard() {
 // ── Product Card ───────────────────────────────────────────────────────────────
 function ProductCard({ product }) {
   const thumbnail =
-    product.thumbnail ||
+    product.images?.find((img) => img.is_primary)?.image_url ||
     product.images?.find((img) => img.is_primary)?.image_path ||
+    product.primary_image_url ||
+    product.thumbnail ||
+    product.images?.[0]?.image_url ||
     product.images?.[0]?.image_path ||
-    product.images?.[0]?.url
+    product.images?.[0]?.url ||
+    null
 
   const price =
     product.min_price && Number(product.min_price) > 0
@@ -60,6 +64,10 @@ function ProductCard({ product }) {
             src={thumbnail}
             alt={product.name}
             className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-500"
+            onError={(e) => {
+              e.target.onerror = null
+              e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2UyZThmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1NSIgZm9udC1zaXplPSIxMiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzk0YTNiOCI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+'
+            }}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
