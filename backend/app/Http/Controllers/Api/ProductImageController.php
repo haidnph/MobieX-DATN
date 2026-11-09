@@ -21,8 +21,11 @@ class ProductImageController extends Controller
             $query->where('product_id', $request->product_id);
         }
 
-        if ($request->filled('variant_id')) {
-            $query->where('variant_id', $request->variant_id);
+        if ($request->filled('product_variant_id')) {
+            $query->where('product_variant_id', $request->product_variant_id);
+        } elseif ($request->filled('variant_id')) {
+            // alias ngược để tương thích
+            $query->where('product_variant_id', $request->variant_id);
         }
 
         return response()->json([
@@ -56,9 +59,9 @@ class ProductImageController extends Controller
         $query = ProductImage::where('product_id', $productId);
 
         if ($variantId === null) {
-            $query->whereNull('variant_id');
+            $query->whereNull('product_variant_id');
         } else {
-            $query->where('variant_id', $variantId);
+            $query->where('product_variant_id', $variantId);
         }
 
         if ($exceptId !== null) {
@@ -162,7 +165,7 @@ class ProductImageController extends Controller
 
         $variantId = array_key_exists('variant_id', $validated)
             ? $validated['variant_id']
-            : $image->variant_id;
+            : $image->product_variant_id;
 
         $variantError = $this->checkVariant(
             $image->product_id,
@@ -195,7 +198,7 @@ class ProductImageController extends Controller
             ) {
                 if (
                     ! empty($validated['is_primary'])
-                    || $variantId != $image->variant_id
+                    || $variantId != $image->product_variant_id
                 ) {
                     $this->clearPrimaryImage(
                         $image->product_id,

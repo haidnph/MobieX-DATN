@@ -97,10 +97,12 @@ class ProductVariantController extends Controller
 
             // Tạo bản ghi tồn kho ban đầu
             DB::table('inventories')->insert([
-                'variant_id' => $variant->id,
-                'quantity' => $validated['quantity'] ?? 0,
+                'product_variant_id' => $variant->id,
+                'on_hand_quantity' => $validated['quantity'] ?? 0,
                 'reserved_quantity' => 0,
                 'min_stock' => $validated['min_stock'] ?? 0,
+                'created_at' => now(),
+                'updated_at' => now(),
             ]);
 
             return $variant;
@@ -215,14 +217,14 @@ class ProductVariantController extends Controller
             if (isset($validated['quantity']) || isset($validated['min_stock'])) {
 
                 $inventory = DB::table('inventories')
-                    ->where('variant_id', $variant->id)
+                    ->where('product_variant_id', $variant->id)
                     ->first();
 
                 if ($inventory) {
                     $inventoryData = [];
 
                     if (isset($validated['quantity'])) {
-                        $inventoryData['quantity'] = $validated['quantity'];
+                        $inventoryData['on_hand_quantity'] = $validated['quantity'];
                     }
 
                     if (isset($validated['min_stock'])) {
@@ -230,7 +232,7 @@ class ProductVariantController extends Controller
                     }
 
                     DB::table('inventories')
-                        ->where('variant_id', $variant->id)
+                        ->where('product_variant_id', $variant->id)
                         ->update($inventoryData);
                 }
             }
@@ -271,16 +273,16 @@ class ProductVariantController extends Controller
 
                 // Kiểm tra dữ liệu liên quan cần được bảo vệ
                 $hasCart = DB::table('cart_items')
-                    ->where('variant_id', $id)->exists();
+                    ->where('product_variant_id', $id)->exists();
 
                 $hasFlashSale = DB::table('flash_sale_items')
-                    ->where('variant_id', $id)->exists();
+                    ->where('product_variant_id', $id)->exists();
 
                 $hasOrder = DB::table('order_items')
                     ->where('product_variant_id', $id)->exists();
 
                 $hasTransactions = DB::table('inventory_transactions')
-                    ->where('variant_id', $id)->exists();
+                    ->where('product_variant_id', $id)->exists();
 
                 if ($hasCart || $hasFlashSale || $hasOrder || $hasTransactions) {
                     return [
@@ -291,14 +293,14 @@ class ProductVariantController extends Controller
                 }
 
                 // Xóa các dữ liệu phụ thuộc
-                DB::table('variant_attribute_values')
-                    ->where('variant_id', $id)->delete();
+                DB::table('product_variant_attribute_values')
+                    ->where('product_variant_id', $id)->delete();
 
                 DB::table('inventories')
-                    ->where('variant_id', $id)->delete();
+                    ->where('product_variant_id', $id)->delete();
 
                 DB::table('product_images')
-                    ->where('variant_id', $id)->delete();
+                    ->where('product_variant_id', $id)->delete();
 
                 // Xóa biến thể
                 $variant->delete();
