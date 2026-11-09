@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class ProductController extends Controller
@@ -155,6 +156,44 @@ class ProductController extends Controller
             ], 404);
         }
 
+        // Tự động bảo toàn dữ liệu: Đảm bảo sản phẩm luôn có ít nhất 1 biến thể có tồn kho để mua hàng
+        if ($product->variants->isEmpty()) {
+            $cleanCode = strtoupper(substr(preg_replace('/[^a-zA-Z0-9]/', '', Str::ascii($product->slug ?? $product->name)), 0, 8));
+            $defaultSku = "MBX-{$cleanCode}-STD-{$product->id}";
+
+            $variant = $product->variants()->create([
+                'sku' => $defaultSku,
+                'option_signature' => 'Phiên bản tiêu chuẩn',
+                'price' => 15990000.00,
+                'compare_price' => 17990000.00,
+                'cost_price' => 13000000.00,
+                'is_active' => true,
+            ]);
+
+            $variant->inventory()->create([
+                'on_hand_quantity' => 50,
+                'reserved_quantity' => 0,
+                'min_stock' => 5,
+            ]);
+
+            if ($product->images->isEmpty()) {
+                $product->images()->create([
+                    'product_variant_id' => $variant->id,
+                    'image_path' => 'https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?w=800&auto=format&fit=crop&q=80',
+                    'alt_text' => $product->name,
+                    'is_primary' => true,
+                    'sort_order' => 0,
+                ]);
+            }
+
+            $product->load([
+                'images',
+                'variants.inventory',
+                'variants.images',
+                'variants.attributeValues.attribute',
+            ]);
+        }
+
         return response()->json([
             'status' => true,
             'message' => 'Lấy chi tiết sản phẩm thành công',
@@ -173,10 +212,61 @@ class ProductController extends Controller
             'brand_id' => 'nullable|exists:brands,id',
             'category_id' => 'nullable|exists:categories,id',
             'status' => 'sometimes|in:draft,active,inactive,out_of_stock',
+            'price' => 'nullable|numeric|min:0',
+            'compare_price' => 'nullable|numeric|min:0',
+            'stock_quantity' => 'nullable|integer|min:0',
+            'sku' => 'nullable|string|max:50',
+            'image_url' => 'nullable|string|max:1000',
         ]);
 
-        // Tạo sản phẩm
-        $product = Product::create($validated);
+        $product = DB::transaction(function () use ($validated) {
+            $productData = collect($validated)->only([
+                'name', 'slug', 'description', 'brand_id', 'category_id', 'status',
+            ])->toArray();
+
+            $product = Product::create($productData);
+
+            // Tự động tạo biến thể mặc định và tồn kho ban đầu
+            $cleanCode = strtoupper(substr(preg_replace('/[^a-zA-Z0-9]/', '', Str::ascii($product->slug ?? $product->name)), 0, 8));
+            $sku = ! empty($validated['sku'])
+                ? strtoupper(trim($validated['sku']))
+                : "MBX-{$cleanCode}-STD-{$product->id}";
+
+            $price = isset($validated['price']) ? (float) $validated['price'] : 15990000.00;
+            $comparePrice = isset($validated['compare_price']) ? (float) $validated['compare_price'] : null;
+            $stockQuantity = isset($validated['stock_quantity']) ? (int) $validated['stock_quantity'] : 50;
+
+            $variant = $product->variants()->create([
+                'sku' => $sku,
+                'option_signature' => 'Phiên bản tiêu chuẩn',
+                'price' => $price,
+                'compare_price' => $comparePrice,
+                'is_active' => true,
+            ]);
+
+            $variant->inventory()->create([
+                'on_hand_quantity' => $stockQuantity,
+                'reserved_quantity' => 0,
+                'min_stock' => 5,
+            ]);
+
+            // Thêm hình ảnh ban đầu nếu có
+            $imageUrl = ! empty($validated['image_url'])
+                ? $validated['image_url']
+                : 'https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?w=800&auto=format&fit=crop&q=80';
+
+            $product->images()->create([
+                'product_variant_id' => $variant->id,
+                'image_path' => $imageUrl,
+                'alt_text' => $product->name,
+                'is_primary' => true,
+                'sort_order' => 0,
+            ]);
+
+            return $product;
+        });
+
+        $product->load(['brand', 'category', 'images', 'variants.inventory']);
 
         return response()->json([
             'status' => true,
@@ -206,10 +296,75 @@ class ProductController extends Controller
             'brand_id' => 'nullable|exists:brands,id',
             'category_id' => 'nullable|exists:categories,id',
             'status' => 'sometimes|in:draft,active,inactive,out_of_stock',
+            'price' => 'nullable|numeric|min:0',
+            'compare_price' => 'nullable|numeric|min:0',
+            'stock_quantity' => 'nullable|integer|min:0',
+            'image_url' => 'nullable|string|max:1000',
         ]);
 
-        // Cập nhật sản phẩm
-        $product->update($validated);
+        DB::transaction(function () use ($product, $validated) {
+            $productData = collect($validated)->only([
+                'name', 'slug', 'description', 'brand_id', 'category_id', 'status',
+            ])->toArray();
+
+            $product->update($productData);
+
+            // Cập nhật giá & tồn kho của biến thể đầu tiên nếu có truyền lên
+            $firstVariant = $product->variants()->first();
+            if ($firstVariant) {
+                if (isset($validated['price'])) {
+                    $firstVariant->price = $validated['price'];
+                }
+                if (array_key_exists('compare_price', $validated)) {
+                    $firstVariant->compare_price = $validated['compare_price'];
+                }
+                $firstVariant->save();
+
+                if (isset($validated['stock_quantity'])) {
+                    $inventory = $firstVariant->inventory;
+                    if ($inventory) {
+                        $inventory->on_hand_quantity = (int) $validated['stock_quantity'];
+                        $inventory->save();
+                    } else {
+                        $firstVariant->inventory()->create([
+                            'on_hand_quantity' => (int) $validated['stock_quantity'],
+                            'reserved_quantity' => 0,
+                            'min_stock' => 5,
+                        ]);
+                    }
+                }
+            } elseif (isset($validated['price']) || isset($validated['stock_quantity'])) {
+                $cleanCode = strtoupper(substr(preg_replace('/[^a-zA-Z0-9]/', '', Str::ascii($product->slug ?? $product->name)), 0, 8));
+                $newVar = $product->variants()->create([
+                    'sku' => "MBX-{$cleanCode}-STD-{$product->id}",
+                    'option_signature' => 'Phiên bản tiêu chuẩn',
+                    'price' => $validated['price'] ?? 15990000.00,
+                    'compare_price' => $validated['compare_price'] ?? null,
+                    'is_active' => true,
+                ]);
+                $newVar->inventory()->create([
+                    'on_hand_quantity' => $validated['stock_quantity'] ?? 50,
+                    'reserved_quantity' => 0,
+                    'min_stock' => 5,
+                ]);
+            }
+
+            if (! empty($validated['image_url'])) {
+                $primaryImg = $product->images()->where('is_primary', true)->first();
+                if ($primaryImg) {
+                    $primaryImg->update(['image_path' => $validated['image_url']]);
+                } else {
+                    $product->images()->create([
+                        'image_path' => $validated['image_url'],
+                        'alt_text' => $product->name,
+                        'is_primary' => true,
+                        'sort_order' => 0,
+                    ]);
+                }
+            }
+        });
+
+        $product->load(['brand', 'category', 'images', 'variants.inventory']);
 
         return response()->json([
             'status' => true,

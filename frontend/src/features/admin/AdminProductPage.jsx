@@ -63,6 +63,10 @@ export default function AdminProductPage() {
     category_id: '',
     status: 'active',
     description: '',
+    price: '',
+    compare_price: '',
+    stock_quantity: '50',
+    image_url: '',
   })
 
   // Delete dialog
@@ -129,6 +133,10 @@ export default function AdminProductPage() {
       category_id: categories[0]?.id ? String(categories[0].id) : '',
       status: 'active',
       description: '',
+      price: '',
+      compare_price: '',
+      stock_quantity: '50',
+      image_url: '',
     })
     setErrors({})
     setModalOpen(true)
@@ -136,6 +144,8 @@ export default function AdminProductPage() {
 
   const handleOpenEdit = (p) => {
     setEditingProduct(p)
+    const firstVar = p.variants?.[0]
+    const primaryImg = p.images?.find((img) => img.is_primary) || p.images?.[0]
     setForm({
       name: p.name || '',
       slug: p.slug || '',
@@ -143,6 +153,10 @@ export default function AdminProductPage() {
       category_id: p.category_id ? String(p.category_id) : '',
       status: p.status || 'active',
       description: p.description || '',
+      price: firstVar?.price ? String(firstVar.price) : (p.min_price ? String(p.min_price) : ''),
+      compare_price: firstVar?.compare_price ? String(firstVar.compare_price) : (p.max_price ? String(p.max_price) : ''),
+      stock_quantity: firstVar?.inventory?.on_hand_quantity != null ? String(firstVar.inventory.on_hand_quantity) : '50',
+      image_url: primaryImg?.image_path || p.thumbnail || '',
     })
     setErrors({})
     setModalOpen(true)
@@ -169,6 +183,10 @@ export default function AdminProductPage() {
       category_id: form.category_id ? Number(form.category_id) : null,
       status: form.status,
       description: form.description.trim() || null,
+      price: form.price ? Number(form.price) : 0,
+      compare_price: form.compare_price ? Number(form.compare_price) : null,
+      stock_quantity: form.stock_quantity ? Number(form.stock_quantity) : 50,
+      image_url: form.image_url.trim() || null,
     }
 
     try {
@@ -438,6 +456,48 @@ export default function AdminProductPage() {
               </select>
             </div>
           </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Input
+              label="Giá bán (VNĐ) *"
+              type="number"
+              min="0"
+              value={form.price}
+              onChange={(e) => setForm({ ...form, price: e.target.value })}
+              placeholder="Ví dụ: 15990000"
+              error={errors.price?.[0]}
+              required
+            />
+
+            <Input
+              label="Giá niêm yết (VNĐ)"
+              type="number"
+              min="0"
+              value={form.compare_price}
+              onChange={(e) => setForm({ ...form, compare_price: e.target.value })}
+              placeholder="Ví dụ: 17990000"
+              error={errors.compare_price?.[0]}
+            />
+
+            <Input
+              label="Số lượng tồn kho *"
+              type="number"
+              min="0"
+              value={form.stock_quantity}
+              onChange={(e) => setForm({ ...form, stock_quantity: e.target.value })}
+              placeholder="Ví dụ: 50"
+              error={errors.stock_quantity?.[0]}
+              required
+            />
+          </div>
+
+          <Input
+            label="Đường dẫn ảnh đại diện (URL)"
+            value={form.image_url}
+            onChange={(e) => setForm({ ...form, image_url: e.target.value })}
+            placeholder="https://example.com/image.jpg hoặc để trống dùng ảnh mẫu"
+            error={errors.image_url?.[0]}
+          />
 
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-on-surface-variant">Mô tả sản phẩm (HTML hoặc Text)</label>

@@ -36,8 +36,11 @@ export default function ProductDetailPage() {
         if (prodRes.status === 'fulfilled') {
           const prodData = prodRes.value.data.data ?? prodRes.value.data
           setProduct(prodData)
-          // Default to first variant
-          const firstVariant = prodData.variants?.[0] ?? null
+          // Default to first available or active variant
+          const firstVariant =
+            prodData.variants?.find((v) => (v.is_active ?? true) && ((v.inventory?.available_quantity ?? v.available_quantity ?? 0) > 0)) ||
+            prodData.variants?.[0] ||
+            null
           setSelectedVariant(firstVariant)
           const defaultImg =
             prodData.thumbnail ||
@@ -76,10 +79,11 @@ export default function ProductDetailPage() {
   }
 
   const variants = product.variants ?? []
+  const hasNoVariants = variants.length === 0
   const availableStock = selectedVariant?.inventory?.available_quantity ?? selectedVariant?.available_quantity ?? 0
   const currentPrice = selectedVariant?.price ?? product.min_price ?? product.base_price ?? 0
-  const originalPrice = selectedVariant?.original_price ?? product.max_price ?? null
-  const isOutOfStock = variants.length > 0 && availableStock <= 0
+  const originalPrice = selectedVariant?.compare_price ?? selectedVariant?.original_price ?? product.max_price ?? null
+  const isOutOfStock = hasNoVariants || availableStock <= 0 || product.status !== 'active'
 
   const handleVariantSelect = (variant) => {
     setSelectedVariant(variant)
@@ -90,19 +94,19 @@ export default function ProductDetailPage() {
   }
 
   const handleAddToCart = async () => {
-    if (!selectedVariant) {
-      showToast('Vui lòng chọn phiên bản sản phẩm', 'warning')
+    if (hasNoVariants || !selectedVariant) {
+      showToast('Sản phẩm hiện chưa có phiên bản kinh doanh', 'warning')
       return
     }
     if (availableStock <= 0) {
-      showToast('Sản phẩm đã hết hàng', 'error')
+      showToast('Sản phẩm tạm thời hết hàng', 'error')
       return
     }
 
     setAddingToCart(true)
     try {
       await addToCart(selectedVariant.id, quantity)
-      showToast('Đã thêm sản phẩm vào giỏ hàng!', 'success')
+      showToast('Đã thêm sản phẩm vào giỏ hàng thành công!', 'success')
     } catch (err) {
       showToast(err.message || 'Không thể thêm vào giỏ hàng', 'error')
     } finally {
@@ -188,7 +192,9 @@ export default function ProductDetailPage() {
               </span>
               <span className="text-xs text-outline">•</span>
               <span className="text-xs">
-                Kho: {isOutOfStock ? (
+                Kho: {hasNoVariants ? (
+                  <span className="text-warning font-medium">Đang cập nhật</span>
+                ) : isOutOfStock ? (
                   <span className="text-error font-medium">Hết hàng</span>
                 ) : (
                   <span className="text-secondary font-medium">Còn {availableStock} sản phẩm</span>
@@ -196,6 +202,13 @@ export default function ProductDetailPage() {
               </span>
             </div>
           </div>
+
+          {hasNoVariants && (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3.5 flex items-center gap-3 text-amber-500">
+              <span className="material-symbols-outlined text-xl">info</span>
+              <p className="text-sm font-medium">Sản phẩm đang được cập nhật phiên bản kinh doanh. Vui lòng quay lại sau.</p>
+            </div>
+          )}
 
           {/* Price */}
           <div className="bg-surface-container-low rounded-xl p-4 flex items-baseline gap-3">
@@ -224,21 +237,28 @@ export default function ProductDetailPage() {
                       key={v.id}
                       onClick={() => handleVariantSelect(v)}
                       className={[
-                        'px-4 py-2 rounded-xl text-sm font-medium border transition-all text-left',
+                        'px-4 py-2.5 rounded-xl text-sm font-medium border transition-all text-left flex flex-col gap-0.5',
                         isSelected
                           ? 'border-primary bg-primary/10 text-primary shadow-[0_0_15px_rgba(77,142,255,0.2)]'
                           : 'border-outline-variant/30 bg-surface-container text-on-surface-variant hover:border-outline hover:text-on-surface',
                         vStock <= 0 ? 'opacity-50' : '',
                       ].join(' ')}
                     >
-                      <div className="font-semibold">
-                        {v.option_signature
-                          ? v.option_signature
-                              .split('|')
-                              .map((part) => part.split(':')[1] || part)
-                              .join(' • ')
-                              .toUpperCase()
-                          : (v.name || `Phiên bản #${v.id}`)}
+                      <div className="font-semibold flex items-center gap-2">
+                        <span>
+                          {v.name || (v.option_signature
+                            ? v.option_signature
+                                .split('|')
+                                .map((part) => part.split(':')[1] || part)
+                                .join(' • ')
+                                .toUpperCase()
+                            : `Phiên bản #${v.id}`)}
+                        </span>
+                        {vStock <= 0 ? (
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-error/20 text-error">Hết hàng</span>
+                        ) : (
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-secondary/20 text-secondary">Còn {vStock}</span>
+                        )}
                       </div>
                       <div className="text-xs text-outline">{formatCurrencyVND(v.price)}</div>
                     </button>
@@ -256,8 +276,8 @@ export default function ProductDetailPage() {
                 <button
                   type="button"
                   onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                  disabled={quantity <= 1 || isOutOfStock}
-                  className="px-3 py-2 text-on-surface hover:bg-surface-container-high transition-colors disabled:opacity-30"
+                  disabled={quantity <= 1 || isOutOfStock || hasNoVariants}
+                  className="px-3 py-2 text-on-surface hover:bg-surface-container-high transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   <span className="material-symbols-outlined text-base">remove</span>
                 </button>
@@ -266,9 +286,9 @@ export default function ProductDetailPage() {
                 </span>
                 <button
                   type="button"
-                  onClick={() => setQuantity((q) => Math.min(availableStock, q + 1))}
-                  disabled={quantity >= availableStock || isOutOfStock}
-                  className="px-3 py-2 text-on-surface hover:bg-surface-container-high transition-colors disabled:opacity-30"
+                  onClick={() => setQuantity((q) => Math.min(availableStock || 1, q + 1))}
+                  disabled={quantity >= availableStock || isOutOfStock || hasNoVariants}
+                  className="px-3 py-2 text-on-surface hover:bg-surface-container-high transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   <span className="material-symbols-outlined text-base">add</span>
                 </button>
@@ -280,12 +300,12 @@ export default function ProductDetailPage() {
                 variant="primary"
                 size="lg"
                 className="flex-1"
-                disabled={isOutOfStock}
+                disabled={isOutOfStock || hasNoVariants || addingToCart}
                 loading={addingToCart}
                 onClick={handleAddToCart}
               >
                 <span className="material-symbols-outlined text-xl">shopping_cart</span>
-                {isOutOfStock ? 'Hết hàng' : 'Thêm vào giỏ hàng'}
+                {hasNoVariants ? 'Chưa có phiên bản' : isOutOfStock ? 'Tạm hết hàng' : 'Thêm vào giỏ hàng'}
               </Button>
             </div>
           </div>

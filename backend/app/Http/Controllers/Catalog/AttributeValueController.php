@@ -100,9 +100,9 @@ class AttributeValueController extends Controller
 
         $attributeValuesTable = $value->getTable();
 
-        $variantPivotTable = (new ProductVariant)
-            ->attributeValues()
-            ->getTable();
+        $variantPivotTable = $schema->hasTable('variant_attribute_values')
+            ? 'variant_attribute_values'
+            : (new ProductVariant)->attributeValues()->getTable();
 
         try {
             $conflictMessage = $connection->transaction(

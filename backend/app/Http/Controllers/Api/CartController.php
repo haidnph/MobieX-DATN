@@ -129,7 +129,7 @@ class CartController extends Controller
             ]);
 
             $cartItem = CartItem::where('cart_id', $cart->id)
-                ->where('variant_id', $variant->id)
+                ->where('product_variant_id', $variant->id)
                 ->lockForUpdate()
                 ->first();
 
@@ -150,7 +150,7 @@ class CartController extends Controller
             } else {
                 $cartItem = CartItem::create([
                     'cart_id' => $cart->id,
-                    'variant_id' => $variant->id,
+                    'product_variant_id' => $variant->id,
                     'quantity' => $newQuantity,
                 ]);
             }
