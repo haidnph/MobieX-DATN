@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\AdminOrderController;
 use App\Http\Controllers\Admin\AdminReviewController;
 use App\Http\Controllers\Admin\PermissionController;
 use App\Http\Controllers\Admin\RoleController;
+use App\Http\Controllers\Admin\SpecDefinitionController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\UserRoleController;
 use App\Http\Controllers\Admin\UserStatusController;
@@ -386,6 +387,12 @@ Route::middleware([
         [ProductController::class, 'destroy'],
     )->whereNumber('id')
         ->name('api.admin.products.destroy');
+
+    Route::post(
+        '/admin/products/{product}/specifications',
+        [ProductController::class, 'syncSpecifications'],
+    )->whereNumber('product')
+        ->name('api.admin.products.specifications.sync');
 
     // Product variants
     Route::post(
@@ -848,4 +855,9 @@ Route::prefix('admin')
                 [AdminDashboardController::class, 'revenueChart'],
             )->name('dashboard.revenue-chart');
         });
+
+        // Admin Spec Definition Management
+        Route::apiResource('spec-definitions', SpecDefinitionController::class)->parameters([
+            'spec-definitions' => 'specDefinition',
+        ]);
     });

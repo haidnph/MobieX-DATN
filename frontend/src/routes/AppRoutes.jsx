@@ -49,6 +49,7 @@ const AdminUserPage        = lazy(() => import('../features/admin/AdminUserPage'
 const AdminCouponPage      = lazy(() => import('../features/admin/AdminCouponPage'))
 const AdminReviewPage      = lazy(() => import('../features/admin/AdminReviewPage'))
 const AdminBannerPage      = lazy(() => import('../features/admin/AdminBannerPage'))
+const AdminSpecPage        = lazy(() => import('../features/admin/AdminSpecPage'))
 
 // ── Loading fallback ───────────────────────────────────────────────────────────
 function PageLoader() {
@@ -191,6 +192,7 @@ export default function AppRoutes() {
           <Route path="coupons"        element={<AdminCouponPage />} />
           <Route path="reviews"        element={<AdminReviewPage />} />
           <Route path="banners"        element={<AdminBannerPage />} />
+          <Route path="specs"          element={<AdminSpecPage />} />
           <Route path="*"              element={<Navigate to="/admin" replace />} />
         </Route>
       </Routes>

@@ -603,4 +603,37 @@ class ProductController extends Controller
             'message' => "Đã xử lý: {$deletedCount} sản phẩm đã xóa, {$deactivatedCount} sản phẩm đã chuyển sang ẩn (do có đơn hàng).",
         ]);
     }
+
+    public function syncSpecifications(Request $request, Product $product)
+    {
+        $data = $request->validate([
+            'specs'                        => 'required|array',
+            'specs.*.definition_id'        => 'required|exists:product_specification_definitions,id',
+            'specs.*.value'                => 'nullable',
+        ]);
+
+        foreach ($data['specs'] as $spec) {
+            $def = \App\Models\ProductSpecificationDefinition::find($spec['definition_id']);
+            $payload = [
+                'product_id'                   => $product->id,
+                'specification_definition_id'  => $spec['definition_id'],
+                'value_text'                   => null,
+                'numeric_value'                => null,
+                'value_boolean'                => null,
+            ];
+            if ($def->value_type === 'number') {
+                $payload['numeric_value'] = is_numeric($spec['value']) ? (float) $spec['value'] : null;
+            } elseif ($def->value_type === 'boolean') {
+                $payload['value_boolean'] = filter_var($spec['value'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            } else {
+                $payload['value_text'] = $spec['value'];
+            }
+            \App\Models\ProductSpecification::updateOrCreate(
+                ['product_id' => $product->id, 'specification_definition_id' => $spec['definition_id']],
+                $payload
+            );
+        }
+
+        return response()->json(['message' => 'Specifications synced', 'count' => count($data['specs'])]);
+    }
 }

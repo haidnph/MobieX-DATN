@@ -88,6 +88,13 @@ const EP = {
   ADMIN_USER_STATUS: (id) => `/admin/users/${id}/status`,
   ADMIN_USER_ROLES: (id) => `/admin/users/${id}/roles`,
   ADMIN_USER_ROLE_DELETE: (id, roleSlug) => `/admin/users/${id}/roles/${roleSlug}`,
+
+  // ── Admin: Spec Definitions ───────────────────────────
+  SPEC_DEFINITIONS: '/admin/spec-definitions',
+  SPEC_DEFINITIONS_BY_ID: (id) => `/admin/spec-definitions/${id}`,
+
+  // ── Admin: Product Specifications ─────────────────────
+  ADMIN_PRODUCT_SPECIFICATIONS: (id) => `/admin/products/${id}/specifications`,
 }
 
 export default EP
