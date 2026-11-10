@@ -39,7 +39,7 @@ export default function ProductDetailPage() {
     Promise.allSettled([
       axiosClient.get(EP.PRODUCT_DETAIL(id)),
       axiosClient.get(EP.PRODUCT_REVIEWS(id)),
-      axiosClient.get(`/api/product-images?product_id=${id}`),
+      axiosClient.get(EP.PRODUCT_IMAGES, { params: { product_id: id } }),
     ])
       .then(([prodRes, revRes, imgRes]) => {
         let imgs = []
@@ -130,7 +130,9 @@ export default function ProductDetailPage() {
 
     if (variant?.id && product?.id) {
       try {
-        const { data } = await axiosClient.get(`/api/product-images?product_id=${product.id}&product_variant_id=${variant.id}`)
+        const { data } = await axiosClient.get(EP.PRODUCT_IMAGES, {
+          params: { product_id: product.id, product_variant_id: variant.id },
+        })
         const variantImages = (data.data ?? []).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
         if (variantImages.length > 0) {
           setProductImages(variantImages)
@@ -147,7 +149,9 @@ export default function ProductDetailPage() {
       setActiveImage(variant.image_url)
     } else if (product?.id) {
       try {
-        const { data } = await axiosClient.get(`/api/product-images?product_id=${product.id}`)
+        const { data } = await axiosClient.get(EP.PRODUCT_IMAGES, {
+          params: { product_id: product.id },
+        })
         const generalImages = (data.data ?? []).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
         if (generalImages.length > 0) {
           setProductImages(generalImages)
