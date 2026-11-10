@@ -29,6 +29,8 @@ const VNPayPage         = lazy(() => import('../features/checkout/VNPayPage'))
 const PaymentReturnPage = lazy(() => import('../features/checkout/PaymentReturnPage'))
 const ZaloPayPage       = lazy(() => import('../features/checkout/ZaloPayPage'))
 const ZaloPayReturnPage = lazy(() => import('../features/checkout/ZaloPayReturnPage'))
+const MoMoPage          = lazy(() => import('../features/checkout/MoMoPage'))
+const MoMoReturnPage    = lazy(() => import('../features/checkout/MoMoReturnPage'))
 
 // Orders
 const OrderHistoryPage = lazy(() => import('../features/orders/OrderHistoryPage'))
@@ -143,6 +145,16 @@ export default function AppRoutes() {
             }
           />
           <Route path="payment/zalopay/return" element={<ZaloPayReturnPage />} />
+
+          <Route
+            path="payment/momo"
+            element={
+              <ProtectedRoute>
+                <MoMoPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="payment/momo/return" element={<MoMoReturnPage />} />
 
           <Route
             path="orders"

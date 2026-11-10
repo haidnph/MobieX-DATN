@@ -32,6 +32,10 @@ describe('API Endpoints Definition', () => {
     expect(EP.CART_ITEMS).toBe('/cart/items')
     expect(EP.PAYMENT_VNPAY_CREATE).toBe('/payments/vnpay/create')
     expect(EP.PAYMENT_VNPAY_RETURN).toBe('/payments/vnpay/return')
+    expect(EP.PAYMENT_ZALOPAY_CREATE).toBe('/payments/zalopay/create')
+    expect(EP.PAYMENT_ZALOPAY_RETURN).toBe('/payments/zalopay/return')
+    expect(EP.PAYMENT_MOMO_CREATE).toBe('/payments/momo/create')
+    expect(EP.PAYMENT_MOMO_RETURN).toBe('/payments/momo/return')
   })
 
   it('contains inventory management endpoints', () => {

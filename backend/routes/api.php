@@ -607,6 +607,9 @@ Route::middleware([
 
     Route::post('/payments/zalopay/create', [PaymentController::class, 'createZaloPayPayment'])
         ->name('api.payments.zalopay.create');
+
+    Route::post('/payments/momo/create', [PaymentController::class, 'createMoMoPayment'])
+        ->name('api.payments.momo.create');
 });
 
 /*
@@ -626,6 +629,12 @@ Route::get('/payments/zalopay/return', [PaymentController::class, 'zalopayReturn
 
 Route::post('/payments/zalopay/callback', [PaymentController::class, 'zalopayCallback'])
     ->name('api.payments.zalopay.callback');
+
+Route::get('/payments/momo/return', [PaymentController::class, 'momoReturn'])
+    ->name('api.payments.momo.return');
+
+Route::post('/payments/momo/callback', [PaymentController::class, 'momoCallback'])
+    ->name('api.payments.momo.callback');
 
 /*
 |--------------------------------------------------------------------------

@@ -122,6 +122,9 @@ export default function CheckoutPage() {
       } else if (form.payment_method === 'zalopay') {
         // Redirect to ZaloPay initiate page
         navigate(`/payment/zalopay?order_id=${order.id}`)
+      } else if (form.payment_method === 'momo') {
+        // Redirect to MoMo initiate page
+        navigate(`/payment/momo?order_id=${order.id}`)
       } else {
         // COD order created successfully
         showToast('Đặt hàng thành công!', 'success')
@@ -448,6 +451,68 @@ export default function CheckoutPage() {
                 )}
               </div>
 
+              {/* Option 3: MoMo Gateway */}
+              <div
+                onClick={() => setForm((prev) => ({ ...prev, payment_method: 'momo' }))}
+                className={[
+                  'p-4 rounded-2xl border cursor-pointer transition-all space-y-3',
+                  form.payment_method === 'momo'
+                    ? 'border-[#a50064] bg-[#a50064]/5 ring-2 ring-[#a50064]/20 shadow-md'
+                    : 'border-outline-variant/30 bg-surface-container-low hover:border-outline',
+                ].join(' ')}
+              >
+                <div className="flex items-center gap-3">
+                  <input
+                    type="radio"
+                    name="payment_method"
+                    value="momo"
+                    checked={form.payment_method === 'momo'}
+                    onChange={handleChange}
+                    className="text-pink-600 focus:ring-pink-500 w-4 h-4"
+                  />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-bold text-on-surface">Cổng thanh toán Ví MoMo</p>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pink-100 text-pink-700 dark:bg-pink-950 dark:text-pink-300">
+                        Ví điện tử số 1 VN
+                      </span>
+                    </div>
+                    <p className="text-xs text-on-surface-variant">
+                      Thanh toán qua Ví MoMo, Quét mã QR, hoặc Thẻ ATM Nội Địa Sacombank
+                    </p>
+                  </div>
+                </div>
+
+                {/* Badges */}
+                <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-outline-variant/15 text-[11px]">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container text-on-surface font-medium border border-outline-variant/20">
+                    <span className="material-symbols-outlined text-sm" style={{ color: '#a50064' }}>account_balance_wallet</span>
+                    Ví MoMo
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container text-on-surface font-medium border border-outline-variant/20">
+                    <span className="material-symbols-outlined text-sm" style={{ color: '#a50064' }}>qr_code_2</span>
+                    MoMo QR Code
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container text-on-surface font-medium border border-outline-variant/20">
+                    <span className="material-symbols-outlined text-sm text-blue-500">credit_card</span>
+                    ATM Sacombank Sandbox
+                  </span>
+                </div>
+
+                {/* Info note when selected */}
+                {form.payment_method === 'momo' && (
+                  <div className="rounded-xl p-3 text-xs flex items-start gap-2.5" style={{ backgroundColor: 'rgba(165,0,100,0.08)' }}>
+                    <span className="material-symbols-outlined text-base shrink-0 mt-0.5" style={{ color: '#a50064' }}>info</span>
+                    <div className="space-y-1 text-[11px] leading-relaxed">
+                      <p className="font-semibold" style={{ color: '#a50064' }}>Mở cổng giao dịch an toàn:</p>
+                      <p className="text-on-surface-variant">
+                        Sau khi bấm <strong>&quot;Thanh toán qua Ví MoMo&quot;</strong>, hệ thống sẽ mở cổng thanh toán MoMo Sandbox. Bạn có thể sử dụng Ví MoMo giả lập hoặc thẻ ATM Sacombank Sandbox có sẵn để thanh toán tức thì.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Option 3: Cash On Delivery (COD) */}
               <div
                 onClick={() => setForm((prev) => ({ ...prev, payment_method: 'cod' }))}
@@ -561,7 +626,9 @@ export default function CheckoutPage() {
                 ? 'Thanh toán qua VNPay'
                 : form.payment_method === 'zalopay'
                   ? 'Thanh toán qua ZaloPay'
-                  : 'Hoàn tất đặt hàng'}
+                  : form.payment_method === 'momo'
+                    ? 'Thanh toán qua Ví MoMo'
+                    : 'Hoàn tất đặt hàng'}
             </Button>
 
             <p className="text-[11px] text-outline text-center">

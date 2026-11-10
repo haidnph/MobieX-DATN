@@ -9,6 +9,7 @@ use App\Models\Payment;
 use App\Models\PaymentWebhookEvent;
 use App\Services\VNPayService;
 use App\Services\ZaloPayService;
+use App\Services\MoMoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,7 +19,8 @@ class PaymentController extends Controller
 {
     public function __construct(
         private readonly VNPayService $vnpayService,
-        private readonly ZaloPayService $zalopayService
+        private readonly ZaloPayService $zalopayService,
+        private readonly MoMoService $momoService
     ) {}
 
     /**
@@ -579,6 +581,278 @@ class PaymentController extends Controller
         return response()->json([
             'return_code' => 1,
             'return_message' => 'success',
+        ]);
+    }
+
+    /**
+     * Generate MoMo Sandbox payment redirect URL for an order.
+     */
+    public function createMoMoPayment(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_id' => ['required', 'integer', 'exists:orders,id'],
+        ]);
+
+        $order = Order::with('items')->findOrFail($validated['order_id']);
+
+        if ((int) $order->user_id !== (int) $request->user()->id) {
+            return response()->json([
+                'message' => 'Bạn không có quyền thực hiện thanh toán cho đơn hàng này.',
+            ], 403);
+        }
+
+        if ($order->payment_status === 'paid') {
+            return response()->json([
+                'message' => 'Đơn hàng này đã được thanh toán thành công.',
+            ], 422);
+        }
+
+        if ($order->status === 'cancelled') {
+            return response()->json([
+                'message' => 'Không thể thanh toán cho đơn hàng đã bị hủy.',
+            ], 422);
+        }
+
+        $payment = Payment::firstOrCreate(
+            [
+                'order_id' => $order->id,
+                'method' => 'momo',
+                'status' => 'pending',
+            ],
+            [
+                'transaction_code' => 'PAY-MM-'.Str::upper(Str::random(14)),
+                'idempotency_key' => 'momo_order_'.$order->id.'_'.uniqid(),
+                'amount' => $order->total_amount,
+                'currency_code' => 'VND',
+            ]
+        );
+
+        $mmResult = $this->momoService->createPaymentOrder([
+            'order_id' => $order->id,
+            'order_code' => $order->order_code,
+            'amount' => $order->total_amount,
+            'order_info' => 'MobieX - Thanh toán đơn hàng '.$order->order_code,
+        ]);
+
+        if (! empty($mmResult['order_id'])) {
+            $payment->update([
+                'gateway_transaction_id' => $mmResult['order_id'],
+            ]);
+        }
+
+        if (($mmResult['status'] ?? '') === 'failed' || empty($mmResult['order_url'])) {
+            return response()->json([
+                'message' => $mmResult['message'] ?? 'Không thể khởi tạo cổng thanh toán MoMo.',
+                'error' => $mmResult['message'] ?? 'Lỗi kết nối cổng thanh toán MoMo',
+            ], 422);
+        }
+
+        return response()->json([
+            'message' => 'Tạo đơn thanh toán MoMo thành công.',
+            'data' => [
+                'payment_id' => $payment->id,
+                'order_id' => $order->id,
+                'order_code' => $order->order_code,
+                'amount' => (float) $order->total_amount,
+                'order_url' => $mmResult['order_url'],
+                'payment_url' => $mmResult['order_url'],
+                'qr_code_url' => $mmResult['qr_code_url'] ?? null,
+                'deeplink' => $mmResult['deeplink'] ?? null,
+                'order' => [
+                    'id' => $order->id,
+                    'order_code' => $order->order_code,
+                    'grand_total' => (float) $order->total_amount,
+                    'status' => $order->status,
+                    'payment_status' => $order->payment_status,
+                ],
+            ],
+        ]);
+    }
+
+    /**
+     * Handle return redirect from MoMo (Customer Browser).
+     * Performs dual-confirmation with HMAC-SHA256 signature verification.
+     */
+    public function momoReturn(Request $request): JsonResponse
+    {
+        $queryParams = $request->query();
+
+        if (empty($queryParams) || ! $this->momoService->verifyReturnSignature($queryParams)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Chữ ký số xác thực từ MoMo không hợp lệ.',
+            ], 400);
+        }
+
+        $orderIdParam = (string) $request->query('orderId', '');
+        $resultCode = (int) $request->query('resultCode', -1);
+        $amount = (float) $request->query('amount', 0);
+        $transId = (string) $request->query('transId', '');
+        $payType = (string) $request->query('payType', 'momo');
+        $isSuccess = ($resultCode === 0);
+
+        // Find order by parsing orderIdParam: MX_MM_<order_id>_<suffix>
+        $order = null;
+        if (! empty($orderIdParam)) {
+            $parts = explode('_', $orderIdParam);
+            if (count($parts) >= 3 && is_numeric($parts[2])) {
+                $order = Order::find((int) $parts[2]);
+            }
+        }
+        if (! $order && $request->filled('id')) {
+            $order = Order::find((int) $request->query('id'));
+        }
+
+        if ($order && $isSuccess && $order->payment_status !== 'paid') {
+            DB::transaction(function () use ($order, $queryParams, $transId, $orderIdParam) {
+                $payment = Payment::firstOrCreate(
+                    ['order_id' => $order->id, 'method' => 'momo'],
+                    [
+                        'transaction_code' => 'PAY-MM-'.Str::upper(Str::random(14)),
+                        'idempotency_key' => 'momo_order_'.$order->id.'_'.uniqid(),
+                        'amount' => $order->total_amount,
+                        'currency_code' => 'VND',
+                    ]
+                );
+
+                $payment->update([
+                    'status' => 'success',
+                    'gateway_transaction_id' => $transId ?: $orderIdParam,
+                    'response_data' => $queryParams,
+                    'paid_at' => now(),
+                ]);
+
+                $fromStatus = $order->status;
+                $newStatus = ($fromStatus === 'pending') ? 'confirmed' : $fromStatus;
+
+                $order->update([
+                    'payment_status' => 'paid',
+                    'status' => $newStatus,
+                ]);
+
+                OrderStatusHistory::create([
+                    'order_id' => $order->id,
+                    'user_id' => null,
+                    'from_status' => $fromStatus,
+                    'status' => $newStatus,
+                    'note' => 'Thanh toán MoMo thành công (Return URL - Mã GD: '.($transId ?: $orderIdParam).')',
+                    'created_at' => now(),
+                ]);
+            });
+        }
+
+        return response()->json([
+            'status' => $isSuccess ? 'success' : 'failed',
+            'message' => $isSuccess ? 'Giao dịch MoMo thành công.' : 'Giao dịch MoMo không thành công hoặc bị hủy.',
+            'data' => [
+                'order_id' => $order?->id,
+                'order_code' => $order?->order_code,
+                'trans_id' => $transId,
+                'order_id_param' => $orderIdParam,
+                'result_code' => $resultCode,
+                'amount' => $amount,
+                'pay_type' => $payType,
+            ],
+        ], $isSuccess ? 200 : 400);
+    }
+
+    /**
+     * Handle Server-to-Server Webhook Callback from MoMo (IPN).
+     */
+    public function momoCallback(Request $request): JsonResponse
+    {
+        $payload = $request->all();
+
+        if (empty($payload) || ! $this->momoService->verifyCallbackSignature($payload)) {
+            return response()->json([
+                'resultCode' => 97,
+                'message' => 'Invalid signature',
+            ], 400);
+        }
+
+        $orderIdParam = (string) ($payload['orderId'] ?? '');
+        $resultCode = (int) ($payload['resultCode'] ?? -1);
+        $transId = (string) ($payload['transId'] ?? '');
+
+        // Find Order
+        $order = null;
+        if (! empty($orderIdParam)) {
+            $parts = explode('_', $orderIdParam);
+            if (count($parts) >= 3 && is_numeric($parts[2])) {
+                $order = Order::find((int) $parts[2]);
+            }
+        }
+
+        if (! $order) {
+            return response()->json([
+                'resultCode' => 11,
+                'message' => 'Order not found',
+            ]);
+        }
+
+        if ($order->payment_status === 'paid') {
+            return response()->json([
+                'resultCode' => 0,
+                'message' => 'Order already paid',
+            ]);
+        }
+
+        if ($resultCode === 0) {
+            DB::transaction(function () use ($order, $payload, $transId, $orderIdParam) {
+                $payment = Payment::firstOrCreate(
+                    ['order_id' => $order->id, 'method' => 'momo'],
+                    [
+                        'transaction_code' => 'PAY-MM-'.Str::upper(Str::random(14)),
+                        'idempotency_key' => 'momo_order_'.$order->id.'_'.uniqid(),
+                        'amount' => $order->total_amount,
+                        'currency_code' => 'VND',
+                    ]
+                );
+
+                $payment->update([
+                    'status' => 'success',
+                    'gateway_transaction_id' => $transId ?: $orderIdParam,
+                    'response_data' => $payload,
+                    'paid_at' => now(),
+                ]);
+
+                PaymentWebhookEvent::firstOrCreate(
+                    [
+                        'method' => 'momo',
+                        'event_key' => $transId ?: $orderIdParam,
+                    ],
+                    [
+                        'payment_id' => $payment->id,
+                        'provider_reference' => $transId ?: $orderIdParam,
+                        'signature_verified' => true,
+                        'processing_status' => 'processed',
+                        'event_payload' => $payload,
+                        'processed_at' => now(),
+                    ]
+                );
+
+                $fromStatus = $order->status;
+                $newStatus = ($fromStatus === 'pending') ? 'confirmed' : $fromStatus;
+
+                $order->update([
+                    'payment_status' => 'paid',
+                    'status' => $newStatus,
+                ]);
+
+                OrderStatusHistory::create([
+                    'order_id' => $order->id,
+                    'user_id' => null,
+                    'from_status' => $fromStatus,
+                    'status' => $newStatus,
+                    'note' => 'Thanh toán MoMo thành công (Webhook - Mã GD: '.$transId.')',
+                    'created_at' => now(),
+                ]);
+            });
+        }
+
+        return response()->json([
+            'resultCode' => 0,
+            'message' => 'success',
         ]);
     }
 }

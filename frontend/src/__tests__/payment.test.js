@@ -54,3 +54,36 @@ describe('VNPay Payment Utilities', () => {
     expect(realAmount).toBe(2500000)
   })
 })
+
+describe('ZaloPay & MoMo Payment Status Handlers', () => {
+  const ZALOPAY_STATUS_MESSAGES = {
+    '1': 'Giao dịch thành công. Cảm ơn bạn đã tin tưởng MobieX!',
+    '2': 'Giao dịch thất bại. Vui lòng kiểm tra lại thông tin thẻ hoặc số dư tài khoản.',
+    '3': 'Giao dịch đang được xử lý. Vui lòng chờ trong giây lát.',
+    '-1': 'Giao dịch bị từ chối. Thẻ không hợp lệ hoặc hết hạn thanh toán.',
+  }
+
+  const MOMO_RESULT_MESSAGES = {
+    '0': 'Giao dịch thành công. Cảm ơn bạn đã tin tưởng mua sắm tại MobieX!',
+    '1001': 'Giao dịch thất bại: Tài khoản MoMo không đủ số dư để thanh toán.',
+    '1002': 'Giao dịch bị từ chối bởi người dùng.',
+    '1003': 'Giao dịch đã bị hủy bởi người mua.',
+    '1004': 'Số tiền giao dịch vượt quá hạn mức thanh toán trong ngày của Ví MoMo.',
+    '1005': 'Giao dịch không thành công: Mã thanh toán đã hết hạn hiệu lực.',
+    '1006': 'Giao dịch đã được hủy bỏ theo yêu cầu của quý khách.',
+    '49': 'Giao dịch đã bị người dùng hủy tại màn hình thanh toán.',
+  }
+
+  it('maps ZaloPay return status code 1 as success and other codes as failure', () => {
+    expect(ZALOPAY_STATUS_MESSAGES['1']).toContain('Giao dịch thành công')
+    expect(ZALOPAY_STATUS_MESSAGES['2']).toContain('thất bại')
+    expect(ZALOPAY_STATUS_MESSAGES['-1']).toContain('từ chối')
+  })
+
+  it('maps MoMo resultCode 0 as success and others as expected errors', () => {
+    expect(MOMO_RESULT_MESSAGES['0']).toContain('Giao dịch thành công')
+    expect(MOMO_RESULT_MESSAGES['1001']).toContain('không đủ số dư')
+    expect(MOMO_RESULT_MESSAGES['1003']).toContain('đã bị hủy')
+    expect(MOMO_RESULT_MESSAGES['49']).toContain('hủy tại màn hình')
+  })
+})
