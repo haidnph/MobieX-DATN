@@ -66,6 +66,45 @@ class OrderController extends Controller
         ]);
     }
 
+    /**
+     * Tra cứu đơn hàng công khai dành cho khách vãng lai (bằng mã đơn + SĐT nhận hàng).
+     */
+    public function lookup(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_code' => ['required', 'string', 'max:50'],
+            'phone' => ['required', 'string', 'max:20'],
+        ]);
+
+        $orderCode = trim($validated['order_code']);
+        $phone = trim($validated['phone']);
+
+        $order = Order::with([
+            'items.variant.product',
+            'statusHistories',
+            'shippingMethod',
+            'payments',
+        ])
+            ->where('order_code', $orderCode)
+            ->where(function ($q) use ($phone) {
+                $q->where('shipping_phone', $phone)
+                    ->orWhere('shipping_phone', 'like', "%{$phone}%");
+            })
+            ->first();
+
+        if (! $order) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Không tìm thấy đơn hàng với mã đơn và số điện thoại đã cung cấp.',
+            ], 404);
+        }
+
+        return response()->json([
+            'status' => true,
+            'data' => $order,
+        ]);
+    }
+
     public function cancel(Request $request, int|string $id): JsonResponse
     {
         $validated = $request->validate([

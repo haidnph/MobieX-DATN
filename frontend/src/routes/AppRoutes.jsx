@@ -33,9 +33,10 @@ const MoMoPage          = lazy(() => import('../features/checkout/MoMoPage'))
 const MoMoReturnPage    = lazy(() => import('../features/checkout/MoMoReturnPage'))
 
 // Orders
-const OrderHistoryPage = lazy(() => import('../features/orders/OrderHistoryPage'))
-const OrderDetailPage  = lazy(() => import('../features/orders/OrderDetailPage'))
-const OrderInvoicePage = lazy(() => import('../features/orders/OrderInvoicePage'))
+const OrderHistoryPage  = lazy(() => import('../features/orders/OrderHistoryPage'))
+const OrderDetailPage   = lazy(() => import('../features/orders/OrderDetailPage'))
+const OrderInvoicePage  = lazy(() => import('../features/orders/OrderInvoicePage'))
+const OrderTrackingPage = lazy(() => import('../features/orders/OrderTrackingPage'))
 
 // Account
 const ProfilePage      = lazy(() => import('../features/account/ProfilePage'))
@@ -108,6 +109,7 @@ export default function AppRoutes() {
           <Route path="compare"      element={<ProductComparePage />} />
           <Route path="wishlist"     element={<WishlistPage />} />
           <Route path="cart"         element={<CartPage />} />
+          <Route path="tracking"     element={<OrderTrackingPage />} />
 
           {/* ── Customer-protected routes ── */}
           <Route

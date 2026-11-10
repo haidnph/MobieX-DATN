@@ -34,9 +34,18 @@ export default function Footer() {
 
           {/* Support */}
           <div>
-            <h3 className="text-sm font-semibold text-on-surface mb-3">Hỗ trợ</h3>
+            <h3 className="text-sm font-semibold text-on-surface mb-3">Hỗ trợ & Tra cứu</h3>
             <ul className="space-y-2">
-              {['Chính sách đổi trả', 'Hướng dẫn mua hàng', 'Liên hệ'].map((label) => (
+              <li>
+                <Link
+                  to="/tracking"
+                  className="text-sm text-primary font-medium hover:underline inline-flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-sm">search</span>
+                  Tra cứu đơn hàng
+                </Link>
+              </li>
+              {['Chính sách đổi trả', 'Hướng dẫn mua hàng', 'Chính sách bảo hành'].map((label) => (
                 <li key={label}>
                   <span className="text-sm text-on-surface-variant">{label}</span>
                 </li>

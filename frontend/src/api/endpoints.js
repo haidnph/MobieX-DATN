@@ -40,6 +40,7 @@ const EP = {
 
   // ── Orders ────────────────────────────────────────────
   ORDERS: '/orders',
+  ORDER_LOOKUP: '/orders/lookup',
   ORDER_DETAIL: (id) => `/orders/${id}`,
   ORDER_CANCEL: (id) => `/orders/${id}/cancel`,
   ORDER_INVOICE: (id) => `/orders/${id}/invoice`,

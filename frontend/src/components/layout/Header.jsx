@@ -340,6 +340,9 @@ export default function Header() {
           <Link to="/products?category=accessories" className="text-sm text-on-surface-variant hover:text-on-surface transition-colors">
             {t('accessories')}
           </Link>
+          <Link to="/tracking" className="text-sm text-on-surface-variant hover:text-on-surface transition-colors">
+            Tra cứu đơn
+          </Link>
           {categories.slice(0, 3).map((cat) => (
             <Link
               key={cat.id}
@@ -582,7 +585,8 @@ export default function Header() {
               { to: '/', label: 'Trang chủ' },
               { to: '/products', label: 'Sản phẩm' },
               { to: '/cart', label: 'Giỏ hàng' },
-              { to: '/orders', label: 'Đơn hàng' },
+              { to: '/tracking', label: 'Tra cứu đơn hàng' },
+              { to: '/orders', label: 'Đơn hàng của tôi' },
             ].map(({ to, label }) => (
               <Link
                 key={to}
