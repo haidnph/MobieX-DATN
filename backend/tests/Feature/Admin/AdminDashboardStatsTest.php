@@ -186,4 +186,69 @@ class AdminDashboardStatsTest extends TestCase
         $items = $response->json('data.items');
         $this->assertCount(7, $items);
     }
+
+    public function test_admin_dashboard_returns_enterprise_analytics_and_breakdowns(): void
+    {
+        $order1 = $this->createOrder('paid', 'delivered', 10000000);
+        $order1->update(['payment_method' => 'vnpay']);
+
+        $order2 = $this->createOrder('paid', 'confirmed', 6000000);
+        $order2->update(['payment_method' => 'momo']);
+
+        $response = $this->actingAs($this->adminUser, 'sanctum')
+            ->getJson('/api/admin/dashboard/stats');
+
+        $response->assertStatus(200)
+            ->assertJsonStructure([
+                'data' => [
+                    'total_revenue',
+                    'today_revenue',
+                    'average_order_value',
+                    'success_rate',
+                    'order_status_distribution' => [
+                        'pending',
+                        'confirmed',
+                        'shipping',
+                        'delivered',
+                        'cancelled',
+                    ],
+                    'payment_method_distribution' => [
+                        'vnpay',
+                        'zalopay',
+                        'momo',
+                        'cod',
+                    ],
+                    'top_selling_products',
+                ],
+            ]);
+
+        $data = $response->json('data');
+        $this->assertEquals(16000000, $data['total_revenue']);
+        $this->assertEquals(8000000, $data['average_order_value']);
+        $this->assertEquals(1, $data['order_status_distribution']['delivered']['count']);
+        $this->assertEquals(1, $data['order_status_distribution']['confirmed']['count']);
+
+        // Check revenue chart summary for 30 days
+        $chartRes = $this->actingAs($this->adminUser, 'sanctum')
+            ->getJson('/api/admin/dashboard/revenue-chart?days=30');
+
+        $chartRes->assertStatus(200)
+            ->assertJsonStructure([
+                'data' => [
+                    'labels',
+                    'datasets',
+                    'items',
+                    'summary' => [
+                        'total_revenue',
+                        'total_orders',
+                        'peak_revenue',
+                        'peak_date',
+                        'days',
+                    ],
+                ],
+            ]);
+
+        $this->assertCount(30, $chartRes->json('data.items'));
+        $this->assertEquals(30, $chartRes->json('data.summary.days'));
+    }
 }

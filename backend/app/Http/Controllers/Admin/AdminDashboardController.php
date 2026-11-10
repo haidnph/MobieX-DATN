@@ -8,6 +8,7 @@ use App\Models\Order;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AdminDashboardController extends Controller
 {
@@ -33,6 +34,81 @@ class AdminDashboardController extends Controller
         $cancelledOrdersCount = Order::where('status', 'cancelled')->count();
         $totalOrdersCount = Order::count();
 
+        // Average order value (AOV) for settled orders
+        $paidOrdersCount = Order::where('payment_status', 'paid')
+            ->whereNotIn('status', ['cancelled'])
+            ->count();
+
+        $averageOrderValue = $paidOrdersCount > 0
+            ? round($totalRevenue / $paidOrdersCount, 0)
+            : 0.0;
+
+        // Order Status Distribution
+        $statusCounts = Order::query()
+            ->selectRaw('status, COUNT(*) as count')
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->toArray();
+
+        $allStatuses = ['pending', 'confirmed', 'shipping', 'delivered', 'cancelled'];
+        $orderStatusDistribution = [];
+        foreach ($allStatuses as $st) {
+            $count = (int) ($statusCounts[$st] ?? 0);
+            $percentage = $totalOrdersCount > 0 ? round(($count / $totalOrdersCount) * 100, 1) : 0.0;
+            $orderStatusDistribution[$st] = [
+                'count' => $count,
+                'percentage' => $percentage,
+            ];
+        }
+
+        // Delivered success rate
+        $deliveredCount = (int) ($statusCounts['delivered'] ?? 0);
+        $successRate = $totalOrdersCount > 0
+            ? round(($deliveredCount / $totalOrdersCount) * 100, 1)
+            : 0.0;
+
+        // Payment Method Distribution
+        $paymentCounts = Order::query()
+            ->whereNotIn('status', ['cancelled'])
+            ->selectRaw('payment_method, COUNT(*) as count, SUM(total_amount) as total_amount')
+            ->groupBy('payment_method')
+            ->get()
+            ->keyBy('payment_method');
+
+        $activeOrdersCount = Order::whereNotIn('status', ['cancelled'])->count();
+        $methods = ['vnpay', 'zalopay', 'momo', 'cod'];
+        $paymentMethodDistribution = [];
+        foreach ($methods as $m) {
+            $rec = $paymentCounts->get($m);
+            $count = $rec ? (int) $rec->count : 0;
+            $amt = $rec ? (float) $rec->total_amount : 0.0;
+            $pct = $activeOrdersCount > 0 ? round(($count / $activeOrdersCount) * 100, 1) : 0.0;
+            $paymentMethodDistribution[$m] = [
+                'count' => $count,
+                'total_amount' => $amt,
+                'percentage' => $pct,
+            ];
+        }
+
+        // Top 5 Best Selling Products
+        $topSellingProducts = DB::table('order_items')
+            ->join('orders', 'order_items.order_id', '=', 'orders.id')
+            ->whereNotIn('orders.status', ['cancelled'])
+            ->selectRaw('order_items.product_id, order_items.product_name, MAX(order_items.image_path) as image_path, SUM(order_items.quantity) as total_sold, SUM(order_items.price * order_items.quantity) as total_revenue')
+            ->groupBy('order_items.product_id', 'order_items.product_name')
+            ->orderByDesc('total_sold')
+            ->limit(5)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'product_id' => (int) $item->product_id,
+                    'product_name' => $item->product_name,
+                    'image_path' => $item->image_path,
+                    'total_sold' => (int) $item->total_sold,
+                    'total_revenue' => (float) $item->total_revenue,
+                ];
+            });
+
         // Low stock count & list
         $lowStockQuery = Inventory::query()
             ->whereRaw('(on_hand_quantity - reserved_quantity) <= min_stock')
@@ -56,10 +132,15 @@ class AdminDashboardController extends Controller
             'data' => [
                 'total_revenue' => $totalRevenue,
                 'today_revenue' => $todayRevenue,
+                'average_order_value' => $averageOrderValue,
                 'today_orders_count' => $todayOrdersCount,
                 'pending_orders_count' => $pendingOrdersCount,
                 'cancelled_orders_count' => $cancelledOrdersCount,
                 'total_orders_count' => $totalOrdersCount,
+                'success_rate' => $successRate,
+                'order_status_distribution' => $orderStatusDistribution,
+                'payment_method_distribution' => $paymentMethodDistribution,
+                'top_selling_products' => $topSellingProducts,
                 'low_stock_count' => $lowStockCount,
                 'low_stock_items' => $lowStockItems,
             ],
@@ -67,13 +148,15 @@ class AdminDashboardController extends Controller
     }
 
     /**
-     * Get revenue grouped by day for Chart.js.
+     * Get revenue grouped by day for interactive multi-mode charts.
      */
     public function revenueChart(Request $request): JsonResponse
     {
         $days = (int) $request->query('days', 7);
-        if ($days < 1 || $days > 90) {
-            $days = 7;
+        if (! in_array($days, [7, 14, 30, 90], true)) {
+            if ($days < 1 || $days > 90) {
+                $days = 7;
+            }
         }
 
         $startDate = Carbon::today()->subDays($days - 1);
@@ -94,6 +177,10 @@ class AdminDashboardController extends Controller
         $revenueData = [];
         $ordersData = [];
         $items = [];
+        $totalPeriodRevenue = 0.0;
+        $totalPeriodOrders = 0;
+        $peakRevenue = 0.0;
+        $peakDate = null;
 
         $current = $startDate->copy();
         while ($current->lte($endDate)) {
@@ -106,8 +193,17 @@ class AdminDashboardController extends Controller
             $revenueData[] = $rev;
             $ordersData[] = $ord;
 
+            $totalPeriodRevenue += $rev;
+            $totalPeriodOrders += $ord;
+
+            if ($rev >= $peakRevenue) {
+                $peakRevenue = $rev;
+                $peakDate = $dateStr;
+            }
+
             $items[] = [
                 'date' => $dateStr,
+                'label' => $current->format('d/m'),
                 'revenue' => $rev,
                 'orders' => $ord,
             ];
@@ -129,6 +225,13 @@ class AdminDashboardController extends Controller
                     ],
                 ],
                 'items' => $items,
+                'summary' => [
+                    'total_revenue' => $totalPeriodRevenue,
+                    'total_orders' => $totalPeriodOrders,
+                    'peak_revenue' => $peakRevenue,
+                    'peak_date' => $peakDate,
+                    'days' => $days,
+                ],
             ],
         ]);
     }
