@@ -40,8 +40,9 @@ class VNPayService
         $vnpIpAddr = (string) ($data['ip_address'] ?? '127.0.0.1');
         $returnUrl = (string) ($data['return_url'] ?? $this->returnUrl);
 
-        $createDate = date('YmdHis');
-        $expireDate = date('YmdHis', strtotime('+15 minutes'));
+        $now = now('Asia/Ho_Chi_Minh');
+        $createDate = $now->format('YmdHis');
+        $expireDate = $now->copy()->addMinutes(20)->format('YmdHis');
 
         $inputData = [
             'vnp_Version' => '2.1.0',

@@ -36,11 +36,16 @@ class VNPayServiceTest extends TestCase
         $this->assertStringContainsString('vnp_TxnRef=MX-ORD-TEST-123', $url);
         $this->assertStringContainsString('vnp_SecureHash=', $url);
 
-        // Parse query params to verify signature
+        // Parse query params to verify signature and Vietnam timezone
         $queryString = parse_url($url, PHP_URL_QUERY);
         parse_str($queryString, $params);
 
         $this->assertTrue($this->service->verifySignature($params));
+        $this->assertEquals(
+            now('Asia/Ho_Chi_Minh')->format('YmdH'),
+            substr((string) $params['vnp_CreateDate'], 0, 10)
+        );
+        $this->assertTrue((string) $params['vnp_ExpireDate'] > (string) $params['vnp_CreateDate']);
     }
 
     public function test_verify_signature_rejects_tampered_amount(): void
