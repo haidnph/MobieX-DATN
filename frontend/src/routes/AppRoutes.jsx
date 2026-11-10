@@ -12,8 +12,10 @@ import Spinner from '../components/common/Spinner'
 
 // ── Lazy imports ──────────────────────────────────────────────────────────────
 // Auth
-const LoginPage      = lazy(() => import('../features/auth/LoginPage'))
-const RegisterPage   = lazy(() => import('../features/auth/RegisterPage'))
+const LoginPage          = lazy(() => import('../features/auth/LoginPage'))
+const RegisterPage       = lazy(() => import('../features/auth/RegisterPage'))
+const ForgotPasswordPage = lazy(() => import('../features/auth/ForgotPasswordPage'))
+const ResetPasswordPage  = lazy(() => import('../features/auth/ResetPasswordPage'))
 
 // Catalog / Storefront
 const HomePage           = lazy(() => import('../features/catalog/HomePage'))
@@ -98,8 +100,10 @@ export default function AppRoutes() {
     <Suspense fallback={<PageLoader />}>
       <Routes>
         {/* ── Auth pages (no layout wrapper) ── */}
-        <Route path="/login"    element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/login"           element={<LoginPage />} />
+        <Route path="/register"        element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password"  element={<ResetPasswordPage />} />
 
         {/* ── Storefront pages ── */}
         <Route element={<StorefrontLayout />}>
