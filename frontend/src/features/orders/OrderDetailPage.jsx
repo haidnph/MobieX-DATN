@@ -7,6 +7,8 @@ import axiosClient from '../../api/axiosClient'
 import EP from '../../api/endpoints'
 import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
 import { formatDateTime } from '../../utils/formatDate'
+import { useAuth } from '../../contexts/AuthContext'
+import { useCart } from '../../contexts/CartContext'
 import { useToast } from '../../contexts/ToastContext'
 import Badge from '../../components/common/Badge'
 import Button from '../../components/common/Button'
@@ -26,10 +28,14 @@ const STATUS_CONFIG = {
 export default function OrderDetailPage() {
   const { id } = useParams()
   const { showToast } = useToast()
+  const { addToCart } = useCart()
   const navigate = useNavigate()
 
   const [order, setOrder] = useState(null)
   const [loading, setLoading] = useState(true)
+
+  // Reorder state
+  const [reordering, setReordering] = useState(false)
 
   // Cancel order modal
   const [cancelOpen, setCancelOpen] = useState(false)
@@ -38,6 +44,34 @@ export default function OrderDetailPage() {
 
   // Review modal
   const [reviewItem, setReviewItem] = useState(null)
+
+  const handleReorder = async () => {
+    if (!order?.items || order.items.length === 0) return
+
+    setReordering(true)
+    let addedCount = 0
+
+    for (const item of order.items) {
+      const variantId = item.product_variant_id || item.variant?.id
+      if (variantId) {
+        try {
+          await addToCart(variantId, item.quantity || 1)
+          addedCount++
+        } catch {
+          // Skip unavailable items
+        }
+      }
+    }
+
+    setReordering(false)
+
+    if (addedCount > 0) {
+      showToast(`Đã thêm ${addedCount} sản phẩm vào giỏ hàng!`, 'success')
+      navigate('/cart')
+    } else {
+      showToast('Sản phẩm trong đơn hiện không còn khả dụng.', 'warning')
+    }
+  }
 
   const fetchOrderDetail = () => {
     setLoading(true)
@@ -107,24 +141,40 @@ export default function OrderDetailPage() {
           <span className="font-mono text-on-surface">#{order.order_code || order.id}</span>
         </nav>
 
-        {isCancellable && (
-          <Button variant="danger" size="sm" onClick={() => setCancelOpen(true)}>
-            Hủy đơn hàng
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Re-order button for completed or cancelled orders */}
+          {(order.status === 'delivered' || order.status === 'cancelled') && (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleReorder}
+              loading={reordering}
+              className="flex items-center gap-1.5"
+            >
+              <span className="material-symbols-outlined text-base">replay</span>
+              Mua lại
+            </Button>
+          )}
 
-        {/* Invoice print link — available once order is confirmed */}
-        {order.status !== 'pending' && order.status !== 'cancelled' && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate(`/orders/${id}/invoice`)}
-            className="border-outline-variant/40 text-on-surface-variant hover:border-primary hover:text-primary"
-          >
-            <span className="material-symbols-outlined text-base">receipt_long</span>
-            In hóa đơn
-          </Button>
-        )}
+          {isCancellable && (
+            <Button variant="danger" size="sm" onClick={() => setCancelOpen(true)}>
+              Hủy đơn hàng
+            </Button>
+          )}
+
+          {/* Invoice print link — available once order is confirmed */}
+          {order.status !== 'pending' && order.status !== 'cancelled' && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/orders/${id}/invoice`)}
+              className="border-outline-variant/40 text-on-surface-variant hover:border-primary hover:text-primary"
+            >
+              <span className="material-symbols-outlined text-base">receipt_long</span>
+              In hóa đơn
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Main Order Card */}

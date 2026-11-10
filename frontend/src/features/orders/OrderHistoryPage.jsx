@@ -2,11 +2,13 @@
 // Customer order list with status filter tabs, search, and pagination.
 
 import { useEffect, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import axiosClient from '../../api/axiosClient'
 import EP from '../../api/endpoints'
 import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
 import { formatDate } from '../../utils/formatDate'
+import { useCart } from '../../contexts/CartContext'
+import { useToast } from '../../contexts/ToastContext'
 import Badge from '../../components/common/Badge'
 import Pagination from '../../components/common/Pagination'
 import Spinner from '../../components/common/Spinner'
@@ -35,9 +37,43 @@ export default function OrderHistoryPage() {
   const statusParam = searchParams.get('status') || ''
   const pageParam = Number(searchParams.get('page')) || 1
 
+  const { addToCart } = useCart()
+  const { showToast } = useToast()
+  const navigate = useNavigate()
+
   const [orders, setOrders] = useState([])
   const [meta, setMeta] = useState({ current_page: 1, last_page: 1, total: 0 })
   const [loading, setLoading] = useState(true)
+  const [reorderingOrderId, setReorderingOrderId] = useState(null)
+
+  const handleReorder = async (order) => {
+    const items = order?.items || []
+    if (items.length === 0) return
+
+    setReorderingOrderId(order.id)
+    let addedCount = 0
+
+    for (const item of items) {
+      const variantId = item.product_variant_id || item.variant?.id
+      if (variantId) {
+        try {
+          await addToCart(variantId, item.quantity || 1)
+          addedCount++
+        } catch {
+          // Skip out-of-stock items
+        }
+      }
+    }
+
+    setReorderingOrderId(null)
+
+    if (addedCount > 0) {
+      showToast(`Đã thêm ${addedCount} sản phẩm vào giỏ hàng!`, 'success')
+      navigate('/cart')
+    } else {
+      showToast('Sản phẩm trong đơn hiện không còn khả dụng.', 'warning')
+    }
+  }
 
   useEffect(() => {
     setLoading(true)
@@ -167,13 +203,28 @@ export default function OrderHistoryPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4 self-end sm:self-center">
+                  <div className="flex flex-wrap items-center gap-3 self-end sm:self-center">
                     <div className="text-right">
                       <p className="text-xs text-on-surface-variant">Tổng tiền</p>
                       <p className="text-base font-extrabold text-primary">
                         {formatCurrencyVND(order.total_amount ?? order.total)}
                       </p>
                     </div>
+
+                    {(order.status === 'delivered' || order.status === 'cancelled') && (
+                      <button
+                        type="button"
+                        onClick={() => handleReorder(order)}
+                        disabled={reorderingOrderId === order.id}
+                        className="flex items-center gap-1 px-3 py-2 bg-primary-container text-on-primary-container hover:bg-primary hover:text-on-primary rounded-xl text-xs font-bold transition-all disabled:opacity-50"
+                      >
+                        <span className="material-symbols-outlined text-base">
+                          {reorderingOrderId === order.id ? 'progress_activity' : 'replay'}
+                        </span>
+                        <span>{reorderingOrderId === order.id ? 'Đang thêm...' : 'Mua lại'}</span>
+                      </button>
+                    )}
+
                     <Link
                       to={`/orders/${order.id}`}
                       className="px-4 py-2 bg-surface-container-high text-on-surface hover:bg-surface-bright rounded-xl text-sm font-semibold transition-colors"
