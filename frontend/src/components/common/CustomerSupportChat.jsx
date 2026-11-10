@@ -28,9 +28,9 @@ const BOT_KNOWLEDGE = [
       'Chính sách bảo hành vàng tại MobieX: Cam kết 100% hàng chính hãng, bảo hành 12 tháng tại các trung tâm ủy quyền toàn quốc và áp dụng chính sách 1 đổi 1 trong 30 ngày đầu tiên nếu có lỗi phần cứng từ nhà sản xuất.',
   },
   {
-    keywords: ['thanh toán', 'vnpay', 'cod', 'tiền mặt', 'chuyển khoản', 'thẻ'],
+    keywords: ['thanh toán', 'vnpay', 'zalopay', 'momo', 'cod', 'tiền mặt', 'chuyển khoản', 'thẻ', 'ví'],
     reply:
-      'Hệ thống hỗ trợ 2 phương thức thanh toán linh hoạt: 1. Thanh toán tiền mặt khi nhận hàng (COD). 2. Thanh toán trực tuyến an toàn qua cổng VNPay (quét mã VNPAY-QR, thẻ ATM nội địa, thẻ Visa/MasterCard).',
+      'Hệ thống hỗ trợ 4 phương thức thanh toán linh hoạt: 1. Thanh toán tiền mặt khi nhận hàng (COD). 2. Cổng VNPay (VNPAY-QR, thẻ ATM nội địa, thẻ Visa/Mastercard). 3. Cổng ZaloPay (Ví ZaloPay, QR code, thẻ quốc tế). 4. Cổng Ví MoMo (Ví điện tử MoMo, MoMo QR & thẻ ATM Sacombank). Tất cả đều có môi trường Sandbox thử nghiệm tức thì!',
   },
   {
     keywords: ['đơn hàng', 'tra cứu', 'kiểm tra đơn', 'tình trạng'],
