@@ -145,12 +145,30 @@ function ProductCard({ product }) {
       ? Math.round(((originalPrice - price) / originalPrice) * 100)
       : (product.discount_percent || 0)
 
+  const totalStock = product.variants?.length
+    ? product.variants.reduce(
+        (sum, v) => sum + (v.inventory?.available_quantity ?? v.available_quantity ?? v.stock_quantity ?? 0),
+        0
+      )
+    : (product.stock_quantity ?? product.total_stock ?? 0)
+
+  const isOutOfStock = product.status !== 'active' || (product.variants?.length > 0 && totalStock <= 0)
+
   return (
     <Link
       to={`/products/${product.id}`}
-      className="group bg-surface-container rounded-xl overflow-hidden border border-outline-variant/10 hover:border-primary/30 hover:shadow-[0_0_30px_rgba(77,142,255,0.15)] transition-all duration-300"
+      className={`group bg-surface-container rounded-xl overflow-hidden border border-outline-variant/10 hover:border-primary/30 hover:shadow-[0_0_30px_rgba(77,142,255,0.15)] transition-all duration-300 ${
+        isOutOfStock ? 'opacity-75' : ''
+      }`}
     >
       <div className="relative h-48 bg-surface-container-high overflow-hidden">
+        {isOutOfStock && (
+          <div className="absolute inset-0 bg-background/60 backdrop-blur-[1px] flex items-center justify-center z-20 pointer-events-none">
+            <span className="bg-error text-white text-[11px] font-bold px-3 py-1 rounded-full shadow-lg">
+              Tạm hết hàng
+            </span>
+          </div>
+        )}
         {thumbnail ? (
           <img
             src={thumbnail}
