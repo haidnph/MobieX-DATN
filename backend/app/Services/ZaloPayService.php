@@ -23,9 +23,9 @@ class ZaloPayService
 
     public function __construct()
     {
-        $this->appId = (string) config('zalopay.app_id', '2553');
-        $this->key1 = (string) config('zalopay.key1', 'PcY4iZIKFCIdgZvA6ueMcMHHUbRLYjPL');
-        $this->key2 = (string) config('zalopay.key2', 'kLtgPl8HHhfvMuDHPwKfgfsY4Ydm9eIz');
+        $this->appId = (string) config('zalopay.app_id', '2554');
+        $this->key1 = (string) config('zalopay.key1', 'sdngKKJmqEMzvh5QQcdD2A9XBSKUNaYn');
+        $this->key2 = (string) config('zalopay.key2', 'trMrHtvjo6myautxDUiAcYsVtaeQ8nhf');
         $this->endpoint = (string) config('zalopay.endpoint', 'https://sb-openapi.zalopay.vn/v2/create');
         $this->queryEndpoint = (string) config('zalopay.query_endpoint', 'https://sb-openapi.zalopay.vn/v2/query');
         $this->returnUrl = (string) config('zalopay.return_url', 'http://localhost:5173/payment/zalopay/return');
@@ -66,7 +66,7 @@ class ZaloPayService
         $embedData = json_encode($embedDataArr, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
         $itemsArr = $data['items'] ?? [];
-        $items = json_encode($itemsArr ?: [new \stdClass()], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $items = json_encode($itemsArr ?: [], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
         // MAC = HMAC-SHA256(key1, appid|apptransid|appuser|amount|apptime|embeddata|item)
         $dataToSign = "{$this->appId}|{$appTransId}|{$appUser}|{$amount}|{$appTime}|{$embedData}|{$items}";
@@ -81,13 +81,10 @@ class ZaloPayService
             'item' => $items,
             'description' => $description,
             'embed_data' => $embedData,
+            'bank_code' => (string) ($data['bank_code'] ?? ''),
             'mac' => $mac,
             'callback_url' => $this->callbackUrl,
         ];
-
-        if (! empty($data['bank_code'])) {
-            $payload['bank_code'] = (string) $data['bank_code'];
-        }
 
         try {
             $response = Http::timeout(10)
@@ -104,16 +101,20 @@ class ZaloPayService
                         'order_token' => $body['order_token'] ?? null,
                         'app_trans_id' => $appTransId,
                         'return_code' => 1,
-                        'return_message' => $body['return_message'] ?? 'Thanh cong',
+                        'return_message' => $body['return_message'] ?? 'Thành công',
                     ];
                 }
 
                 // Gateway returned non-1 return_code
+                Log::warning('ZaloPay Create Order Gateway Returned Non-1: '.json_encode($body));
+
                 return [
                     'status' => 'failed',
                     'app_trans_id' => $appTransId,
                     'return_code' => $body['return_code'] ?? 2,
-                    'return_message' => $body['return_message'] ?? 'Khong tao duoc don hang ZaloPay.',
+                    'return_message' => $body['return_message'] ?? 'Không tạo được đơn hàng ZaloPay.',
+                    'sub_return_code' => $body['sub_return_code'] ?? null,
+                    'sub_return_message' => $body['sub_return_message'] ?? null,
                     'order_url' => null,
                 ];
             }

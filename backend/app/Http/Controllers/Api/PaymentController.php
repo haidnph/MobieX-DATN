@@ -354,6 +354,13 @@ class PaymentController extends Controller
             ]);
         }
 
+        if (($zpResult['status'] ?? '') === 'failed' || empty($zpResult['order_url'])) {
+            return response()->json([
+                'message' => $zpResult['sub_return_message'] ?? $zpResult['return_message'] ?? 'Không thể khởi tạo cổng thanh toán ZaloPay.',
+                'error' => $zpResult['return_message'] ?? 'Lỗi kết nối cổng thanh toán ZaloPay',
+            ], 422);
+        }
+
         return response()->json([
             'message' => 'Tạo đơn thanh toán ZaloPay thành công.',
             'data' => [
@@ -361,9 +368,17 @@ class PaymentController extends Controller
                 'order_id' => $order->id,
                 'order_code' => $order->order_code,
                 'amount' => (float) $order->total_amount,
-                'payment_url' => $zpResult['order_url'] ?? null,
+                'order_url' => $zpResult['order_url'],
+                'payment_url' => $zpResult['order_url'],
                 'zp_trans_token' => $zpResult['zp_trans_token'] ?? null,
                 'app_trans_id' => $zpResult['app_trans_id'] ?? null,
+                'order' => [
+                    'id' => $order->id,
+                    'order_code' => $order->order_code,
+                    'grand_total' => (float) $order->total_amount,
+                    'status' => $order->status,
+                    'payment_status' => $order->payment_status,
+                ],
             ],
         ]);
     }

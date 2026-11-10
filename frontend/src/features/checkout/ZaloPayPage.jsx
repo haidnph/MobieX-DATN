@@ -43,15 +43,22 @@ export default function ZaloPayPage() {
     }
 
     setLoading(true)
+    // Pre-fetch order details in parallel to ensure grand_total & info display immediately
+    axiosClient.get(EP.ORDER_DETAIL(orderId)).then(({ data }) => {
+      setOrder(data.data ?? data)
+    }).catch(() => {})
+
     axiosClient
       .post(EP.PAYMENT_ZALOPAY_CREATE, { order_id: Number(orderId) })
       .then(({ data }) => {
         const payload = data.data ?? data
         // ZaloPay returns order_url (not payment_url like VNPay)
-        const url = payload.order_url ?? payload.payment_url
+        const url = payload.order_url || payload.payment_url
         if (url) {
           setPaymentUrl(url)
-          setOrder(payload.order ?? null)
+          if (payload.order) {
+            setOrder(payload.order)
+          }
 
           // Auto open once in a separate tab
           if (!hasAutoOpenedRef.current) {
@@ -59,11 +66,11 @@ export default function ZaloPayPage() {
             openPaymentTab(url)
           }
         } else {
-          setError('Không nhận được liên kết thanh toán từ cổng ZaloPay.')
+          setError(data.message || 'Không nhận được liên kết thanh toán từ cổng ZaloPay.')
         }
       })
       .catch((err) => {
-        setError(err.message || 'Lỗi khi kết nối cổng thanh toán ZaloPay.')
+        setError(err.response?.data?.message || err.message || 'Lỗi khi kết nối cổng thanh toán ZaloPay.')
       })
       .finally(() => {
         setLoading(false)

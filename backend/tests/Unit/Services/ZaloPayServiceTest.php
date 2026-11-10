@@ -15,9 +15,9 @@ class ZaloPayServiceTest extends TestCase
         parent::setUp();
 
         config([
-            'zalopay.app_id' => '2553',
-            'zalopay.key1' => 'PcY4iZIKFCIdgZvA6ueMcMHHUbRLYjPL',
-            'zalopay.key2' => 'kLtgPl8HHhfvMuDHPwKfgfsY4Ydm9eIz',
+            'zalopay.app_id' => '2554',
+            'zalopay.key1' => 'sdngKKJmqEMzvh5QQcdD2A9XBSKUNaYn',
+            'zalopay.key2' => 'trMrHtvjo6myautxDUiAcYsVtaeQ8nhf',
             'zalopay.endpoint' => 'https://sb-openapi.zalopay.vn/v2/create',
             'zalopay.query_endpoint' => 'https://sb-openapi.zalopay.vn/v2/query',
             'zalopay.return_url' => 'http://localhost:5173/payment/zalopay/return',
@@ -56,7 +56,7 @@ class ZaloPayServiceTest extends TestCase
 
     public function test_verify_return_checksum_validates_correctly(): void
     {
-        $appId = '2553';
+        $appId = '2554';
         $appTransId = '261110_999_123456';
         $pmcId = '36';
         $bankCode = 'ZALOPAYAPP';
@@ -65,7 +65,7 @@ class ZaloPayServiceTest extends TestCase
         $status = '1';
 
         $dataToSign = "{$appId}|{$appTransId}|{$pmcId}|{$bankCode}|{$amount}|{$discountAmount}|{$status}";
-        $checksum = hash_hmac('sha256', $dataToSign, 'kLtgPl8HHhfvMuDHPwKfgfsY4Ydm9eIz');
+        $checksum = hash_hmac('sha256', $dataToSign, 'trMrHtvjo6myautxDUiAcYsVtaeQ8nhf');
 
         $params = [
             'appid' => $appId,
@@ -83,7 +83,7 @@ class ZaloPayServiceTest extends TestCase
 
     public function test_verify_return_checksum_rejects_tampered_amount(): void
     {
-        $appId = '2553';
+        $appId = '2554';
         $appTransId = '261110_999_123456';
         $pmcId = '36';
         $bankCode = 'ZALOPAYAPP';
@@ -92,7 +92,7 @@ class ZaloPayServiceTest extends TestCase
         $status = '1';
 
         $dataToSign = "{$appId}|{$appTransId}|{$pmcId}|{$bankCode}|{$amount}|{$discountAmount}|{$status}";
-        $checksum = hash_hmac('sha256', $dataToSign, 'kLtgPl8HHhfvMuDHPwKfgfsY4Ydm9eIz');
+        $checksum = hash_hmac('sha256', $dataToSign, 'trMrHtvjo6myautxDUiAcYsVtaeQ8nhf');
 
         $params = [
             'appid' => $appId,
@@ -111,12 +111,12 @@ class ZaloPayServiceTest extends TestCase
     public function test_verify_callback_signature_validates_correctly(): void
     {
         $data = json_encode([
-            'app_id' => 2553,
+            'app_id' => 2554,
             'app_trans_id' => '261110_999_123456',
             'zp_trans_id' => '261110000001234',
             'amount' => 1250000,
         ]);
-        $mac = hash_hmac('sha256', $data, 'kLtgPl8HHhfvMuDHPwKfgfsY4Ydm9eIz');
+        $mac = hash_hmac('sha256', $data, 'trMrHtvjo6myautxDUiAcYsVtaeQ8nhf');
 
         $this->assertTrue($this->service->verifyCallback($data, $mac));
 
