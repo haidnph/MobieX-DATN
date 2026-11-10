@@ -53,4 +53,11 @@ describe('API Endpoints Definition', () => {
     expect(EP.ADMIN_USER_ROLES(7)).toBe('/admin/users/7/roles')
     expect(EP.ADMIN_USER_ROLE_DELETE(7, 'admin')).toBe('/admin/users/7/roles/admin')
   })
+
+  it('contains product image management endpoints', () => {
+    expect(EP.PRODUCT_IMAGES).toBe('/product-images')
+    expect(EP.PRODUCT_IMAGE_DETAIL(5)).toBe('/product-images/5')
+    expect(EP.PRODUCT_IMAGE_REORDER).toBe('/product-images/reorder')
+    expect(EP.PRODUCT_IMAGE_PRIMARY(5)).toBe('/product-images/5/primary')
+  })
 })

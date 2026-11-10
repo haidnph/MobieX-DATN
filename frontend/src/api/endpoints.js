@@ -99,6 +99,12 @@ const EP = {
 
   // ── Admin: Product Specifications ─────────────────────
   ADMIN_PRODUCT_SPECIFICATIONS: (id) => `/admin/products/${id}/specifications`,
+
+  // ── Product Images ─────────────────────────────────────
+  PRODUCT_IMAGES: '/product-images',
+  PRODUCT_IMAGE_DETAIL: (id) => `/product-images/${id}`,
+  PRODUCT_IMAGE_REORDER: '/product-images/reorder',
+  PRODUCT_IMAGE_PRIMARY: (id) => `/product-images/${id}/primary`,
 }
 
 export default EP

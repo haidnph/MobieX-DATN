@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import axiosClient from '../../api/axiosClient'
+import EP from '../../api/endpoints'
 import ImageUploader from '../common/ImageUploader'
 
 const PLACEHOLDER = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2UyZThmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1NSIgZm9udC1zaXplPSIxMiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzk0YTNiOCI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+'
@@ -42,7 +43,7 @@ export default function ProductImageGallery({ productId, variantId = null, title
       const params = { product_id: productId }
       if (variantId) params.product_variant_id = variantId
 
-      const { data } = await axiosClient.get('/api/product-images', { params })
+      const { data } = await axiosClient.get(EP.PRODUCT_IMAGES, { params })
       const list = (data.data ?? []).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
       setImages(list)
     } catch {
@@ -69,7 +70,7 @@ export default function ProductImageGallery({ productId, variantId = null, title
       if (variantId) formData.append('variant_id', variantId)
       files.forEach((f) => formData.append('images[]', f))
 
-      await axiosClient.post('/api/product-images', formData, {
+      await axiosClient.post(EP.PRODUCT_IMAGES, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         onUploadProgress: (e) => {
           const pct = Math.round((e.loaded * 100) / (e.total || 1))
@@ -95,7 +96,7 @@ export default function ProductImageGallery({ productId, variantId = null, title
   // ── Set Primary ───────────────────────────────────────────────────────────
   const handleSetPrimary = async (image) => {
     try {
-      await axiosClient.patch(`/api/product-images/${image.id}/primary`)
+      await axiosClient.patch(EP.PRODUCT_IMAGE_PRIMARY(image.id))
       showToast('Đã đặt làm ảnh đại diện.')
       await fetchImages()
     } catch {
@@ -107,7 +108,7 @@ export default function ProductImageGallery({ productId, variantId = null, title
   const handleDelete = async () => {
     if (!confirmDelete) return
     try {
-      await axiosClient.delete(`/api/product-images/${confirmDelete.id}`)
+      await axiosClient.delete(EP.PRODUCT_IMAGE_DETAIL(confirmDelete.id))
       showToast('Đã xóa ảnh thành công.')
       setConfirmDelete(null)
       await fetchImages()
@@ -139,7 +140,7 @@ export default function ProductImageGallery({ productId, variantId = null, title
     setImages(withOrder) // optimistic update
 
     try {
-      await axiosClient.patch('/api/product-images/reorder', {
+      await axiosClient.patch(EP.PRODUCT_IMAGE_REORDER, {
         images: withOrder.map(({ id, sort_order }) => ({ id, sort_order })),
       })
     } catch {
