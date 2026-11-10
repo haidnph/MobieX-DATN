@@ -177,6 +177,7 @@ export default function AdminDashboard() {
                   <th className="px-6 py-3 text-center">Khả dụng</th>
                   <th className="px-6 py-3 text-center">Tồn thực</th>
                   <th className="px-6 py-3 text-center">Đang giữ</th>
+                  <th className="px-6 py-3 text-right">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant/10">
@@ -198,6 +199,15 @@ export default function AdminDashboard() {
                     </td>
                     <td className="px-6 py-3 text-center text-outline font-mono">
                       {item.reserved_quantity ?? 0}
+                    </td>
+                    <td className="px-6 py-3 text-right">
+                      <Link
+                        to={`/admin/inventories?search=${encodeURIComponent(item.sku || item.product_name || '')}`}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-primary-container text-on-primary-container hover:bg-primary hover:text-on-primary text-xs font-semibold transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-sm">add_box</span>
+                        Nhập kho
+                      </Link>
                     </td>
                   </tr>
                 ))}

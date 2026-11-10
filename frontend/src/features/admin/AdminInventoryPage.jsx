@@ -2,6 +2,7 @@
 // Admin warehouse and inventory management: stock monitoring, low-stock alerts, manual import/export, and audit logs.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import axiosClient from '../../api/axiosClient'
 import EP from '../../api/endpoints'
 import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
@@ -24,12 +25,21 @@ const TRANSACTION_TYPES = {
 
 export default function AdminInventoryPage() {
   const { showToast } = useToast()
+  const [searchParams] = useSearchParams()
 
   const [activeTab, setActiveTab] = useState('inventory') // 'inventory' | 'transactions'
   const [inventories, setInventories] = useState([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(() => searchParams.get('search') || '')
   const [lowStockOnly, setLowStockOnly] = useState(false)
+
+  // Synchronize search with query param if it updates
+  useEffect(() => {
+    const q = searchParams.get('search')
+    if (q !== null && q !== undefined) {
+      setSearch(q)
+    }
+  }, [searchParams])
 
   // Transactions state
   const [transactions, setTransactions] = useState([])
