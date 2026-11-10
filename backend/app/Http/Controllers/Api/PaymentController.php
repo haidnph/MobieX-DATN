@@ -103,11 +103,52 @@ class PaymentController extends Controller
         $amount = ((float) $request->query('vnp_Amount', 0)) / 100;
 
         $isSuccess = ($responseCode === '00');
+        $order = Order::where('order_code', $orderCode)->first();
+
+        // Dual-confirmation: update order status directly upon return if not yet confirmed by IPN
+        if ($order && $isSuccess && $order->payment_status !== 'paid') {
+            DB::transaction(function () use ($order, $queryParams, $transactionNo) {
+                $payment = Payment::firstOrCreate(
+                    ['order_id' => $order->id, 'method' => 'vnpay'],
+                    [
+                        'transaction_code' => 'PAY-'.Str::upper(Str::random(16)),
+                        'idempotency_key' => 'vnpay_order_'.$order->id.'_'.uniqid(),
+                        'amount' => $order->total_amount,
+                        'currency_code' => 'VND',
+                    ]
+                );
+
+                $payment->update([
+                    'status' => 'success',
+                    'gateway_transaction_id' => $transactionNo,
+                    'response_data' => $queryParams,
+                    'paid_at' => now(),
+                ]);
+
+                $fromStatus = $order->status;
+                $newStatus = ($fromStatus === 'pending') ? 'confirmed' : $fromStatus;
+
+                $order->update([
+                    'payment_status' => 'paid',
+                    'status' => $newStatus,
+                ]);
+
+                OrderStatusHistory::create([
+                    'order_id' => $order->id,
+                    'user_id' => null,
+                    'from_status' => $fromStatus,
+                    'status' => $newStatus,
+                    'note' => 'Thanh toán VNPay thành công (Return URL - Mã GD: '.$transactionNo.')',
+                    'created_at' => now(),
+                ]);
+            });
+        }
 
         return response()->json([
             'status' => $isSuccess ? 'success' : 'failed',
             'message' => $isSuccess ? 'Giao dịch thanh toán thành công.' : 'Giao dịch không thành công hoặc bị hủy.',
             'data' => [
+                'order_id' => $order?->id,
                 'order_code' => $orderCode,
                 'response_code' => $responseCode,
                 'transaction_no' => $transactionNo,
