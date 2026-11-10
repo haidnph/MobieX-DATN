@@ -9,6 +9,7 @@ import { useToast } from '../../contexts/ToastContext'
 import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
 import Button from '../../components/common/Button'
 import Spinner from '../../components/common/Spinner'
+import ConfirmDialog from '../../components/feedback/ConfirmDialog'
 
 export default function CartPage() {
   const {
@@ -16,6 +17,7 @@ export default function CartPage() {
     cartSummary,
     updateQuantity,
     removeFromCart,
+    clearCart,
     applyCoupon,
     clearCoupon,
     loading,
@@ -27,6 +29,21 @@ export default function CartPage() {
   const [couponInput, setCouponInput] = useState('')
   const [applyingCoupon, setApplyingCoupon] = useState(false)
   const [updatingId, setUpdatingId] = useState(null)
+  const [clearDialogOpen, setClearDialogOpen] = useState(false)
+  const [clearingCart, setClearingCart] = useState(false)
+
+  const handleClearCart = async () => {
+    setClearingCart(true)
+    try {
+      await clearCart()
+      showToast('Đã xóa toàn bộ sản phẩm khỏi giỏ hàng', 'info')
+      setClearDialogOpen(false)
+    } catch (err) {
+      showToast(err.message || 'Không thể xóa giỏ hàng', 'error')
+    } finally {
+      setClearingCart(false)
+    }
+  }
 
   const handleQuantity = async (itemId, currentQty, delta, maxStock) => {
     const newQty = currentQty + delta
@@ -111,9 +128,21 @@ export default function CartPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-8 lg:px-16 py-8 space-y-8">
       {/* Title */}
-      <div className="flex items-center gap-3">
-        <span className="w-1 h-6 bg-primary rounded-full" />
-        <h1 className="text-2xl font-bold text-on-surface">Giỏ hàng ({cartItems.length} sản phẩm)</h1>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <span className="w-1 h-6 bg-primary rounded-full" />
+          <h1 className="text-2xl font-bold text-on-surface">Giỏ hàng ({cartItems.length} sản phẩm)</h1>
+        </div>
+        {cartItems.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setClearDialogOpen(true)}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-error hover:bg-error-container/20 px-3 py-1.5 rounded-xl border border-error/30 transition-colors"
+          >
+            <span className="material-symbols-outlined text-base">delete_sweep</span>
+            Xóa toàn bộ giỏ hàng
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -294,6 +323,17 @@ export default function CartPage() {
           </div>
         </div>
       </div>
+
+      {/* Clear Cart Confirmation Dialog */}
+      <ConfirmDialog
+        open={clearDialogOpen}
+        onCancel={() => setClearDialogOpen(false)}
+        onConfirm={handleClearCart}
+        title="Xóa toàn bộ giỏ hàng?"
+        message="Bạn có chắc chắn muốn xóa tất cả sản phẩm khỏi giỏ hàng không? Thao tác này không thể hoàn tác."
+        confirmLabel="Xóa toàn bộ"
+        loading={clearingCart}
+      />
     </div>
   )
 }

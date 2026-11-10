@@ -85,6 +85,12 @@ export function CartProvider({ children }) {
     setCartSummary((prev) => ({ ...prev, discount: 0, couponCode: null }))
   }, [])
 
+  // ── Clear entire cart ───────────────────────────────────────────────────
+  const clearCart = useCallback(async () => {
+    await axiosClient.delete(EP.CART_CLEAR)
+    await fetchCart()
+  }, [fetchCart])
+
   // ── Computed ───────────────────────────────────────────────────────────
   // Distinct line items count (not sum of quantities)
   // Badge shows number of different products in cart, capped at 99
@@ -103,6 +109,7 @@ export function CartProvider({ children }) {
         addToCart,
         updateQuantity,
         removeFromCart,
+        clearCart,
         applyCoupon,
         clearCoupon,
       }}

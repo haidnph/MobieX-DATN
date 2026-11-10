@@ -295,4 +295,23 @@ class CartController extends Controller
             'message' => 'Xóa sản phẩm khỏi giỏ hàng thành công.',
         ]);
     }
+
+    /**
+     * Xóa toàn bộ sản phẩm khỏi giỏ hàng.
+     */
+    public function clear(Request $request): JsonResponse
+    {
+        $cart = Cart::where('user_id', $request->user()->id)
+            ->where('status', 'active')
+            ->first();
+
+        if ($cart) {
+            $cart->items()->delete();
+        }
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Đã xóa toàn bộ sản phẩm khỏi giỏ hàng.',
+        ]);
+    }
 }

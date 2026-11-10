@@ -570,6 +570,11 @@ Route::middleware([
     )->whereNumber('id')
         ->name('api.cart.items.destroy');
 
+    Route::delete(
+        '/cart/clear',
+        [CartController::class, 'clear'],
+    )->name('api.cart.clear');
+
     Route::post(
         '/cart/apply-coupon',
         [CouponController::class, 'applyCoupon'],
