@@ -24,11 +24,13 @@ export default function CheckoutPage() {
     shipping_address: '',
     city: 'Hà Nội',
     note: '',
-    payment_method: 'cod', // 'cod' or 'vnpay'
+    payment_method: 'vnpay', // 'vnpay' or 'cod' (default to vnpay for seamless online payment)
   })
   const [savedAddresses, setSavedAddresses] = useState([])
   const [selectedAddressId, setSelectedAddressId] = useState(null)
   const [useCustomAddress, setUseCustomAddress] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [errors, setErrors] = useState({})
 
   // ── Fetch saved addresses ──────────────────────────────────────────────────
   useEffect(() => {
@@ -305,61 +307,114 @@ export default function CheckoutPage() {
 
           {/* Payment Method */}
           <div className="bg-surface-container rounded-2xl border border-outline-variant/20 p-6 space-y-4">
-            <div className="flex items-center gap-2 text-base font-bold text-on-surface">
-              <span className="material-symbols-outlined text-primary text-xl">payments</span>
-              Phương thức thanh toán
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-base font-bold text-on-surface">
+                <span className="material-symbols-outlined text-primary text-xl">payments</span>
+                Phương thức thanh toán
+              </div>
+              <span className="text-xs text-outline">Bảo mật chuẩn PCI-DSS</span>
             </div>
 
             <div className="space-y-3">
-              <label
+              {/* Option 1: VNPay Gateway (Featured / Recommended) */}
+              <div
+                onClick={() => setForm((prev) => ({ ...prev, payment_method: 'vnpay' }))}
                 className={[
-                  'flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all',
-                  form.payment_method === 'cod'
-                    ? 'border-primary bg-primary/10'
-                    : 'border-outline-variant/30 bg-surface-container-low hover:border-outline',
-                ].join(' ')}
-              >
-                <div className="flex items-center gap-3">
-                  <input
-                    type="radio"
-                    name="payment_method"
-                    value="cod"
-                    checked={form.payment_method === 'cod'}
-                    onChange={handleChange}
-                    className="text-primary focus:ring-primary"
-                  />
-                  <div>
-                    <p className="text-sm font-semibold text-on-surface">Thanh toán khi nhận hàng (COD)</p>
-                    <p className="text-xs text-on-surface-variant">Nhận hàng rồi thanh toán tiền mặt cho shipper</p>
-                  </div>
-                </div>
-                <span className="material-symbols-outlined text-2xl text-on-surface-variant">local_atm</span>
-              </label>
-
-              <label
-                className={[
-                  'flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all',
+                  'p-4 rounded-2xl border cursor-pointer transition-all space-y-3',
                   form.payment_method === 'vnpay'
-                    ? 'border-primary bg-primary/10'
+                    ? 'border-primary bg-primary/5 ring-2 ring-primary/20 shadow-md'
                     : 'border-outline-variant/30 bg-surface-container-low hover:border-outline',
                 ].join(' ')}
               >
-                <div className="flex items-center gap-3">
-                  <input
-                    type="radio"
-                    name="payment_method"
-                    value="vnpay"
-                    checked={form.payment_method === 'vnpay'}
-                    onChange={handleChange}
-                    className="text-primary focus:ring-primary"
-                  />
-                  <div>
-                    <p className="text-sm font-semibold text-on-surface">Cổng thanh toán VNPay</p>
-                    <p className="text-xs text-on-surface-variant">Thẻ ATM nội địa, Visa/Mastercard, VNPay QR</p>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name="payment_method"
+                      value="vnpay"
+                      checked={form.payment_method === 'vnpay'}
+                      onChange={handleChange}
+                      className="text-primary focus:ring-primary w-4 h-4"
+                    />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-bold text-on-surface">Cổng thanh toán VNPay</p>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                          Khuyên dùng
+                        </span>
+                      </div>
+                      <p className="text-xs text-on-surface-variant">
+                        Quét mã VNPAY-QR hoặc dùng Thẻ ATM / Tài khoản ngân hàng / Visa / MasterCard
+                      </p>
+                    </div>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-blue-600/10 text-blue-600 flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-2xl">qr_code_scanner</span>
                   </div>
                 </div>
-                <span className="material-symbols-outlined text-2xl text-primary">credit_card</span>
-              </label>
+
+                {/* Badges for supported methods under VNPay */}
+                <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-outline-variant/15 text-[11px]">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container text-on-surface font-medium border border-outline-variant/20">
+                    <span className="material-symbols-outlined text-sm text-primary">qr_code_2</span>
+                    VNPAY-QR
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container text-on-surface font-medium border border-outline-variant/20">
+                    <span className="material-symbols-outlined text-sm text-blue-500">credit_card</span>
+                    Thẻ ATM (NCB, VCB...)
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container text-on-surface font-medium border border-outline-variant/20">
+                    <span className="material-symbols-outlined text-sm text-amber-500">contactless</span>
+                    Visa / Mastercard
+                  </span>
+                </div>
+
+                {/* Informative Preview Note when selected */}
+                {form.payment_method === 'vnpay' && (
+                  <div className="bg-primary/10 rounded-xl p-3 text-xs text-primary flex items-start gap-2.5">
+                    <span className="material-symbols-outlined text-base shrink-0 mt-0.5">info</span>
+                    <div className="space-y-1 text-[11px] leading-relaxed">
+                      <p className="font-semibold text-primary">Mở cổng giao dịch an toàn:</p>
+                      <p className="text-on-surface-variant">
+                        Sau khi bấm <strong>&quot;Tiến hành thanh toán VNPay&quot;</strong>, hệ thống sẽ mở cổng thanh toán bảo mật. Bạn có thể quét mã QR bằng ứng dụng ngân hàng hoặc sử dụng thông tin thẻ test NCB Sandbox có sẵn trên màn hình để thử nghiệm ngay.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Option 2: Cash On Delivery (COD) */}
+              <div
+                onClick={() => setForm((prev) => ({ ...prev, payment_method: 'cod' }))}
+                className={[
+                  'p-4 rounded-2xl border cursor-pointer transition-all space-y-2',
+                  form.payment_method === 'cod'
+                    ? 'border-primary bg-primary/5 ring-2 ring-primary/20 shadow-md'
+                    : 'border-outline-variant/30 bg-surface-container-low hover:border-outline',
+                ].join(' ')}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name="payment_method"
+                      value="cod"
+                      checked={form.payment_method === 'cod'}
+                      onChange={handleChange}
+                      className="text-primary focus:ring-primary w-4 h-4"
+                    />
+                    <div>
+                      <p className="text-sm font-bold text-on-surface">Thanh toán khi nhận hàng (COD)</p>
+                      <p className="text-xs text-on-surface-variant">
+                        Kiểm tra hàng trước khi thanh toán tiền mặt cho nhân viên giao hàng
+                      </p>
+                    </div>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-surface-container-high text-on-surface-variant flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-2xl">local_shipping</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

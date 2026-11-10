@@ -404,6 +404,18 @@ export default function VNPayPage() {
             Tôi đã hoàn tất thanh toán (Kiểm tra ngay)
           </Button>
 
+          {paymentUrl && (
+            <div className="text-center pt-1">
+              <a
+                href={paymentUrl}
+                className="text-xs text-primary hover:underline font-medium inline-flex items-center gap-1"
+              >
+                <span>Nếu trình duyệt chặn popup, bấm vào đây để chuyển hướng trực tiếp</span>
+                <span className="material-symbols-outlined text-xs">arrow_forward</span>
+              </a>
+            </div>
+          )}
+
           <div className="pt-2 text-center">
             <Link
               to={`/orders/${orderId}`}

@@ -122,6 +122,14 @@ export default function AppRoutes() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="checkout/vnpay"
+            element={
+              <ProtectedRoute>
+                <VNPayPage />
+              </ProtectedRoute>
+            }
+          />
           <Route path="payment/vnpay/return" element={<PaymentReturnPage />} />
 
           <Route

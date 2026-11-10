@@ -253,7 +253,7 @@ export default function PaymentReturnPage() {
               {orderId && (
                 <button
                   type="button"
-                  onClick={() => navigate(`/checkout/vnpay?order_id=${orderId}`)}
+                  onClick={() => navigate(`/payment/vnpay?order_id=${orderId}`)}
                   className="flex-1 py-3 bg-primary text-on-primary rounded-xl text-sm font-bold hover:opacity-90 transition-opacity text-center flex items-center justify-center gap-1.5 shadow-md shadow-primary/20"
                 >
                   <span className="material-symbols-outlined text-base">refresh</span>
