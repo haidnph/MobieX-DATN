@@ -8,6 +8,7 @@ use App\Models\OrderStatusHistory;
 use App\Models\Payment;
 use App\Models\PaymentWebhookEvent;
 use App\Services\VNPayService;
+use App\Services\ZaloPayService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +17,8 @@ use Illuminate\Support\Str;
 class PaymentController extends Controller
 {
     public function __construct(
-        private readonly VNPayService $vnpayService
+        private readonly VNPayService $vnpayService,
+        private readonly ZaloPayService $zalopayService
     ) {}
 
     /**
@@ -280,6 +282,288 @@ class PaymentController extends Controller
         return response()->json([
             'RspCode' => '00',
             'Message' => 'Confirm Success',
+        ]);
+    }
+
+    /**
+     * Generate ZaloPay Sandbox payment redirect URL for an order.
+     */
+    public function createZaloPayPayment(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_id' => ['required', 'integer', 'exists:orders,id'],
+            'bank_code' => ['nullable', 'string', 'max:20'],
+        ]);
+
+        $order = Order::with('items')->findOrFail($validated['order_id']);
+
+        if ((int) $order->user_id !== (int) $request->user()->id) {
+            return response()->json([
+                'message' => 'Bạn không có quyền thực hiện thanh toán cho đơn hàng này.',
+            ], 403);
+        }
+
+        if ($order->payment_status === 'paid') {
+            return response()->json([
+                'message' => 'Đơn hàng này đã được thanh toán thành công.',
+            ], 422);
+        }
+
+        if ($order->status === 'cancelled') {
+            return response()->json([
+                'message' => 'Không thể thanh toán cho đơn hàng đã bị hủy.',
+            ], 422);
+        }
+
+        $payment = Payment::firstOrCreate(
+            [
+                'order_id' => $order->id,
+                'method' => 'zalopay',
+                'status' => 'pending',
+            ],
+            [
+                'transaction_code' => 'PAY-ZP-'.Str::upper(Str::random(14)),
+                'idempotency_key' => 'zalopay_order_'.$order->id.'_'.uniqid(),
+                'amount' => $order->total_amount,
+                'currency_code' => 'VND',
+            ]
+        );
+
+        $items = [];
+        foreach ($order->items as $item) {
+            $items[] = [
+                'itemid' => (string) $item->product_id,
+                'itemname' => $item->product_name,
+                'itemprice' => (int) $item->price,
+                'itemquantity' => (int) $item->quantity,
+            ];
+        }
+
+        $zpResult = $this->zalopayService->createPaymentOrder([
+            'order_id' => $order->id,
+            'order_code' => $order->order_code,
+            'amount' => $order->total_amount,
+            'app_user' => (string) $request->user()->id,
+            'items' => $items,
+            'bank_code' => $validated['bank_code'] ?? null,
+        ]);
+
+        if (! empty($zpResult['app_trans_id'])) {
+            $payment->update([
+                'gateway_transaction_id' => $zpResult['app_trans_id'],
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Tạo đơn thanh toán ZaloPay thành công.',
+            'data' => [
+                'payment_id' => $payment->id,
+                'order_id' => $order->id,
+                'order_code' => $order->order_code,
+                'amount' => (float) $order->total_amount,
+                'payment_url' => $zpResult['order_url'] ?? null,
+                'zp_trans_token' => $zpResult['zp_trans_token'] ?? null,
+                'app_trans_id' => $zpResult['app_trans_id'] ?? null,
+            ],
+        ]);
+    }
+
+    /**
+     * Handle return redirect from ZaloPay (Customer Browser).
+     * Performs dual-confirmation with HMAC-SHA256 checksum verification.
+     */
+    public function zalopayReturn(Request $request): JsonResponse
+    {
+        $queryParams = $request->query();
+
+        if (empty($queryParams) || ! $this->zalopayService->verifyReturnChecksum($queryParams)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Chữ ký số xác thực từ ZaloPay không hợp lệ.',
+            ], 400);
+        }
+
+        $appTransId = (string) $request->query('apptransid', '');
+        $status = (int) $request->query('status', 0);
+        $amount = ((float) $request->query('amount', 0));
+        $bankCode = (string) $request->query('bankcode', 'ZALOPAY');
+        $isSuccess = ($status === 1);
+
+        // Find order by order_id or order_code
+        $order = null;
+        if ($request->filled('order_id')) {
+            $order = Order::find($request->query('order_id'));
+        }
+        if (! $order && ! empty($appTransId)) {
+            $parts = explode('_', $appTransId);
+            if (count($parts) >= 2) {
+                $candidate = $parts[1];
+                if (is_numeric($candidate)) {
+                    $order = Order::find((int) $candidate);
+                } else {
+                    $order = Order::where('order_code', 'LIKE', "%{$candidate}%")->first();
+                }
+            }
+        }
+
+        if ($order && $isSuccess && $order->payment_status !== 'paid') {
+            DB::transaction(function () use ($order, $queryParams, $appTransId) {
+                $payment = Payment::firstOrCreate(
+                    ['order_id' => $order->id, 'method' => 'zalopay'],
+                    [
+                        'transaction_code' => 'PAY-ZP-'.Str::upper(Str::random(14)),
+                        'idempotency_key' => 'zalopay_order_'.$order->id.'_'.uniqid(),
+                        'amount' => $order->total_amount,
+                        'currency_code' => 'VND',
+                    ]
+                );
+
+                $payment->update([
+                    'status' => 'success',
+                    'gateway_transaction_id' => $appTransId,
+                    'response_data' => $queryParams,
+                    'paid_at' => now(),
+                ]);
+
+                $fromStatus = $order->status;
+                $newStatus = ($fromStatus === 'pending') ? 'confirmed' : $fromStatus;
+
+                $order->update([
+                    'payment_status' => 'paid',
+                    'status' => $newStatus,
+                ]);
+
+                OrderStatusHistory::create([
+                    'order_id' => $order->id,
+                    'user_id' => null,
+                    'from_status' => $fromStatus,
+                    'status' => $newStatus,
+                    'note' => 'Thanh toán ZaloPay thành công (Return URL - Mã GD: '.$appTransId.')',
+                    'created_at' => now(),
+                ]);
+            });
+        }
+
+        return response()->json([
+            'status' => $isSuccess ? 'success' : 'failed',
+            'message' => $isSuccess ? 'Giao dịch ZaloPay thành công.' : 'Giao dịch ZaloPay không thành công hoặc bị hủy.',
+            'data' => [
+                'order_id' => $order?->id,
+                'order_code' => $order?->order_code,
+                'app_trans_id' => $appTransId,
+                'status' => $status,
+                'amount' => $amount,
+                'bank_code' => $bankCode,
+            ],
+        ], $isSuccess ? 200 : 400);
+    }
+
+    /**
+     * Handle Server-to-Server Webhook Callback from ZaloPay.
+     */
+    public function zalopayCallback(Request $request): JsonResponse
+    {
+        $dataJson = (string) $request->input('data', '');
+        $mac = (string) $request->input('mac', '');
+
+        if (empty($dataJson) || empty($mac) || ! $this->zalopayService->verifyCallback($dataJson, $mac)) {
+            return response()->json([
+                'return_code' => -1,
+                'return_message' => 'mac not equal',
+            ]);
+        }
+
+        $dataArr = json_decode($dataJson, true);
+        if (! is_array($dataArr)) {
+            return response()->json([
+                'return_code' => 0,
+                'return_message' => 'invalid data format',
+            ]);
+        }
+
+        $appTransId = (string) ($dataArr['app_trans_id'] ?? '');
+        $zpTransId = (string) ($dataArr['zp_trans_id'] ?? '');
+
+        // Find Order
+        $order = null;
+        $parts = explode('_', $appTransId);
+        if (count($parts) >= 2) {
+            $candidate = $parts[1];
+            if (is_numeric($candidate)) {
+                $order = Order::find((int) $candidate);
+            } else {
+                $order = Order::where('order_code', 'LIKE', "%{$candidate}%")->first();
+            }
+        }
+
+        if (! $order) {
+            return response()->json([
+                'return_code' => 0,
+                'return_message' => 'order not found',
+            ]);
+        }
+
+        if ($order->payment_status === 'paid') {
+            return response()->json([
+                'return_code' => 1,
+                'return_message' => 'order already paid',
+            ]);
+        }
+
+        DB::transaction(function () use ($order, $dataArr, $appTransId, $zpTransId) {
+            $payment = Payment::firstOrCreate(
+                ['order_id' => $order->id, 'method' => 'zalopay'],
+                [
+                    'transaction_code' => 'PAY-ZP-'.Str::upper(Str::random(14)),
+                    'idempotency_key' => 'zalopay_order_'.$order->id.'_'.uniqid(),
+                    'amount' => $order->total_amount,
+                    'currency_code' => 'VND',
+                ]
+            );
+
+            $payment->update([
+                'status' => 'success',
+                'gateway_transaction_id' => $zpTransId ?: $appTransId,
+                'response_data' => $dataArr,
+                'paid_at' => now(),
+            ]);
+
+            PaymentWebhookEvent::firstOrCreate(
+                [
+                    'method' => 'zalopay',
+                    'event_key' => $zpTransId ?: $appTransId,
+                ],
+                [
+                    'payment_id' => $payment->id,
+                    'provider_reference' => $zpTransId ?: $appTransId,
+                    'signature_verified' => true,
+                    'processing_status' => 'processed',
+                    'event_payload' => $dataArr,
+                    'processed_at' => now(),
+                ]
+            );
+
+            $fromStatus = $order->status;
+            $newStatus = ($fromStatus === 'pending') ? 'confirmed' : $fromStatus;
+
+            $order->update([
+                'payment_status' => 'paid',
+                'status' => $newStatus,
+            ]);
+
+            OrderStatusHistory::create([
+                'order_id' => $order->id,
+                'user_id' => null,
+                'from_status' => $fromStatus,
+                'status' => $newStatus,
+                'note' => 'Thanh toán ZaloPay thành công (Webhook - Mã GD: '.$zpTransId.')',
+                'created_at' => now(),
+            ]);
+        });
+
+        return response()->json([
+            'return_code' => 1,
+            'return_message' => 'success',
         ]);
     }
 }

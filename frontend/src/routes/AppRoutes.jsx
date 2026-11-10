@@ -27,6 +27,8 @@ const CartPage          = lazy(() => import('../features/cart/CartPage'))
 const CheckoutPage      = lazy(() => import('../features/checkout/CheckoutPage'))
 const VNPayPage         = lazy(() => import('../features/checkout/VNPayPage'))
 const PaymentReturnPage = lazy(() => import('../features/checkout/PaymentReturnPage'))
+const ZaloPayPage       = lazy(() => import('../features/checkout/ZaloPayPage'))
+const ZaloPayReturnPage = lazy(() => import('../features/checkout/ZaloPayReturnPage'))
 
 // Orders
 const OrderHistoryPage = lazy(() => import('../features/orders/OrderHistoryPage'))
@@ -131,6 +133,16 @@ export default function AppRoutes() {
             }
           />
           <Route path="payment/vnpay/return" element={<PaymentReturnPage />} />
+
+          <Route
+            path="payment/zalopay"
+            element={
+              <ProtectedRoute>
+                <ZaloPayPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="payment/zalopay/return" element={<ZaloPayReturnPage />} />
 
           <Route
             path="orders"

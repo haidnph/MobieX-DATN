@@ -47,6 +47,8 @@ const EP = {
   // ── Payments ──────────────────────────────────────────
   PAYMENT_VNPAY_CREATE: '/payments/vnpay/create',
   PAYMENT_VNPAY_RETURN: '/payments/vnpay/return',
+  PAYMENT_ZALOPAY_CREATE: '/payments/zalopay/create',
+  PAYMENT_ZALOPAY_RETURN: '/payments/zalopay/return',
 
   // ── Admin: Orders ─────────────────────────────────────
   ADMIN_ORDERS: '/admin/orders',

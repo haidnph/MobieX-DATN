@@ -119,6 +119,9 @@ export default function CheckoutPage() {
       if (form.payment_method === 'vnpay') {
         // Redirect to VNPay initiate page
         navigate(`/payment/vnpay?order_id=${order.id}`)
+      } else if (form.payment_method === 'zalopay') {
+        // Redirect to ZaloPay initiate page
+        navigate(`/payment/zalopay?order_id=${order.id}`)
       } else {
         // COD order created successfully
         showToast('Đặt hàng thành công!', 'success')
@@ -383,7 +386,69 @@ export default function CheckoutPage() {
                 )}
               </div>
 
-              {/* Option 2: Cash On Delivery (COD) */}
+              {/* Option 2: ZaloPay Gateway */}
+              <div
+                onClick={() => setForm((prev) => ({ ...prev, payment_method: 'zalopay' }))}
+                className={[
+                  'p-4 rounded-2xl border cursor-pointer transition-all space-y-3',
+                  form.payment_method === 'zalopay'
+                    ? 'border-[#009f73] bg-[#009f73]/5 ring-2 ring-[#009f73]/20 shadow-md'
+                    : 'border-outline-variant/30 bg-surface-container-low hover:border-outline',
+                ].join(' ')}
+              >
+                <div className="flex items-center gap-3">
+                  <input
+                    type="radio"
+                    name="payment_method"
+                    value="zalopay"
+                    checked={form.payment_method === 'zalopay'}
+                    onChange={handleChange}
+                    className="text-primary focus:ring-primary w-4 h-4"
+                  />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-bold text-on-surface">Cổng thanh toán ZaloPay</p>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                        Phổ biến
+                      </span>
+                    </div>
+                    <p className="text-xs text-on-surface-variant">
+                      Thanh toán qua Ví ZaloPay, Thẻ ATM Nội Địa hoặc Thẻ Visa / Mastercard
+                    </p>
+                  </div>
+                </div>
+
+                {/* Badges */}
+                <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-outline-variant/15 text-[11px]">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container text-on-surface font-medium border border-outline-variant/20">
+                    <span className="material-symbols-outlined text-sm" style={{ color: '#009f73' }}>account_balance_wallet</span>
+                    Ví ZaloPay
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container text-on-surface font-medium border border-outline-variant/20">
+                    <span className="material-symbols-outlined text-sm" style={{ color: '#009f73' }}>credit_card</span>
+                    ATM / Visa
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container text-on-surface font-medium border border-outline-variant/20">
+                    <span className="material-symbols-outlined text-sm" style={{ color: '#009f73' }}>lock</span>
+                    Bảo mật SSL
+                  </span>
+                </div>
+
+                {/* Info note when selected */}
+                {form.payment_method === 'zalopay' && (
+                  <div className="rounded-xl p-3 text-xs flex items-start gap-2.5" style={{ backgroundColor: 'rgba(0,159,115,0.1)' }}>
+                    <span className="material-symbols-outlined text-base shrink-0 mt-0.5" style={{ color: '#009f73' }}>info</span>
+                    <div className="space-y-1 text-[11px] leading-relaxed">
+                      <p className="font-semibold" style={{ color: '#009f73' }}>Mở cổng giao dịch an toàn:</p>
+                      <p className="text-on-surface-variant">
+                        Sau khi bấm <strong>&quot;Thanh toán qua ZaloPay&quot;</strong>, hệ thống sẽ mở cổng thanh toán bảo mật. Bạn có thể quét mã QR bằng ứng dụng ZaloPay hoặc dùng thông tin thẻ test Sandbox có sẵn để thử nghiệm ngay.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Option 3: Cash On Delivery (COD) */}
               <div
                 onClick={() => setForm((prev) => ({ ...prev, payment_method: 'cod' }))}
                 className={[
@@ -492,7 +557,11 @@ export default function CheckoutPage() {
               className="w-full"
               loading={submitting}
             >
-              {form.payment_method === 'vnpay' ? 'Thanh toán qua VNPay' : 'Hoàn tất đặt hàng'}
+              {form.payment_method === 'vnpay'
+                ? 'Thanh toán qua VNPay'
+                : form.payment_method === 'zalopay'
+                  ? 'Thanh toán qua ZaloPay'
+                  : 'Hoàn tất đặt hàng'}
             </Button>
 
             <p className="text-[11px] text-outline text-center">

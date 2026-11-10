@@ -185,7 +185,7 @@ class OrderController extends Controller
             'shipping_ward_code' => ['nullable', 'string', 'max:20'],
             'shipping_ward_name' => ['nullable', 'string', 'max:100'],
             'shipping_method_id' => ['nullable', 'integer', 'exists:shipping_methods,id'],
-            'payment_method' => ['required', Rule::in(['COD', 'VNPAY', 'MOMO', 'cod', 'vnpay', 'momo'])],
+            'payment_method' => ['required', Rule::in(['COD', 'VNPAY', 'MOMO', 'ZALOPAY', 'cod', 'vnpay', 'momo', 'zalopay'])],
             'coupon_code' => ['nullable', 'string', 'max:50'],
             'customer_note' => ['nullable', 'string'],
         ]);

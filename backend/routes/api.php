@@ -604,6 +604,9 @@ Route::middleware([
     // Online Payments
     Route::post('/payments/vnpay/create', [PaymentController::class, 'createVNPayPayment'])
         ->name('api.payments.vnpay.create');
+
+    Route::post('/payments/zalopay/create', [PaymentController::class, 'createZaloPayPayment'])
+        ->name('api.payments.zalopay.create');
 });
 
 /*
@@ -617,6 +620,12 @@ Route::get('/payments/vnpay/return', [PaymentController::class, 'vnpayReturn'])
 
 Route::get('/payments/vnpay/ipn', [PaymentController::class, 'vnpayIpn'])
     ->name('api.payments.vnpay.ipn');
+
+Route::get('/payments/zalopay/return', [PaymentController::class, 'zalopayReturn'])
+    ->name('api.payments.zalopay.return');
+
+Route::post('/payments/zalopay/callback', [PaymentController::class, 'zalopayCallback'])
+    ->name('api.payments.zalopay.callback');
 
 /*
 |--------------------------------------------------------------------------
