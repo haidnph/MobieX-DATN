@@ -160,4 +160,40 @@ class OrderCreationStockReservationTest extends TestCase
             'cart_id' => $cart->id,
         ]);
     }
+
+    public function test_customer_can_checkout_with_zalopay_payment_method(): void
+    {
+        $cart = Cart::create(['user_id' => $this->user->id]);
+        CartItem::create([
+            'cart_id' => $cart->id,
+            'product_variant_id' => $this->variant->id,
+            'quantity' => 1,
+            'price_at_addition' => $this->variant->price,
+        ]);
+
+        $payload = [
+            'shipping_name' => 'Lê Thị B',
+            'shipping_phone' => '0987654321',
+            'shipping_province_code' => '01',
+            'shipping_province_name' => 'Thành phố Hà Nội',
+            'shipping_ward_code' => '00001',
+            'shipping_ward_name' => 'Phường Phúc Xá',
+            'shipping_address_line' => '456 Đường ZaloPay',
+            'shipping_method_id' => $this->shippingMethod->id,
+            'payment_method' => 'zalopay',
+            'customer_note' => 'Giao giờ hành chính',
+        ];
+
+        $response = $this->actingAs($this->user)->postJson('/api/orders', $payload);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('data.payment_method', 'zalopay')
+            ->assertJsonPath('data.payment_status', 'pending');
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $response->json('data.id'),
+            'payment_method' => 'zalopay',
+            'payment_status' => 'pending',
+        ]);
+    }
 }

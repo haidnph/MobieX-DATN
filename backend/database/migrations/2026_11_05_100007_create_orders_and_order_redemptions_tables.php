@@ -37,7 +37,7 @@ return new class extends Migration
                 $table->string('shipping_ward_code', 20);
                 $table->string('shipping_ward_name', 100);
                 $table->string('shipping_address_line', 255);
-                $table->enum('payment_method', ['cod', 'vnpay', 'momo']);
+                $table->enum('payment_method', ['cod', 'vnpay', 'momo', 'zalopay']);
                 $table->enum('payment_status', ['pending', 'paid', 'failed', 'refunded'])->default('pending');
                 $table->enum('status', ['pending', 'confirmed', 'processing', 'shipping', 'delivered', 'cancelled'])->default('pending');
                 $table->text('customer_note')->nullable();

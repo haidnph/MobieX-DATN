@@ -18,7 +18,7 @@ return new class extends Migration
                 $table->foreignId('order_id')->constrained('orders');
                 $table->string('transaction_code', 100)->unique('uq_payments_transaction_code');
                 $table->string('idempotency_key', 120)->unique('uq_payments_idempotency');
-                $table->enum('method', ['cod', 'vnpay', 'momo']);
+                $table->enum('method', ['cod', 'vnpay', 'momo', 'zalopay']);
                 $table->decimal('amount', 14, 2);
                 $table->char('currency_code', 3)->default('VND');
                 $table->enum('status', ['pending', 'success', 'failed', 'cancelled', 'refunded'])->default('pending');
@@ -41,7 +41,7 @@ return new class extends Migration
             Schema::create('payment_webhook_events', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('payment_id')->nullable()->constrained('payments');
-                $table->enum('method', ['vnpay', 'momo']);
+                $table->enum('method', ['vnpay', 'momo', 'zalopay']);
                 $table->string('event_key', 150);
                 $table->string('provider_reference', 120)->nullable();
                 $table->boolean('signature_verified')->default(false);
