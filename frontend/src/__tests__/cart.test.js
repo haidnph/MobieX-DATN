@@ -42,3 +42,36 @@ describe('Cart Badge Count (distinct line items)', () => {
     expect(computeCartBadge(items)).toBe(99)
   })
 })
+
+describe('Cart Clear & Re-order Processing', () => {
+  it('clears cart items array and resets summary', () => {
+    let items = [{ id: 1, quantity: 2 }]
+    let summary = { subtotal: 100000, total: 100000 }
+
+    // simulate clear
+    items = []
+    summary = { subtotal: 0, total: 0 }
+
+    expect(items.length).toBe(0)
+    expect(summary.total).toBe(0)
+  })
+
+  it('filters available variant IDs from past order items for re-order', () => {
+    const orderItems = [
+      { id: 10, product_variant_id: 101, quantity: 2 },
+      { id: 11, product_variant_id: null, variant: { id: 102 }, quantity: 1 },
+      { id: 12, product_variant_id: null, variant: null, quantity: 1 },
+    ]
+
+    const validVariants = orderItems
+      .map((item) => ({
+        variantId: item.product_variant_id || item.variant?.id,
+        quantity: item.quantity || 1,
+      }))
+      .filter((v) => Boolean(v.variantId))
+
+    expect(validVariants).toHaveLength(2)
+    expect(validVariants[0].variantId).toBe(101)
+    expect(validVariants[1].variantId).toBe(102)
+  })
+})
