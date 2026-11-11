@@ -1,11 +1,14 @@
 <?php
 
+
 namespace App\Http\Controllers;
 
 use App\Models\AttributeValue;
+use App\Models\InventoryTransaction;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -18,6 +21,7 @@ class ProductVariantController extends Controller
         $variants = ProductVariant::with([
             'product',
             'attributeValues.attribute',
+            'inventory',
         ])->latest()->paginate(10);
 
         return response()->json([
@@ -30,7 +34,6 @@ class ProductVariantController extends Controller
     // API thêm biến thể sản phẩm
     public function store(Request $request)
     {
-        // Kiểm tra dữ liệu đầu vào
         $validated = $request->validate([
             'product_id' => 'required|exists:products,id',
             'sku' => 'prohibited',
@@ -46,6 +49,7 @@ class ProductVariantController extends Controller
             'quantity' => 'nullable|integer|min:0',
             'min_stock' => 'nullable|integer|min:0',
         ]);
+
         if ($this->hasDuplicateAttributeTypes(
             $validated['attribute_value_ids'] ?? []
         )) {
@@ -56,16 +60,14 @@ class ProductVariantController extends Controller
             ]);
         }
 
-        // Thực hiện tạo biến thể và tồn kho trong một giao dịch
+        // Tạo biến thể và tồn kho trong một giao dịch
         $variant = DB::transaction(function () use ($validated) {
-
-            // Lấy thông tin sản phẩm
             $product = Product::findOrFail($validated['product_id']);
 
-            // Lấy các thuộc tính đã chọn
             $attributeValues = AttributeValue::with('attribute')
                 ->whereIn('id', $validated['attribute_value_ids'] ?? [])
                 ->get();
+
             if ($this->checkDuplicateCombination(
                 $product->id,
                 $validated['attribute_value_ids'] ?? []
@@ -77,7 +79,7 @@ class ProductVariantController extends Controller
                 ]);
             }
 
-            // Nếu người dùng không nhập SKU thì tự động sinh
+            // Tự động sinh SKU
             $sku = $this->generateUniqueSku($product, $attributeValues);
 
             $variant = ProductVariant::create([
@@ -95,23 +97,37 @@ class ProductVariantController extends Controller
                 $validated['attribute_value_ids'] ?? []
             );
 
-            // Tạo bản ghi tồn kho ban đầu
+            // Tạo tồn kho ban đầu
+            $initialQuantity = $validated['quantity'] ?? 0;
+
             DB::table('inventories')->insert([
-                'product_variant_id' => $variant->id,
-                'on_hand_quantity' => $validated['quantity'] ?? 0,
+                'variant_id' => $variant->id,
+                'quantity' => $initialQuantity,
                 'reserved_quantity' => 0,
                 'min_stock' => $validated['min_stock'] ?? 0,
-                'created_at' => now(),
                 'updated_at' => now(),
             ]);
+
+            // Ghi lịch sử nhập kho ban đầu nếu có số lượng
+            if ($initialQuantity > 0) {
+                $this->recordInventoryTransaction(
+                    $variant->id,
+                    $initialQuantity,
+                    'import',
+                    'variant_create',
+                    $variant->id,
+                    'Nhập kho ban đầu khi tạo biến thể'
+                );
+            }
 
             return $variant;
         });
 
-        // Lấy lại thông tin đầy đủ
+        // Tải đầy đủ thông tin, bao gồm tồn kho
         $variant->load([
             'product',
             'attributeValues.attribute',
+            'inventory',
         ]);
 
         return response()->json([
@@ -127,6 +143,7 @@ class ProductVariantController extends Controller
         $variant = ProductVariant::with([
             'product',
             'attributeValues.attribute',
+            'inventory',
         ])->find($id);
 
         if (! $variant) {
@@ -155,24 +172,24 @@ class ProductVariantController extends Controller
             ], 404);
         }
 
-        // Kiểm tra dữ liệu đầu vào
         $validated = $request->validate([
             'sku' => 'prohibited',
             'price' => 'sometimes|required|numeric|min:0',
-            'compare_price' => 'nullable|numeric|min:0',
-            'cost_price' => 'nullable|numeric|min:0',
-            'image_url' => 'nullable|string|max:255',
+            'compare_price' => 'sometimes|nullable|numeric|min:0',
+            'cost_price' => 'sometimes|nullable|numeric|min:0',
+            'image_url' => 'sometimes|nullable|string|max:255',
             'status' => 'sometimes|required|in:active,inactive',
 
             'attribute_value_ids' => 'sometimes|array',
             'attribute_value_ids.*' => 'required|distinct|exists:attribute_values,id',
 
-            'quantity' => 'sometimes|integer|min:0',
-            'min_stock' => 'sometimes|integer|min:0',
+            'quantity' => 'sometimes|required|integer|min:0',
+            'min_stock' => 'sometimes|required|integer|min:0',
         ]);
+
         if (
-            array_key_exists('attribute_value_ids', $validated) &&
-            $this->hasDuplicateAttributeTypes($validated['attribute_value_ids'])
+            array_key_exists('attribute_value_ids', $validated)
+            && $this->hasDuplicateAttributeTypes($validated['attribute_value_ids'])
         ) {
             throw ValidationException::withMessages([
                 'attribute_value_ids' => [
@@ -180,9 +197,9 @@ class ProductVariantController extends Controller
                 ],
             ]);
         }
-        DB::transaction(function () use ($variant, $validated) {
 
-            // Kiểm tra trùng tổ hợp thuộc tính khi cập nhật
+        DB::transaction(function () use ($variant, $validated) {
+            // Kiểm tra trùng tổ hợp thuộc tính
             if (array_key_exists('attribute_value_ids', $validated)) {
                 if ($this->checkDuplicateCombination(
                     $variant->product_id,
@@ -198,51 +215,124 @@ class ProductVariantController extends Controller
             }
 
             // Cập nhật thông tin biến thể
-            $variant->update([
-                'price' => $validated['price'] ?? $variant->price,
-                'compare_price' => $validated['compare_price'] ?? $variant->compare_price,
-                'cost_price' => $validated['cost_price'] ?? $variant->cost_price,
-                'image_url' => $validated['image_url'] ?? $variant->image_url,
-                'status' => $validated['status'] ?? $variant->status,
-            ]);
+            $variantData = [];
 
-            // Cập nhật các giá trị thuộc tính nếu có gửi lên
+            foreach ([
+                'price',
+                'compare_price',
+                'cost_price',
+                'image_url',
+                'status',
+            ] as $field) {
+                if (array_key_exists($field, $validated)) {
+                    $variantData[$field] = $validated[$field];
+                }
+            }
+
+            if (! empty($variantData)) {
+                $variant->update($variantData);
+            }
+
+            // Cập nhật thuộc tính nếu có
             if (array_key_exists('attribute_value_ids', $validated)) {
                 $variant->attributeValues()->sync(
                     $validated['attribute_value_ids']
                 );
             }
 
-            // Cập nhật tồn kho nếu có gửi lên
-            if (isset($validated['quantity']) || isset($validated['min_stock'])) {
-
+            // Cập nhật tồn kho nếu có gửi dữ liệu
+            if (
+                array_key_exists('quantity', $validated)
+                || array_key_exists('min_stock', $validated)
+            ) {
+                // Khóa bản ghi tồn kho để tránh cập nhật đồng thời
                 $inventory = DB::table('inventories')
-                    ->where('product_variant_id', $variant->id)
+                    ->where('variant_id', $variant->id)
+                    ->lockForUpdate()
                     ->first();
 
-                if ($inventory) {
-                    $inventoryData = [];
+                // Tạo tồn kho nếu chưa tồn tại
+                if (! $inventory) {
+                    DB::table('inventories')->insert([
+                        'variant_id' => $variant->id,
+                        'quantity' => 0,
+                        'reserved_quantity' => 0,
+                        'min_stock' => 0,
+                        'updated_at' => now(),
+                    ]);
 
-                    if (isset($validated['quantity'])) {
-                        $inventoryData['on_hand_quantity'] = $validated['quantity'];
-                    }
-
-                    if (isset($validated['min_stock'])) {
-                        $inventoryData['min_stock'] = $validated['min_stock'];
-                    }
-
-                    DB::table('inventories')
-                        ->where('product_variant_id', $variant->id)
-                        ->update($inventoryData);
+                    $inventory = DB::table('inventories')
+                        ->where('variant_id', $variant->id)
+                        ->lockForUpdate()
+                        ->first();
                 }
+
+                $inventoryData = [
+                    'updated_at' => now(),
+                ];
+
+                // Cập nhật số lượng tồn tối thiểu
+                if (array_key_exists('min_stock', $validated)) {
+                    $inventoryData['min_stock'] = $validated['min_stock'];
+                }
+
+                // Cập nhật số lượng tồn kho
+                if (array_key_exists('quantity', $validated)) {
+                    $oldQuantity = (int) $inventory->quantity;
+                    $newQuantity = (int) $validated['quantity'];
+                    $reservedQuantity = (int) $inventory->reserved_quantity;
+
+                    // Không cho tồn kho thấp hơn số lượng đã giữ
+                    if ($newQuantity < $reservedQuantity) {
+                        throw ValidationException::withMessages([
+                            'quantity' => [
+                                'Tồn kho không thể thấp hơn số lượng sản phẩm đã được giữ.',
+                            ],
+                        ]);
+                    }
+
+                    $difference = $newQuantity - $oldQuantity;
+
+                    $inventoryData['quantity'] = $newQuantity;
+
+                    // Ghi lịch sử nhập kho khi tăng số lượng
+                    if ($difference > 0) {
+                        $this->recordInventoryTransaction(
+                            $variant->id,
+                            $difference,
+                            'import',
+                            'variant_update',
+                            $variant->id,
+                            'Điều chỉnh tăng tồn kho khi cập nhật biến thể'
+                        );
+                    }
+
+                    // Ghi lịch sử xuất kho khi giảm số lượng
+                    if ($difference < 0) {
+                        $this->recordInventoryTransaction(
+                            $variant->id,
+                            abs($difference),
+                            'export',
+                            'variant_update',
+                            $variant->id,
+                            'Điều chỉnh giảm tồn kho khi cập nhật biến thể'
+                        );
+                    }
+                }
+
+                DB::table('inventories')
+                    ->where('variant_id', $variant->id)
+                    ->update($inventoryData);
             }
         });
 
-        // Lấy lại dữ liệu đầy đủ
+        // Tải lại dữ liệu mới nhất
         $variant->refresh();
+
         $variant->load([
             'product',
             'attributeValues.attribute',
+            'inventory',
         ]);
 
         return response()->json([
@@ -257,7 +347,6 @@ class ProductVariantController extends Controller
     {
         try {
             $result = DB::transaction(function () use ($id) {
-
                 // Tìm và khóa biến thể trong quá trình xóa
                 $variant = ProductVariant::where('id', $id)
                     ->lockForUpdate()
@@ -271,20 +360,32 @@ class ProductVariantController extends Controller
                     ];
                 }
 
-                // Kiểm tra dữ liệu liên quan cần được bảo vệ
+                // Kiểm tra dữ liệu liên quan trong giỏ hàng
                 $hasCart = DB::table('cart_items')
-                    ->where('product_variant_id', $id)->exists();
+                    ->where('product_variant_id', $id)
+                    ->exists();
 
+                // Kiểm tra dữ liệu liên quan trong flash sale
                 $hasFlashSale = DB::table('flash_sale_items')
-                    ->where('product_variant_id', $id)->exists();
+                    ->where('product_variant_id', $id)
+                    ->exists();
 
+                // Kiểm tra dữ liệu liên quan trong đơn hàng
                 $hasOrder = DB::table('order_items')
-                    ->where('product_variant_id', $id)->exists();
+                    ->where('product_variant_id', $id)
+                    ->exists();
 
+                // Kiểm tra lịch sử giao dịch kho
                 $hasTransactions = DB::table('inventory_transactions')
-                    ->where('product_variant_id', $id)->exists();
+                    ->where('variant_id', $id)
+                    ->exists();
 
-                if ($hasCart || $hasFlashSale || $hasOrder || $hasTransactions) {
+                if (
+                    $hasCart
+                    || $hasFlashSale
+                    || $hasOrder
+                    || $hasTransactions
+                ) {
                     return [
                         'status' => false,
                         'code' => 409,
@@ -293,14 +394,17 @@ class ProductVariantController extends Controller
                 }
 
                 // Xóa các dữ liệu phụ thuộc
-                DB::table('product_variant_attribute_values')
-                    ->where('product_variant_id', $id)->delete();
+                DB::table('variant_attribute_values')
+                    ->where('variant_id', $id)
+                    ->delete();
 
                 DB::table('inventories')
-                    ->where('product_variant_id', $id)->delete();
+                    ->where('variant_id', $id)
+                    ->delete();
 
                 DB::table('product_images')
-                    ->where('product_variant_id', $id)->delete();
+                    ->where('variant_id', $id)
+                    ->delete();
 
                 // Xóa biến thể
                 $variant->delete();
@@ -326,12 +430,32 @@ class ProductVariantController extends Controller
     }
 
     /**
+     * Ghi nhận lịch sử nhập xuất kho.
+     */
+    private function recordInventoryTransaction(
+        int $variantId,
+        int $quantity,
+        string $transactionType,
+        string $referenceType,
+        int $referenceId,
+        string $note
+    ): void {
+        InventoryTransaction::create([
+            'variant_id' => $variantId,
+            'user_id' => Auth::id(),
+            'transaction_type' => $transactionType,
+            'quantity' => $quantity,
+            'reference_type' => $referenceType,
+            'reference_id' => $referenceId,
+            'note' => $note,
+        ]);
+    }
+
+    /**
      * Tạo SKU duy nhất cho biến thể.
      */
     private function generateUniqueSku($product, $attributeValues)
     {
-        // Tạo mã sản phẩm từ slug.
-        // Ví dụ: iphone-17-pro-max => IP17PM
         $productCode = $this->generateProductCode($product->slug);
 
         $colorCode = null;
@@ -355,7 +479,11 @@ class ProductVariantController extends Controller
                 ];
 
                 $colorCode = $colorMap[$normalizedColor]
-                    ?? strtoupper(substr(preg_replace('/[^a-zA-Z0-9]/', '', Str::ascii($value)), 0, 3));
+                    ?? strtoupper(substr(
+                        preg_replace('/[^a-zA-Z0-9]/', '', Str::ascii($value)),
+                        0,
+                        3
+                    ));
             } elseif ($attributeCode === 'ram') {
                 preg_match('/\d+/', $value, $matches);
                 $ramCode = $matches[0] ?? null;
@@ -363,19 +491,18 @@ class ProductVariantController extends Controller
                 preg_match('/\d+/', $value, $matches);
                 $storageCode = $matches[0] ?? null;
             } else {
-                // Thuộc tính khác như công suất, kích thước, kết nối...
                 $attributePrefix = strtoupper(substr($attributeCode, 0, 3));
+
                 $attributeValueCode = strtoupper(
                     preg_replace('/[^a-zA-Z0-9]/', '', Str::ascii($value))
                 );
 
                 if ($attributePrefix && $attributeValueCode) {
-                    $otherCodes[] = $attributePrefix.$attributeValueCode;
+                    $otherCodes[] = $attributePrefix . $attributeValueCode;
                 }
             }
         }
 
-        // Sắp xếp mã theo cấu trúc SKU điện thoại
         $parts = ['MBX', $productCode];
 
         if ($colorCode) {
@@ -390,7 +517,6 @@ class ProductVariantController extends Controller
             $parts[] = $storageCode;
         }
 
-        // Thêm các thuộc tính khác nếu có
         $parts = array_merge($parts, $otherCodes);
 
         $baseSku = implode('-', $parts);
@@ -400,7 +526,7 @@ class ProductVariantController extends Controller
         $counter = 2;
 
         while (ProductVariant::where('sku', $sku)->exists()) {
-            $sku = $baseSku.'-'.$counter;
+            $sku = $baseSku . '-' . $counter;
             $counter++;
         }
 
@@ -418,7 +544,6 @@ class ProductVariantController extends Controller
             return 'PRODUCT';
         }
 
-        // Hai ký tự đầu của từ đầu tiên
         $code = strtoupper(substr($words[0], 0, 2));
 
         foreach (array_slice($words, 1) as $word) {
@@ -443,7 +568,6 @@ class ProductVariantController extends Controller
         $attributeValueIds = array_map('intval', $attributeValueIds);
         sort($attributeValueIds);
 
-        // Không kiểm tra nếu biến thể chưa có thuộc tính.
         if (empty($attributeValueIds)) {
             return false;
         }
