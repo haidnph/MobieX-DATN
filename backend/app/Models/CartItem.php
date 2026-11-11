@@ -2,20 +2,37 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CartItem extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'cart_id',
+        'product_variant_id',
         'variant_id',
         'quantity',
     ];
 
-    protected $casts = [
-        'quantity' => 'integer',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'quantity' => 'integer',
+        ];
+    }
+
+    public function getVariantIdAttribute(): ?int
+    {
+        return $this->attributes['product_variant_id'] ?? null;
+    }
+
+    public function setVariantIdAttribute(?int $value): void
+    {
+        $this->attributes['product_variant_id'] = $value;
+    }
 
     public function cart(): BelongsTo
     {
@@ -24,6 +41,6 @@ class CartItem extends Model
 
     public function variant(): BelongsTo
     {
-        return $this->belongsTo(ProductVariant::class, 'variant_id');
+        return $this->belongsTo(ProductVariant::class, 'product_variant_id');
     }
 }

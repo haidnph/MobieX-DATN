@@ -1,0 +1,642 @@
+// src/features/checkout/CheckoutPage.jsx
+// Order checkout page: shipping information, payment method selection, and atomic order creation.
+
+import { useEffect, useState } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
+import { useCart } from '../../contexts/CartContext'
+import { useAuth } from '../../contexts/AuthContext'
+import { useToast } from '../../contexts/ToastContext'
+import axiosClient from '../../api/axiosClient'
+import EP from '../../api/endpoints'
+import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
+import Button from '../../components/common/Button'
+import Input from '../../components/common/Input'
+
+export default function CheckoutPage() {
+  const { cartItems, cartSummary, fetchCart } = useCart()
+  const { user } = useAuth()
+  const { showToast } = useToast()
+  const navigate = useNavigate()
+
+  const [form, setForm] = useState({
+    recipient_name: user?.name || '',
+    phone: user?.phone || '',
+    shipping_address: '',
+    city: 'Hà Nội',
+    note: '',
+    payment_method: 'vnpay', // 'vnpay' or 'cod' (default to vnpay for seamless online payment)
+  })
+  const [savedAddresses, setSavedAddresses] = useState([])
+  const [selectedAddressId, setSelectedAddressId] = useState(null)
+  const [useCustomAddress, setUseCustomAddress] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [errors, setErrors] = useState({})
+
+  // ── Fetch saved addresses ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (!user) return
+    axiosClient
+      .get(EP.ADDRESSES)
+      .then(({ data }) => {
+        const payload = data.data ?? data
+        const list = Array.isArray(payload) ? payload : (payload.data ?? [])
+        setSavedAddresses(list)
+        if (list.length > 0) {
+          const defaultAddr = list.find((a) => a.is_default) || list[0]
+          setSelectedAddressId(defaultAddr.id)
+          const fullAddress = [defaultAddr.address_line, defaultAddr.ward, defaultAddr.district]
+            .filter(Boolean)
+            .join(', ')
+          setForm((prev) => ({
+            ...prev,
+            recipient_name: defaultAddr.full_name || prev.recipient_name,
+            phone: defaultAddr.phone || prev.phone,
+            shipping_address: fullAddress || prev.shipping_address,
+            city: defaultAddr.city || prev.city,
+          }))
+        } else {
+          setUseCustomAddress(true)
+        }
+      })
+      .catch(() => {
+        setUseCustomAddress(true)
+      })
+  }, [user])
+
+  const handleSelectSavedAddress = (addr) => {
+    setSelectedAddressId(addr.id)
+    setUseCustomAddress(false)
+    const fullAddress = [addr.address_line, addr.ward, addr.district].filter(Boolean).join(', ')
+    setForm((prev) => ({
+      ...prev,
+      recipient_name: addr.full_name,
+      phone: addr.phone,
+      shipping_address: fullAddress,
+      city: addr.city,
+    }))
+    setErrors({})
+  }
+
+  const handleChange = (e) => {
+    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
+    setErrors((prev) => ({ ...prev, [e.target.name]: '' }))
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (cartItems.length === 0) {
+      showToast('Giỏ hàng của bạn đang trống', 'error')
+      navigate('/cart')
+      return
+    }
+
+    setSubmitting(true)
+    setErrors({})
+
+    try {
+      // Build order payload matching backend OrderController store endpoint
+      const payload = {
+        shipping_name: form.recipient_name,
+        recipient_name: form.recipient_name,
+        shipping_phone: form.phone,
+        recipient_phone: form.phone,
+        phone: form.phone,
+        shipping_address: form.shipping_address,
+        shipping_address_line: form.shipping_address,
+        shipping_city: form.city || 'Hà Nội',
+        customer_note: form.note || undefined,
+        note: form.note || undefined,
+        payment_method: form.payment_method,
+        coupon_code: cartSummary.couponCode || undefined,
+      }
+
+      const { data } = await axiosClient.post(EP.ORDERS, payload)
+      const order = data.data ?? data
+
+      // Refresh cart to reflect empty state
+      await fetchCart()
+
+      if (form.payment_method === 'vnpay') {
+        // Redirect to VNPay initiate page
+        navigate(`/payment/vnpay?order_id=${order.id}`)
+      } else if (form.payment_method === 'zalopay') {
+        // Redirect to ZaloPay initiate page
+        navigate(`/payment/zalopay?order_id=${order.id}`)
+      } else if (form.payment_method === 'momo') {
+        // Redirect to MoMo initiate page
+        navigate(`/payment/momo?order_id=${order.id}`)
+      } else {
+        // COD order created successfully
+        showToast('Đặt hàng thành công!', 'success')
+        navigate(`/orders/${order.id}?success=1`)
+      }
+    } catch (err) {
+      if (err.validationErrors) {
+        setErrors(err.validationErrors)
+      }
+      showToast(err.message || 'Không thể tạo đơn hàng, vui lòng thử lại', 'error')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  if (cartItems.length === 0) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-16 text-center space-y-4">
+        <span className="material-symbols-outlined text-6xl text-outline">shopping_bag</span>
+        <h2 className="text-xl font-bold text-on-surface">Giỏ hàng trống</h2>
+        <p className="text-sm text-on-surface-variant">Vui lòng thêm sản phẩm vào giỏ trước khi thanh toán.</p>
+        <Link to="/products" className="inline-block text-primary hover:underline">
+          Quay lại cửa hàng
+        </Link>
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 md:px-8 lg:px-16 py-8 space-y-8">
+      {/* Title */}
+      <div className="flex items-center gap-3">
+        <span className="w-1 h-6 bg-primary rounded-full" />
+        <h1 className="text-2xl font-bold text-on-surface">Thanh toán & Đặt hàng</h1>
+      </div>
+
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* Left Form: Shipping & Payment (7 cols) */}
+        <div className="lg:col-span-7 space-y-6">
+          {/* Shipping info */}
+          <div className="bg-surface-container rounded-2xl border border-outline-variant/20 p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-base font-bold text-on-surface">
+                <span className="material-symbols-outlined text-primary text-xl">local_shipping</span>
+                Thông tin nhận hàng
+              </div>
+              {user && (
+                <Link
+                  to="/account/addresses"
+                  target="_blank"
+                  className="text-xs text-primary hover:underline flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-xs">edit_note</span>
+                  Quản lý sổ địa chỉ
+                </Link>
+              )}
+            </div>
+
+            {/* 1-Click Saved Addresses Selector */}
+            {savedAddresses.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-outline uppercase tracking-wider">
+                  Chọn địa chỉ đã lưu (1-Click):
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {savedAddresses.map((addr) => {
+                    const isSelected = !useCustomAddress && selectedAddressId === addr.id
+                    return (
+                      <div
+                        key={addr.id}
+                        onClick={() => handleSelectSavedAddress(addr)}
+                        className={[
+                          'p-3.5 rounded-xl border text-xs cursor-pointer transition-all flex flex-col justify-between relative',
+                          isSelected
+                            ? 'bg-primary/5 border-primary ring-2 ring-primary/20 shadow-sm'
+                            : 'bg-surface-container-low border-outline-variant/30 hover:border-outline',
+                        ].join(' ')}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-bold text-on-surface">{addr.full_name}</span>
+                            {addr.label && (
+                              <span className="text-[10px] bg-surface-container-high px-1.5 py-0.5 rounded text-outline font-medium">
+                                {addr.label}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-outline font-mono mb-1">{addr.phone}</p>
+                          <p className="text-on-surface-variant line-clamp-2">
+                            {addr.address_line}, {addr.ward ? `${addr.ward}, ` : ''}{addr.district ? `${addr.district}, ` : ''}{addr.city}
+                          </p>
+                        </div>
+                        {isSelected && (
+                          <div className="mt-2 flex items-center gap-1 text-primary font-semibold text-[11px]">
+                            <span className="material-symbols-outlined text-sm">check_circle</span>
+                            Giao tới địa chỉ này
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUseCustomAddress(true)
+                      setSelectedAddressId(null)
+                    }}
+                    className={[
+                      'text-xs font-medium flex items-center gap-1.5 transition-colors',
+                      useCustomAddress ? 'text-primary font-bold' : 'text-outline hover:text-on-surface',
+                    ].join(' ')}
+                  >
+                    <span className="material-symbols-outlined text-sm">
+                      {useCustomAddress ? 'radio_button_checked' : 'radio_button_unchecked'}
+                    </span>
+                    Nhập địa chỉ giao hàng khác
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Inputs: Always visible or expanded when custom address */}
+            <div className={`space-y-4 pt-2 ${!useCustomAddress && savedAddresses.length > 0 ? 'bg-surface-container-low/50 p-4 rounded-xl border border-outline-variant/15' : ''}`}>
+              {!useCustomAddress && savedAddresses.length > 0 && (
+                <p className="text-xs font-medium text-outline">
+                  Thông tin được điền tự động từ địa chỉ đã chọn (có thể chỉnh sửa nếu cần):
+                </p>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  label="Họ và tên người nhận"
+                  name="recipient_name"
+                  value={form.recipient_name}
+                  onChange={handleChange}
+                  placeholder="Nguyễn Văn A"
+                  error={errors.recipient_name?.[0]}
+                  required
+                />
+                <Input
+                  label="Số điện thoại"
+                  name="phone"
+                  value={form.phone}
+                  onChange={handleChange}
+                  placeholder="0912345678"
+                  error={errors.phone?.[0] || errors.recipient_phone?.[0]}
+                  required
+                />
+              </div>
+
+              <Input
+                label="Địa chỉ chi tiết (số nhà, đường, phường/xã)"
+                name="shipping_address"
+                value={form.shipping_address}
+                onChange={handleChange}
+                placeholder="Số 123 đường Cầu Giấy, Phường Dịch Vọng"
+                error={errors.shipping_address?.[0]}
+                required
+              />
+
+              <Input
+                label="Tỉnh / Thành phố"
+                name="city"
+                value={form.city}
+                onChange={handleChange}
+                placeholder="Hà Nội, TP.HCM, ..."
+                required
+              />
+
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-on-surface-variant">Ghi chú đơn hàng (tùy chọn)</label>
+                <textarea
+                  name="note"
+                  value={form.note}
+                  onChange={handleChange}
+                  rows={2}
+                  placeholder="Ví dụ: Giao giờ hành chính, gọi trước khi đến..."
+                  className="w-full bg-surface-container-low text-on-surface placeholder:text-outline rounded-xl px-4 py-2.5 text-sm border border-outline-variant/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all resize-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Payment Method */}
+          <div className="bg-surface-container rounded-2xl border border-outline-variant/20 p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-base font-bold text-on-surface">
+                <span className="material-symbols-outlined text-primary text-xl">payments</span>
+                Phương thức thanh toán
+              </div>
+              <span className="text-xs text-outline">Bảo mật chuẩn PCI-DSS</span>
+            </div>
+
+            <div className="space-y-3">
+              {/* Option 1: VNPay Gateway (Featured / Recommended) */}
+              <div
+                onClick={() => setForm((prev) => ({ ...prev, payment_method: 'vnpay' }))}
+                className={[
+                  'p-4 rounded-2xl border cursor-pointer transition-all space-y-3',
+                  form.payment_method === 'vnpay'
+                    ? 'border-primary bg-primary/5 ring-2 ring-primary/20 shadow-md'
+                    : 'border-outline-variant/30 bg-surface-container-low hover:border-outline',
+                ].join(' ')}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name="payment_method"
+                      value="vnpay"
+                      checked={form.payment_method === 'vnpay'}
+                      onChange={handleChange}
+                      className="text-primary focus:ring-primary w-4 h-4"
+                    />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-bold text-on-surface">Cổng thanh toán VNPay</p>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                          Khuyên dùng
+                        </span>
+                      </div>
+                      <p className="text-xs text-on-surface-variant">
+                        Quét mã VNPAY-QR hoặc dùng Thẻ ATM / Tài khoản ngân hàng / Visa / MasterCard
+                      </p>
+                    </div>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-blue-600/10 text-blue-600 flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-2xl">qr_code_scanner</span>
+                  </div>
+                </div>
+
+                {/* Badges for supported methods under VNPay */}
+                <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-outline-variant/15 text-[11px]">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container text-on-surface font-medium border border-outline-variant/20">
+                    <span className="material-symbols-outlined text-sm text-primary">qr_code_2</span>
+                    VNPAY-QR
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container text-on-surface font-medium border border-outline-variant/20">
+                    <span className="material-symbols-outlined text-sm text-blue-500">credit_card</span>
+                    Thẻ ATM (NCB, VCB...)
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container text-on-surface font-medium border border-outline-variant/20">
+                    <span className="material-symbols-outlined text-sm text-amber-500">contactless</span>
+                    Visa / Mastercard
+                  </span>
+                </div>
+
+                {/* Informative Preview Note when selected */}
+                {form.payment_method === 'vnpay' && (
+                  <div className="bg-primary/10 rounded-xl p-3 text-xs text-primary flex items-start gap-2.5">
+                    <span className="material-symbols-outlined text-base shrink-0 mt-0.5">info</span>
+                    <div className="space-y-1 text-[11px] leading-relaxed">
+                      <p className="font-semibold text-primary">Mở cổng giao dịch an toàn:</p>
+                      <p className="text-on-surface-variant">
+                        Sau khi bấm <strong>&quot;Tiến hành thanh toán VNPay&quot;</strong>, hệ thống sẽ mở cổng thanh toán bảo mật. Bạn có thể quét mã QR bằng ứng dụng ngân hàng hoặc sử dụng thông tin thẻ test NCB Sandbox có sẵn trên màn hình để thử nghiệm ngay.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Option 2: ZaloPay Gateway */}
+              <div
+                onClick={() => setForm((prev) => ({ ...prev, payment_method: 'zalopay' }))}
+                className={[
+                  'p-4 rounded-2xl border cursor-pointer transition-all space-y-3',
+                  form.payment_method === 'zalopay'
+                    ? 'border-[#009f73] bg-[#009f73]/5 ring-2 ring-[#009f73]/20 shadow-md'
+                    : 'border-outline-variant/30 bg-surface-container-low hover:border-outline',
+                ].join(' ')}
+              >
+                <div className="flex items-center gap-3">
+                  <input
+                    type="radio"
+                    name="payment_method"
+                    value="zalopay"
+                    checked={form.payment_method === 'zalopay'}
+                    onChange={handleChange}
+                    className="text-primary focus:ring-primary w-4 h-4"
+                  />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-bold text-on-surface">Cổng thanh toán ZaloPay</p>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                        Phổ biến
+                      </span>
+                    </div>
+                    <p className="text-xs text-on-surface-variant">
+                      Thanh toán qua Ví ZaloPay, Thẻ ATM Nội Địa hoặc Thẻ Visa / Mastercard
+                    </p>
+                  </div>
+                </div>
+
+                {/* Badges */}
+                <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-outline-variant/15 text-[11px]">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container text-on-surface font-medium border border-outline-variant/20">
+                    <span className="material-symbols-outlined text-sm" style={{ color: '#009f73' }}>account_balance_wallet</span>
+                    Ví ZaloPay
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container text-on-surface font-medium border border-outline-variant/20">
+                    <span className="material-symbols-outlined text-sm" style={{ color: '#009f73' }}>credit_card</span>
+                    ATM / Visa
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container text-on-surface font-medium border border-outline-variant/20">
+                    <span className="material-symbols-outlined text-sm" style={{ color: '#009f73' }}>lock</span>
+                    Bảo mật SSL
+                  </span>
+                </div>
+
+                {/* Info note when selected */}
+                {form.payment_method === 'zalopay' && (
+                  <div className="rounded-xl p-3 text-xs flex items-start gap-2.5" style={{ backgroundColor: 'rgba(0,159,115,0.1)' }}>
+                    <span className="material-symbols-outlined text-base shrink-0 mt-0.5" style={{ color: '#009f73' }}>info</span>
+                    <div className="space-y-1 text-[11px] leading-relaxed">
+                      <p className="font-semibold" style={{ color: '#009f73' }}>Mở cổng giao dịch an toàn:</p>
+                      <p className="text-on-surface-variant">
+                        Sau khi bấm <strong>&quot;Thanh toán qua ZaloPay&quot;</strong>, hệ thống sẽ mở cổng thanh toán bảo mật. Bạn có thể quét mã QR bằng ứng dụng ZaloPay hoặc dùng thông tin thẻ test Sandbox có sẵn để thử nghiệm ngay.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Option 3: MoMo Gateway */}
+              <div
+                onClick={() => setForm((prev) => ({ ...prev, payment_method: 'momo' }))}
+                className={[
+                  'p-4 rounded-2xl border cursor-pointer transition-all space-y-3',
+                  form.payment_method === 'momo'
+                    ? 'border-[#a50064] bg-[#a50064]/5 ring-2 ring-[#a50064]/20 shadow-md'
+                    : 'border-outline-variant/30 bg-surface-container-low hover:border-outline',
+                ].join(' ')}
+              >
+                <div className="flex items-center gap-3">
+                  <input
+                    type="radio"
+                    name="payment_method"
+                    value="momo"
+                    checked={form.payment_method === 'momo'}
+                    onChange={handleChange}
+                    className="text-pink-600 focus:ring-pink-500 w-4 h-4"
+                  />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-bold text-on-surface">Cổng thanh toán Ví MoMo</p>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pink-100 text-pink-700 dark:bg-pink-950 dark:text-pink-300">
+                        Ví điện tử số 1 VN
+                      </span>
+                    </div>
+                    <p className="text-xs text-on-surface-variant">
+                      Thanh toán qua Ví MoMo, Quét mã QR, hoặc Thẻ ATM Nội Địa Sacombank
+                    </p>
+                  </div>
+                </div>
+
+                {/* Badges */}
+                <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-outline-variant/15 text-[11px]">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container text-on-surface font-medium border border-outline-variant/20">
+                    <span className="material-symbols-outlined text-sm" style={{ color: '#a50064' }}>account_balance_wallet</span>
+                    Ví MoMo
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container text-on-surface font-medium border border-outline-variant/20">
+                    <span className="material-symbols-outlined text-sm" style={{ color: '#a50064' }}>qr_code_2</span>
+                    MoMo QR Code
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container text-on-surface font-medium border border-outline-variant/20">
+                    <span className="material-symbols-outlined text-sm text-blue-500">credit_card</span>
+                    ATM Sacombank Sandbox
+                  </span>
+                </div>
+
+                {/* Info note when selected */}
+                {form.payment_method === 'momo' && (
+                  <div className="rounded-xl p-3 text-xs flex items-start gap-2.5" style={{ backgroundColor: 'rgba(165,0,100,0.08)' }}>
+                    <span className="material-symbols-outlined text-base shrink-0 mt-0.5" style={{ color: '#a50064' }}>info</span>
+                    <div className="space-y-1 text-[11px] leading-relaxed">
+                      <p className="font-semibold" style={{ color: '#a50064' }}>Mở cổng giao dịch an toàn:</p>
+                      <p className="text-on-surface-variant">
+                        Sau khi bấm <strong>&quot;Thanh toán qua Ví MoMo&quot;</strong>, hệ thống sẽ mở cổng thanh toán MoMo Sandbox. Bạn có thể sử dụng Ví MoMo giả lập hoặc thẻ ATM Sacombank Sandbox có sẵn để thanh toán tức thì.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Option 3: Cash On Delivery (COD) */}
+              <div
+                onClick={() => setForm((prev) => ({ ...prev, payment_method: 'cod' }))}
+                className={[
+                  'p-4 rounded-2xl border cursor-pointer transition-all space-y-2',
+                  form.payment_method === 'cod'
+                    ? 'border-primary bg-primary/5 ring-2 ring-primary/20 shadow-md'
+                    : 'border-outline-variant/30 bg-surface-container-low hover:border-outline',
+                ].join(' ')}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name="payment_method"
+                      value="cod"
+                      checked={form.payment_method === 'cod'}
+                      onChange={handleChange}
+                      className="text-primary focus:ring-primary w-4 h-4"
+                    />
+                    <div>
+                      <p className="text-sm font-bold text-on-surface">Thanh toán khi nhận hàng (COD)</p>
+                      <p className="text-xs text-on-surface-variant">
+                        Kiểm tra hàng trước khi thanh toán tiền mặt cho nhân viên giao hàng
+                      </p>
+                    </div>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-surface-container-high text-on-surface-variant flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-2xl">local_shipping</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Order Review (5 cols) */}
+        <div className="lg:col-span-5 space-y-4">
+          <div className="bg-surface-container rounded-2xl border border-outline-variant/20 p-6 space-y-6">
+            <h2 className="text-lg font-bold text-on-surface">Chi tiết đơn hàng</h2>
+
+            {/* Items list */}
+            <div className="divide-y divide-outline-variant/10 max-h-64 overflow-y-auto pr-1">
+              {cartItems.map((item) => {
+                const variant = item.variant || item.product_variant || {}
+                const product = variant.product || item.product || {}
+                const price = item.price ?? variant.price ?? 0
+
+                return (
+                  <div key={item.id} className="py-3 flex items-center gap-3">
+                    <div className="w-12 h-12 bg-surface-container-high rounded-lg overflow-hidden shrink-0 flex items-center justify-center p-1">
+                      {variant.image_url || product.thumbnail ? (
+                        <img
+                          src={variant.image_url || product.thumbnail}
+                          alt={product.name}
+                          className="w-full h-full object-contain"
+                        />
+                      ) : (
+                        <span className="material-symbols-outlined text-xl text-outline">devices</span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-on-surface truncate">{product.name}</p>
+                      <p className="text-[11px] text-outline">
+                        x{item.quantity} • {variant.name || 'Mặc định'}
+                      </p>
+                    </div>
+                    <span className="text-xs font-bold text-on-surface shrink-0">
+                      {formatCurrencyVND(price * item.quantity)}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Calculations */}
+            <div className="space-y-2.5 pt-4 border-t border-outline-variant/10 text-sm">
+              <div className="flex justify-between text-on-surface-variant">
+                <span>Tạm tính</span>
+                <span className="text-on-surface font-medium">{formatCurrencyVND(cartSummary.subtotal)}</span>
+              </div>
+
+              {cartSummary.discount > 0 && (
+                <div className="flex justify-between text-secondary">
+                  <span>Giảm giá ({cartSummary.couponCode})</span>
+                  <span>-{formatCurrencyVND(cartSummary.discount)}</span>
+                </div>
+              )}
+
+              <div className="flex justify-between text-on-surface-variant">
+                <span>Vận chuyển</span>
+                <span className="text-secondary font-medium">Miễn phí</span>
+              </div>
+
+              <div className="pt-3 border-t border-outline-variant/10 flex justify-between items-baseline">
+                <span className="text-base font-bold text-on-surface">Tổng thanh toán</span>
+                <span className="text-2xl font-extrabold text-primary">
+                  {formatCurrencyVND(cartSummary.total || cartSummary.subtotal - cartSummary.discount)}
+                </span>
+              </div>
+            </div>
+
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              className="w-full"
+              loading={submitting}
+            >
+              {form.payment_method === 'vnpay'
+                ? 'Thanh toán qua VNPay'
+                : form.payment_method === 'zalopay'
+                  ? 'Thanh toán qua ZaloPay'
+                  : form.payment_method === 'momo'
+                    ? 'Thanh toán qua Ví MoMo'
+                    : 'Hoàn tất đặt hàng'}
+            </Button>
+
+            <p className="text-[11px] text-outline text-center">
+              Bằng việc bấm đặt hàng, bạn đồng ý với Điều khoản dịch vụ và Chính sách của MobieX.
+            </p>
+          </div>
+        </div>
+      </form>
+    </div>
+  )
+}

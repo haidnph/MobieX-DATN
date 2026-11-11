@@ -99,7 +99,7 @@ class CategoryDeletionTest extends TestCase
                 'message' => 'Category deleted successfully.',
             ]);
 
-        $this->assertDatabaseMissing('categories', [
+        $this->assertSoftDeleted('categories', [
             'id' => $category->getKey(),
         ]);
     }

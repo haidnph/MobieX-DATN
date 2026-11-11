@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Models\Role;
 use App\Models\User;
 use App\Support\AuthRateLimitKey;
 use App\Support\AuthTokenExpiration;
@@ -79,6 +80,10 @@ class LoginController extends Controller
             AuthTokenExpiration::expiresAt()
         );
 
+        $roles = $user->roles()
+            ->orderBy('roles.slug')
+            ->get(['roles.id', 'roles.name', 'roles.slug']);
+
         return response()->json([
             'message' => 'Login successful.',
             'data' => [
@@ -87,6 +92,13 @@ class LoginController extends Controller
                     'name' => $user->name,
                     'email' => $user->email,
                     'phone' => $user->phone,
+                    'roles' => $roles
+                        ->map(static fn (Role $role): array => [
+                            'slug' => $role->slug,
+                            'name' => $role->name,
+                        ])
+                        ->values()
+                        ->all(),
                 ],
                 'token' => $issuedToken->plainTextToken,
                 'token_type' => 'Bearer',

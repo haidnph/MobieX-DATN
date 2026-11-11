@@ -7,19 +7,24 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Category extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'parent_id',
         'name',
         'slug',
         'description',
+        'image_path',
         'image',
         'sort_order',
+        'is_active',
         'status',
+        'is_featured',
+        'featured_sort_order',
     ];
 
     /**
@@ -31,8 +36,46 @@ class Category extends Model
     {
         return [
             'sort_order' => 'integer',
+            'is_active' => 'boolean',
             'status' => 'boolean',
+            'is_featured' => 'boolean',
+            'featured_sort_order' => 'integer',
         ];
+    }
+
+    /**
+     * Backward compatibility accessor for image.
+     */
+    public function getImageAttribute(): ?string
+    {
+        return $this->attributes['image_path'] ?? $this->attributes['image'] ?? null;
+    }
+
+    /**
+     * Backward compatibility mutator for image.
+     */
+    public function setImageAttribute(?string $value): void
+    {
+        $this->attributes['image_path'] = $value;
+        $this->attributes['image'] = $value;
+    }
+
+    /**
+     * Backward compatibility accessor for status.
+     */
+    public function getStatusAttribute(): bool
+    {
+        return (bool) ($this->attributes['is_active'] ?? $this->attributes['status'] ?? true);
+    }
+
+    /**
+     * Backward compatibility mutator for status.
+     */
+    public function setStatusAttribute(mixed $value): void
+    {
+        $boolVal = (bool) $value;
+        $this->attributes['is_active'] = $boolVal;
+        $this->attributes['status'] = $boolVal;
     }
 
     /**
@@ -68,8 +111,6 @@ class Category extends Model
     /**
      * A category can have multiple attributes assigned directly to it.
      *
-     * Child categories do not inherit parent attributes automatically.
-     *
      * @return BelongsToMany<Attribute, $this>
      */
     public function attributes(): BelongsToMany
@@ -79,6 +120,6 @@ class Category extends Model
             'attribute_category',
             'category_id',
             'attribute_id',
-        );
+        )->withPivot(['is_required', 'is_variant_axis', 'sort_order']);
     }
 }

@@ -13,9 +13,11 @@ class AttributeValue extends Model
 
     protected $fillable = [
         'attribute_id',
+        'code',
         'value',
         'color_code',
         'sort_order',
+        'is_active',
         'status',
     ];
 
@@ -28,8 +30,27 @@ class AttributeValue extends Model
     {
         return [
             'sort_order' => 'integer',
+            'is_active' => 'boolean',
             'status' => 'boolean',
         ];
+    }
+
+    /**
+     * Backward compatibility accessor for status.
+     */
+    public function getStatusAttribute(): bool
+    {
+        return (bool) ($this->attributes['is_active'] ?? $this->attributes['status'] ?? true);
+    }
+
+    /**
+     * Backward compatibility mutator for status.
+     */
+    public function setStatusAttribute(mixed $value): void
+    {
+        $boolVal = (bool) $value;
+        $this->attributes['is_active'] = $boolVal;
+        $this->attributes['status'] = $boolVal;
     }
 
     /**
@@ -43,10 +64,7 @@ class AttributeValue extends Model
     }
 
     /**
-     * Existing relationship with ProductVariant.
-     *
-     * The pivot table migration is handled separately after
-     * the product_variants dependency is available.
+     * Relationship with ProductVariant.
      *
      * @return BelongsToMany<ProductVariant, $this>
      */

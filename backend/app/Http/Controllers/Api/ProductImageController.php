@@ -21,8 +21,20 @@ class ProductImageController extends Controller
             $query->where('product_id', $request->product_id);
         }
 
-        if ($request->filled('variant_id')) {
-            $query->where('variant_id', $request->variant_id);
+        if ($request->filled('product_variant_id')) {
+            if ($request->product_variant_id === 'null' || $request->product_variant_id === 'none') {
+                $query->whereNull('product_variant_id');
+            } else {
+                $query->where('product_variant_id', $request->product_variant_id);
+            }
+        } elseif ($request->filled('variant_id')) {
+            if ($request->variant_id === 'null' || $request->variant_id === 'none') {
+                $query->whereNull('product_variant_id');
+            } else {
+                $query->where('product_variant_id', $request->variant_id);
+            }
+        } elseif ($request->boolean('general_only')) {
+            $query->whereNull('product_variant_id');
         }
 
         return response()->json([
@@ -34,13 +46,13 @@ class ProductImageController extends Controller
     // Kiểm tra biến thể thuộc sản phẩm
     private function checkVariant($productId, $variantId)
     {
-        if (!$variantId) {
+        if (! $variantId) {
             return null;
         }
 
         $variant = ProductVariant::find($variantId);
 
-        if (!$variant || $variant->product_id != $productId) {
+        if (! $variant || $variant->product_id != $productId) {
             return response()->json([
                 'status' => false,
                 'message' => 'Biến thể không thuộc sản phẩm này.',
@@ -56,9 +68,9 @@ class ProductImageController extends Controller
         $query = ProductImage::where('product_id', $productId);
 
         if ($variantId === null) {
-            $query->whereNull('variant_id');
+            $query->whereNull('product_variant_id');
         } else {
-            $query->where('variant_id', $variantId);
+            $query->where('product_variant_id', $variantId);
         }
 
         if ($exceptId !== null) {
@@ -106,9 +118,9 @@ class ProductImageController extends Controller
                     $path = $file->store('products', 'public');
 
                     // Đường dẫn công khai
-                    $imageUrl = asset('storage/' . $path);
+                    $imageUrl = asset('storage/'.$path);
 
-                    $isPrimary = !empty($validated['is_primary'])
+                    $isPrimary = ! empty($validated['is_primary'])
                         && $index === 0;
 
                     // Chỉ có một ảnh chính trên mỗi biến thể
@@ -162,7 +174,7 @@ class ProductImageController extends Controller
 
         $variantId = array_key_exists('variant_id', $validated)
             ? $validated['variant_id']
-            : $image->variant_id;
+            : $image->product_variant_id;
 
         $variantError = $this->checkVariant(
             $image->product_id,
@@ -183,7 +195,7 @@ class ProductImageController extends Controller
                     'public'
                 );
 
-                $validated['image_url'] = asset('storage/' . $newPath);
+                $validated['image_url'] = asset('storage/'.$newPath);
             }
 
             unset($validated['image']);
@@ -194,8 +206,8 @@ class ProductImageController extends Controller
                 $variantId
             ) {
                 if (
-                    !empty($validated['is_primary'])
-                    || $variantId != $image->variant_id
+                    ! empty($validated['is_primary'])
+                    || $variantId != $image->product_variant_id
                 ) {
                     $this->clearPrimaryImage(
                         $image->product_id,
@@ -235,7 +247,7 @@ class ProductImageController extends Controller
 
         $path = parse_url($imageUrl, PHP_URL_PATH);
 
-        if (!$path) {
+        if (! $path) {
             return;
         }
 
@@ -251,10 +263,60 @@ class ProductImageController extends Controller
             $storagePosition + strlen('/storage/')
         );
 
-        if (!empty($storagePath)) {
+        if (! empty($storagePath)) {
             Storage::disk('public')->delete($storagePath);
         }
     }
+
+    /**
+     * Bulk-reorder images for a product.
+     * Expects: { "images": [{ "id": 1, "sort_order": 0 }, { "id": 2, "sort_order": 1 }] }
+     */
+    public function reorder(Request $request)
+    {
+        $validated = $request->validate([
+            'images' => 'required|array|min:1',
+            'images.*.id' => 'required|integer|exists:product_images,id',
+            'images.*.sort_order' => 'required|integer|min:0',
+        ]);
+
+        DB::transaction(function () use ($validated) {
+            foreach ($validated['images'] as $item) {
+                ProductImage::where('id', $item['id'])
+                    ->update(['sort_order' => $item['sort_order']]);
+            }
+        });
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Sắp xếp hình ảnh thành công.',
+        ]);
+    }
+
+    /**
+     * Set an image as primary within its scope (product-level or variant-level).
+     */
+    public function setPrimary(Request $request, $id)
+    {
+        $image = ProductImage::findOrFail($id);
+
+        DB::transaction(function () use ($image) {
+            $this->clearPrimaryImage(
+                $image->product_id,
+                $image->product_variant_id,
+                $image->id
+            );
+
+            $image->update(['is_primary' => true]);
+        });
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Đã đặt làm ảnh đại diện.',
+            'data' => $image->fresh(),
+        ]);
+    }
+
     // Xóa hình ảnh
     public function destroy($id)
     {
