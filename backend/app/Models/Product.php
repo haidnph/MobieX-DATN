@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Product extends Model
 {
@@ -40,5 +41,27 @@ class Product extends Model
     {
         return $this->hasMany(ProductSpecification::class, 'product_id')
             ->orderBy('sort_order');
+    }
+
+    // Danh sách sản phẩm tương thích với sản phẩm hiện tại
+    public function compatibleProducts(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            Product::class,
+            'product_compatibilities',
+            'product_id',
+            'compatible_product_id'
+        )->withPivot('note');
+    }
+
+    // Danh sách phụ kiện tương thích với sản phẩm hiện tại
+    public function compatibleAccessories(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            Product::class,
+            'product_compatibilities',
+            'compatible_product_id',
+            'product_id'
+        )->withPivot('note');
     }
 }
