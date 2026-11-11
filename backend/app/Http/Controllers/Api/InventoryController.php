@@ -17,7 +17,10 @@ class InventoryController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Inventory::with('variant.product');
+        $query = Inventory::with([
+            'variant.product',
+            'variant.inventory',
+        ]);
 
         if ($request->filled('product_variant_id')) {
             $query->where('variant_id', $request->product_variant_id);
@@ -151,6 +154,7 @@ class InventoryController extends Controller
     {
         $query = InventoryTransaction::with([
             'variant.product',
+            'variant.inventory',
             'user',
         ])->orderByDesc('created_at');
 
@@ -176,7 +180,10 @@ class InventoryController extends Controller
      */
     public function lowStock()
     {
-        $inventories = Inventory::with('variant.product')
+        $inventories = Inventory::with([
+            'variant.product',
+            'variant.inventory',
+        ])
             ->whereColumn('available_quantity', '<=', 'min_stock')
             ->get();
 
