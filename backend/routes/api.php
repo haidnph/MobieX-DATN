@@ -4,6 +4,7 @@ use App\Http\Controllers\Addresses\AddressController;
 use App\Http\Controllers\Admin\AdminBannerController;
 use App\Http\Controllers\Admin\AdminCouponController;
 use App\Http\Controllers\Admin\AdminDashboardController;
+use App\Http\Controllers\Admin\AdminOmnisearchController;
 use App\Http\Controllers\Admin\AdminOrderController;
 use App\Http\Controllers\Admin\AdminReviewController;
 use App\Http\Controllers\Admin\AdminTrashController;
@@ -894,6 +895,11 @@ Route::prefix('admin')
         Route::apiResource('spec-definitions', SpecDefinitionController::class)->parameters([
             'spec-definitions' => 'specDefinition',
         ]);
+
+        // Admin Omnisearch / Command Palette
+        Route::get('omnisearch', [AdminOmnisearchController::class, 'search'])
+            ->middleware('permission:dashboard.view')
+            ->name('omnisearch');
 
         // Admin Trash (Recycle Bin)
         Route::prefix('trash')->name('trash.')->middleware('permission:dashboard.view')->group(function (): void {
