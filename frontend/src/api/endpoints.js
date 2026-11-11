@@ -107,6 +107,9 @@ const EP = {
   PRODUCT_IMAGE_REORDER: '/product-images/reorder',
   PRODUCT_IMAGE_PRIMARY: (id) => `/product-images/${id}/primary`,
 
+  // ── Admin: Omnisearch / Command Palette ─────────────────
+  ADMIN_OMNISEARCH: '/admin/omnisearch',
+
   // ── Admin: Trash / Recycle Bin ─────────────────────────
   ADMIN_TRASH_SUMMARY: '/admin/trash/summary',
   ADMIN_TRASH_LIST: (type) => `/admin/trash/${type}`,

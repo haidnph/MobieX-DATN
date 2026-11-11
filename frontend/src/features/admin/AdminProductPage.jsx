@@ -1,8 +1,8 @@
 // src/features/admin/AdminProductPage.jsx
 // Admin product catalog management: listing, creation, modification, and inventory overview.
 
-import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import axiosClient from '../../api/axiosClient'
 import EP from '../../api/endpoints'
 import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
@@ -41,6 +41,9 @@ function slugify(text) {
 
 export default function AdminProductPage() {
   const { showToast } = useToast()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const qParam = searchParams.get('q') || ''
+  const actionParam = searchParams.get('action') || ''
 
   const [products, setProducts] = useState([])
   const [brands, setBrands] = useState([])
@@ -49,8 +52,11 @@ export default function AdminProductPage() {
   const [loading, setLoading] = useState(true)
 
   // Filter params
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(qParam)
   const [statusFilter, setStatusFilter] = useState('')
+  const [brandFilter, setBrandFilter] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('')
+  const [showFilters, setShowFilters] = useState(false)
   const [page, setPage] = useState(1)
 
   // Bulk actions selection
@@ -115,6 +121,8 @@ export default function AdminProductPage() {
     const params = { page, per_page: 10 }
     if (search.trim()) params.search = search.trim()
     if (statusFilter) params.status = statusFilter
+    if (brandFilter) params.brand_id = brandFilter
+    if (categoryFilter) params.category_id = categoryFilter
 
     axiosClient
       .get(EP.PRODUCTS, { params })
@@ -136,12 +144,47 @@ export default function AdminProductPage() {
 
   useEffect(() => {
     fetchProducts()
-  }, [page, statusFilter])
+  }, [page, statusFilter, brandFilter, categoryFilter])
 
   const handleSearchSubmit = (e) => {
     e.preventDefault()
     setPage(1)
     fetchProducts()
+  }
+
+  const activeProductFilters = useMemo(() => {
+    const list = []
+    if (statusFilter) {
+      list.push({ key: 'status', label: `Trạng thái: ${STATUS_BADGES[statusFilter]?.label || statusFilter}` })
+    }
+    if (search.trim()) {
+      list.push({ key: 'search', label: `Tìm: "${search.trim()}"` })
+    }
+    if (categoryFilter) {
+      const cat = categories.find((c) => String(c.id) === String(categoryFilter))
+      list.push({ key: 'category', label: `Danh mục: ${cat?.name || categoryFilter}` })
+    }
+    if (brandFilter) {
+      const br = brands.find((b) => String(b.id) === String(brandFilter))
+      list.push({ key: 'brand', label: `Thương hiệu: ${br?.name || brandFilter}` })
+    }
+    return list
+  }, [statusFilter, search, categoryFilter, brandFilter, categories, brands])
+
+  const handleResetProductFilters = () => {
+    setSearch('')
+    setStatusFilter('')
+    setCategoryFilter('')
+    setBrandFilter('')
+    setPage(1)
+  }
+
+  const removeProductFilter = (key) => {
+    if (key === 'status') setStatusFilter('')
+    if (key === 'search') setSearch('')
+    if (key === 'category') setCategoryFilter('')
+    if (key === 'brand') setBrandFilter('')
+    setPage(1)
   }
 
   const handleOpenCreate = () => {
@@ -163,6 +206,12 @@ export default function AdminProductPage() {
     setErrors({})
     setModalOpen(true)
   }
+
+  useEffect(() => {
+    if (actionParam === 'create') {
+      handleOpenCreate()
+    }
+  }, [actionParam])
 
   const handleOpenEdit = (p) => {
     setEditingProduct(p)
@@ -367,44 +416,160 @@ export default function AdminProductPage() {
         </Button>
       </div>
 
-      {/* Filter and Search */}
-      <div className="bg-surface-container rounded-2xl p-4 border border-outline-variant/20 flex flex-col md:flex-row gap-4 justify-between items-center">
-        <form onSubmit={handleSearchSubmit} className="flex-1 w-full md:max-w-md flex gap-2">
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Tìm theo tên sản phẩm..."
-            className="flex-1 bg-surface-container-low text-on-surface placeholder:text-outline rounded-xl px-4 py-2 text-sm border border-outline-variant/40 focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-          <button
-            type="submit"
-            className="px-4 py-2 bg-primary-container text-on-primary-container rounded-xl text-sm font-semibold hover:bg-primary transition-colors flex items-center gap-1"
-          >
-            <span className="material-symbols-outlined text-base">search</span>
-            Lọc
-          </button>
-        </form>
+      {/* Smart Status Tabs */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none border-b border-outline-variant/20">
+        {[
+          { key: '', label: 'Tất cả' },
+          { key: 'active', label: 'Đang bán' },
+          { key: 'draft', label: 'Bản nháp' },
+          { key: 'inactive', label: 'Tạm ẩn' },
+          { key: 'out_of_stock', label: 'Hết hàng' },
+        ].map((tab) => {
+          const isActive = statusFilter === tab.key
+          return (
+            <button
+              key={tab.key}
+              onClick={() => {
+                setStatusFilter(tab.key)
+                setPage(1)
+              }}
+              className={[
+                'px-4 py-2.5 rounded-xl text-sm font-medium transition-all shrink-0',
+                isActive
+                  ? 'bg-primary text-on-primary shadow-xs font-semibold'
+                  : 'bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface',
+              ].join(' ')}
+            >
+              {tab.label}
+            </button>
+          )
+        })}
+      </div>
 
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <label className="text-xs font-semibold text-on-surface-variant uppercase shrink-0">
-            Trạng thái:
-          </label>
-          <select
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value)
-              setPage(1)
-            }}
-            className="bg-surface-container-low text-on-surface rounded-xl px-3 py-2 text-sm border border-outline-variant/40 focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            <option value="">Tất cả trạng thái</option>
-            <option value="active">Đang bán</option>
-            <option value="draft">Bản nháp</option>
-            <option value="inactive">Tạm ẩn</option>
-            <option value="out_of_stock">Hết hàng</option>
-          </select>
+      {/* Filter and Search */}
+      <div className="bg-surface-container rounded-2xl p-4 border border-outline-variant/20 space-y-4">
+        <div className="flex flex-col md:flex-row gap-3 justify-between items-center">
+          <form onSubmit={handleSearchSubmit} className="flex-1 w-full md:max-w-md flex gap-2">
+            <div className="relative flex-1">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-lg pointer-events-none">
+                search
+              </span>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Tìm theo tên sản phẩm, slug..."
+                className="w-full bg-surface-container-low text-on-surface placeholder:text-outline rounded-xl pl-9 pr-4 py-2 text-sm border border-outline-variant/40 focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-primary text-on-primary rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors shrink-0"
+            >
+              Tìm
+            </button>
+          </form>
+
+          {/* Advanced Filter Toggle */}
+          <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+            <button
+              type="button"
+              onClick={() => setShowFilters((v) => !v)}
+              className={[
+                'flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all',
+                showFilters || activeProductFilters.length > 0
+                  ? 'bg-primary-container/20 border-primary/40 text-primary'
+                  : 'bg-surface-container-low border-outline-variant/40 text-on-surface-variant hover:text-on-surface',
+              ].join(' ')}
+            >
+              <span className="material-symbols-outlined text-base">tune</span>
+              <span>Bộ lọc danh mục / hãng</span>
+              {activeProductFilters.length > 0 && (
+                <span className="w-5 h-5 rounded-full bg-primary text-on-primary text-[10px] flex items-center justify-center font-bold">
+                  {activeProductFilters.length}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
+
+        {/* Collapsible Selectors */}
+        {showFilters && (
+          <div className="pt-3 border-t border-outline-variant/15 grid grid-cols-1 sm:grid-cols-2 gap-3 animate-in fade-in duration-150">
+            {/* Category Filter */}
+            <div>
+              <label className="block text-xs font-semibold text-on-surface-variant uppercase mb-1">
+                Danh mục sản phẩm
+              </label>
+              <select
+                value={categoryFilter}
+                onChange={(e) => {
+                  setCategoryFilter(e.target.value)
+                  setPage(1)
+                }}
+                className="w-full bg-surface-container-low text-on-surface rounded-xl px-3 py-2 text-xs border border-outline-variant/40 focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="">Tất cả danh mục</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Brand Filter */}
+            <div>
+              <label className="block text-xs font-semibold text-on-surface-variant uppercase mb-1">
+                Thương hiệu
+              </label>
+              <select
+                value={brandFilter}
+                onChange={(e) => {
+                  setBrandFilter(e.target.value)
+                  setPage(1)
+                }}
+                className="w-full bg-surface-container-low text-on-surface rounded-xl px-3 py-2 text-xs border border-outline-variant/40 focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="">Tất cả thương hiệu</option>
+                {brands.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+
+        {/* Active Product Filters Pills */}
+        {activeProductFilters.length > 0 && (
+          <div className="pt-2 border-t border-outline-variant/15 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-on-surface-variant">Đang lọc:</span>
+            {activeProductFilters.map((f) => (
+              <span
+                key={f.key}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs bg-surface-container-high text-on-surface border border-outline-variant/30"
+              >
+                <span>{f.label}</span>
+                <button
+                  type="button"
+                  onClick={() => removeProductFilter(f.key)}
+                  className="hover:text-error transition-colors"
+                >
+                  <span className="material-symbols-outlined text-xs">close</span>
+                </button>
+              </span>
+            ))}
+            <button
+              type="button"
+              onClick={handleResetProductFilters}
+              className="text-xs text-primary hover:underline font-medium ml-1"
+            >
+              Xóa tất cả bộ lọc
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Products Table */}

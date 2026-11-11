@@ -6,6 +6,7 @@ import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import axiosClient from '../api/axiosClient'
 import EP from '../api/endpoints'
+import AdminOmnisearchModal from '../components/admin/AdminOmnisearchModal'
 
 const NAV_ITEMS = [
   { to: '/admin',            icon: 'dashboard',           label: 'Tổng quan',       end: true },
@@ -27,6 +28,19 @@ export default function AdminLayout() {
   const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState(false)
   const [trashCount, setTrashCount] = useState(0)
+  const [omnisearchOpen, setOmnisearchOpen] = useState(false)
+
+  // Global Ctrl+K / Cmd+K listener
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setOmnisearchOpen((prev) => !prev)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   useEffect(() => {
     let mounted = true
@@ -115,14 +129,30 @@ export default function AdminLayout() {
       {/* Main area */}
       <div className={['flex-1 flex flex-col transition-all duration-300', collapsed ? 'ml-16' : 'ml-64'].join(' ')}>
         {/* Top bar */}
-        <header className="sticky top-0 z-30 h-16 flex items-center justify-between px-6 bg-surface-container-low/90 backdrop-blur-sm border-b border-outline-variant/20">
+        <header className="sticky top-0 z-30 h-16 flex items-center justify-between px-6 bg-surface-container-low/90 backdrop-blur-sm border-b border-outline-variant/20 gap-4">
           <div className="flex items-center gap-3">
-            <Link to="/" target="_blank" className="flex items-center gap-2 text-sm text-on-surface-variant hover:text-on-surface transition-colors">
+            <Link to="/" target="_blank" className="flex items-center gap-2 text-sm text-on-surface-variant hover:text-on-surface transition-colors shrink-0">
               <span className="material-symbols-outlined text-base">open_in_new</span>
-              Xem cửa hàng
+              <span className="hidden sm:inline">Xem cửa hàng</span>
             </Link>
           </div>
-          <div className="flex items-center gap-3">
+
+          {/* Omnisearch Button (Ctrl + K) */}
+          <button
+            type="button"
+            onClick={() => setOmnisearchOpen(true)}
+            className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-surface-container-high/60 hover:bg-surface-container-high text-on-surface-variant text-xs border border-outline-variant/30 transition-all hover:border-primary/40 shadow-xs w-full max-w-xs md:max-w-md justify-between"
+          >
+            <div className="flex items-center gap-2 truncate">
+              <span className="material-symbols-outlined text-base text-primary">search</span>
+              <span className="truncate">Tìm kiếm đơn hàng, sản phẩm, khách hàng...</span>
+            </div>
+            <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-surface-container-highest text-[10px] font-mono border border-outline-variant/40 text-on-surface-variant shrink-0">
+              Ctrl K
+            </kbd>
+          </button>
+
+          <div className="flex items-center gap-3 shrink-0">
             <span className="text-sm text-on-surface-variant hidden md:block">{user?.name}</span>
             <button
               onClick={handleLogout}
@@ -139,6 +169,12 @@ export default function AdminLayout() {
           <Outlet />
         </main>
       </div>
+
+      {/* Omnisearch Modal */}
+      <AdminOmnisearchModal
+        open={omnisearchOpen}
+        onClose={() => setOmnisearchOpen(false)}
+      />
     </div>
   )
 }

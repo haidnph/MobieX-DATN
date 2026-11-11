@@ -1,7 +1,7 @@
 // src/features/admin/AdminOrderListPage.jsx
-// Admin order listing with filtering, keyword search, and pagination.
+// Admin order listing with smart status tabs, multi-faceted filtering, keyword search, CSV export, and pagination.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import axiosClient from '../../api/axiosClient'
 import EP from '../../api/endpoints'
@@ -12,30 +12,49 @@ import Pagination from '../../components/common/Pagination'
 import Spinner from '../../components/common/Spinner'
 
 const STATUS_CONFIG = {
-  pending: { label: 'Chờ xác nhận', variant: 'pending' },
-  confirmed: { label: 'Đã xác nhận', variant: 'info' },
-  processing: { label: 'Đang chuẩn bị', variant: 'info' },
-  shipping: { label: 'Đang giao', variant: 'warning' },
-  delivered: { label: 'Giao thành công', variant: 'success' },
-  cancelled: { label: 'Đã hủy', variant: 'error' },
+  pending:    { label: 'Chờ xác nhận',  variant: 'pending', icon: 'pending_actions' },
+  confirmed:  { label: 'Đã xác nhận',   variant: 'info',    icon: 'task_alt' },
+  processing: { label: 'Đang chuẩn bị', variant: 'info',    icon: 'package_2' },
+  shipping:   { label: 'Đang giao',     variant: 'warning', icon: 'local_shipping' },
+  delivered:  { label: 'Giao thành công', variant: 'success', icon: 'check_circle' },
+  cancelled:  { label: 'Đã hủy',        variant: 'error',   icon: 'cancel' },
 }
+
+const STATUS_TABS = [
+  { key: '',           label: 'Tất cả' },
+  { key: 'pending',    label: 'Chờ xác nhận' },
+  { key: 'confirmed',  label: 'Đã xác nhận' },
+  { key: 'processing', label: 'Đang chuẩn bị' },
+  { key: 'shipping',   label: 'Đang giao' },
+  { key: 'delivered',  label: 'Hoàn thành' },
+  { key: 'cancelled',  label: 'Đã hủy' },
+]
 
 export default function AdminOrderListPage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const statusParam = searchParams.get('status') || ''
-  const searchParam = searchParams.get('q') || ''
-  const pageParam = Number(searchParams.get('page')) || 1
+
+  const statusParam        = searchParams.get('status') || ''
+  const searchParam        = searchParams.get('q') || ''
+  const paymentStatusParam = searchParams.get('payment_status') || ''
+  const fromDateParam      = searchParams.get('from_date') || ''
+  const toDateParam        = searchParams.get('to_date') || ''
+  const pageParam          = Number(searchParams.get('page')) || 1
 
   const [orders, setOrders] = useState([])
   const [meta, setMeta] = useState({ current_page: 1, last_page: 1, total: 0 })
   const [loading, setLoading] = useState(true)
   const [keyword, setKeyword] = useState(searchParam)
+  const [showAdvanced, setShowAdvanced] = useState(Boolean(paymentStatusParam || fromDateParam || toDateParam))
 
+  // Fetch orders
   useEffect(() => {
     setLoading(true)
     const params = { page: pageParam, per_page: 10 }
     if (statusParam) params.status = statusParam
     if (searchParam) params.search = searchParam
+    if (paymentStatusParam) params.payment_status = paymentStatusParam
+    if (fromDateParam) params.from_date = fromDateParam
+    if (toDateParam) params.to_date = toDateParam
 
     axiosClient
       .get(EP.ADMIN_ORDERS, { params })
@@ -53,8 +72,9 @@ export default function AdminOrderListPage() {
       })
       .catch(() => setOrders([]))
       .finally(() => setLoading(false))
-  }, [statusParam, searchParam, pageParam])
+  }, [statusParam, searchParam, paymentStatusParam, fromDateParam, toDateParam, pageParam])
 
+  // Handlers
   const handleSearch = (e) => {
     e.preventDefault()
     const next = new URLSearchParams(searchParams)
@@ -72,6 +92,27 @@ export default function AdminOrderListPage() {
     setSearchParams(next)
   }
 
+  const handlePaymentFilter = (val) => {
+    const next = new URLSearchParams(searchParams)
+    if (val) next.set('payment_status', val)
+    else next.delete('payment_status')
+    next.delete('page')
+    setSearchParams(next)
+  }
+
+  const handleDateFilter = (type, val) => {
+    const next = new URLSearchParams(searchParams)
+    if (val) next.set(type, val)
+    else next.delete(type)
+    next.delete('page')
+    setSearchParams(next)
+  }
+
+  const handleResetFilters = () => {
+    setKeyword('')
+    setSearchParams(new URLSearchParams())
+  }
+
   const handlePageChange = (newPage) => {
     const next = new URLSearchParams(searchParams)
     next.set('page', newPage)
@@ -81,7 +122,6 @@ export default function AdminOrderListPage() {
   const handleExportCSV = () => {
     if (orders.length === 0) return
 
-    // UTF-8 BOM so Excel displays Vietnamese correctly
     const BOM = '\uFEFF'
     const headers = [
       'Mã đơn hàng',
@@ -98,7 +138,7 @@ export default function AdminOrderListPage() {
       `"${o.order_code || o.id}"`,
       `"${o.shipping_name || o.user?.name || 'Khách lẻ'}"`,
       `"${o.shipping_phone || ''}"`,
-      `"${(o.shipping_address || '').replace(/"/g, '""')}"`,
+      `"${(o.shipping_address_line || o.shipping_address || '').replace(/"/g, '""')}"`,
       `"${formatDateTime(o.created_at)}"`,
       `"${o.total_amount || 0}"`,
       `"${STATUS_CONFIG[o.status]?.label || o.status}"`,
@@ -117,6 +157,35 @@ export default function AdminOrderListPage() {
     URL.revokeObjectURL(url)
   }
 
+  // Active filters list
+  const activeFilters = useMemo(() => {
+    const list = []
+    if (statusParam) {
+      list.push({ key: 'status', label: `Trạng thái: ${STATUS_CONFIG[statusParam]?.label || statusParam}` })
+    }
+    if (searchParam) {
+      list.push({ key: 'q', label: `Tìm: "${searchParam}"` })
+    }
+    if (paymentStatusParam) {
+      list.push({ key: 'payment_status', label: `Thanh toán: ${paymentStatusParam === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán'}` })
+    }
+    if (fromDateParam) {
+      list.push({ key: 'from_date', label: `Từ: ${fromDateParam}` })
+    }
+    if (toDateParam) {
+      list.push({ key: 'to_date', label: `Đến: ${toDateParam}` })
+    }
+    return list
+  }, [statusParam, searchParam, paymentStatusParam, fromDateParam, toDateParam])
+
+  const removeFilter = (key) => {
+    const next = new URLSearchParams(searchParams)
+    next.delete(key)
+    if (key === 'q') setKeyword('')
+    next.delete('page')
+    setSearchParams(next)
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -127,54 +196,166 @@ export default function AdminOrderListPage() {
             Tổng số: <strong className="text-on-surface">{meta.total}</strong> đơn hàng trên hệ thống
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleExportCSV}
-          disabled={orders.length === 0}
-          className="px-4 py-2 bg-surface-container-high hover:bg-surface-bright text-on-surface rounded-xl text-sm font-semibold border border-outline-variant/30 transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50 self-start sm:self-auto"
-        >
-          <span className="material-symbols-outlined text-base text-secondary">file_download</span>
-          Xuất báo cáo CSV
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={handleExportCSV}
+            disabled={orders.length === 0}
+            className="px-4 py-2 bg-surface-container-high hover:bg-surface-bright text-on-surface rounded-xl text-sm font-semibold border border-outline-variant/30 transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+          >
+            <span className="material-symbols-outlined text-base text-secondary">file_download</span>
+            Xuất CSV
+          </button>
+        </div>
+      </div>
+
+      {/* Smart Status Tabs */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none border-b border-outline-variant/20">
+        {STATUS_TABS.map((tab) => {
+          const isActive = statusParam === tab.key
+          return (
+            <button
+              key={tab.key}
+              onClick={() => handleStatusFilter(tab.key)}
+              className={[
+                'px-4 py-2.5 rounded-xl text-sm font-medium transition-all shrink-0 flex items-center gap-2',
+                isActive
+                  ? 'bg-primary text-on-primary shadow-xs font-semibold'
+                  : 'bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface',
+              ].join(' ')}
+            >
+              {tab.key && STATUS_CONFIG[tab.key]?.icon && (
+                <span className="material-symbols-outlined text-base">{STATUS_CONFIG[tab.key].icon}</span>
+              )}
+              <span>{tab.label}</span>
+            </button>
+          )
+        })}
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-surface-container rounded-2xl p-4 border border-outline-variant/20 flex flex-col md:flex-row gap-4 justify-between items-center">
-        <form onSubmit={handleSearch} className="flex-1 w-full md:max-w-md flex gap-2">
-          <input
-            type="text"
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            placeholder="Tìm theo mã đơn hoặc số điện thoại..."
-            className="flex-1 bg-surface-container-low text-on-surface placeholder:text-outline rounded-xl px-4 py-2 text-sm border border-outline-variant/40 focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-          <button
-            type="submit"
-            className="px-4 py-2 bg-primary-container text-on-primary-container rounded-xl text-sm font-semibold hover:bg-primary transition-colors flex items-center gap-1"
-          >
-            <span className="material-symbols-outlined text-base">search</span>
-            Tìm
-          </button>
-        </form>
+      <div className="bg-surface-container rounded-2xl p-4 border border-outline-variant/20 space-y-4">
+        <div className="flex flex-col md:flex-row gap-3 justify-between items-center">
+          {/* Keyword Search */}
+          <form onSubmit={handleSearch} className="flex-1 w-full md:max-w-md flex gap-2">
+            <div className="relative flex-1">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-lg pointer-events-none">
+                search
+              </span>
+              <input
+                type="text"
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                placeholder="Tìm mã đơn, tên hoặc số điện thoại khách hàng..."
+                className="w-full bg-surface-container-low text-on-surface placeholder:text-outline rounded-xl pl-9 pr-4 py-2 text-sm border border-outline-variant/40 focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-primary text-on-primary rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors shrink-0"
+            >
+              Tìm
+            </button>
+          </form>
 
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <label className="text-xs font-semibold text-on-surface-variant uppercase shrink-0">
-            Trạng thái:
-          </label>
-          <select
-            value={statusParam}
-            onChange={(e) => handleStatusFilter(e.target.value)}
-            className="bg-surface-container-low text-on-surface rounded-xl px-3 py-2 text-sm border border-outline-variant/40 focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            <option value="">Tất cả trạng thái</option>
-            <option value="pending">Chờ xác nhận</option>
-            <option value="confirmed">Đã xác nhận</option>
-            <option value="processing">Đang chuẩn bị</option>
-            <option value="shipping">Đang giao hàng</option>
-            <option value="delivered">Giao thành công</option>
-            <option value="cancelled">Đã hủy</option>
-          </select>
+          {/* Filter Toggle Button */}
+          <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+            <button
+              type="button"
+              onClick={() => setShowAdvanced((v) => !v)}
+              className={[
+                'flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all',
+                showAdvanced || activeFilters.length > 0
+                  ? 'bg-primary-container/20 border-primary/40 text-primary'
+                  : 'bg-surface-container-low border-outline-variant/40 text-on-surface-variant hover:text-on-surface',
+              ].join(' ')}
+            >
+              <span className="material-symbols-outlined text-base">tune</span>
+              <span>Bộ lọc nâng cao</span>
+              {activeFilters.length > 0 && (
+                <span className="w-5 h-5 rounded-full bg-primary text-on-primary text-[10px] flex items-center justify-center font-bold">
+                  {activeFilters.length}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
+
+        {/* Collapsible Advanced Filters */}
+        {showAdvanced && (
+          <div className="pt-3 border-t border-outline-variant/15 grid grid-cols-1 sm:grid-cols-3 gap-3 animate-in fade-in duration-150">
+            {/* Payment Status */}
+            <div>
+              <label className="block text-xs font-semibold text-on-surface-variant uppercase mb-1">
+                Thanh toán
+              </label>
+              <select
+                value={paymentStatusParam}
+                onChange={(e) => handlePaymentFilter(e.target.value)}
+                className="w-full bg-surface-container-low text-on-surface rounded-xl px-3 py-2 text-xs border border-outline-variant/40 focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="">Tất cả trạng thái</option>
+                <option value="paid">Đã thanh toán (Paid)</option>
+                <option value="unpaid">Chưa thanh toán (Unpaid)</option>
+              </select>
+            </div>
+
+            {/* From Date */}
+            <div>
+              <label className="block text-xs font-semibold text-on-surface-variant uppercase mb-1">
+                Từ ngày
+              </label>
+              <input
+                type="date"
+                value={fromDateParam}
+                onChange={(e) => handleDateFilter('from_date', e.target.value)}
+                className="w-full bg-surface-container-low text-on-surface rounded-xl px-3 py-1.5 text-xs border border-outline-variant/40 focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+
+            {/* To Date */}
+            <div>
+              <label className="block text-xs font-semibold text-on-surface-variant uppercase mb-1">
+                Đến ngày
+              </label>
+              <input
+                type="date"
+                value={toDateParam}
+                onChange={(e) => handleDateFilter('to_date', e.target.value)}
+                className="w-full bg-surface-container-low text-on-surface rounded-xl px-3 py-1.5 text-xs border border-outline-variant/40 focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Active Filters Pills */}
+        {activeFilters.length > 0 && (
+          <div className="pt-2 border-t border-outline-variant/15 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-on-surface-variant">Đang lọc:</span>
+            {activeFilters.map((f) => (
+              <span
+                key={f.key}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs bg-surface-container-high text-on-surface border border-outline-variant/30"
+              >
+                <span>{f.label}</span>
+                <button
+                  type="button"
+                  onClick={() => removeFilter(f.key)}
+                  className="hover:text-error transition-colors"
+                >
+                  <span className="material-symbols-outlined text-xs">close</span>
+                </button>
+              </span>
+            ))}
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="text-xs text-primary hover:underline font-medium ml-1"
+            >
+              Xóa tất cả bộ lọc
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Table */}
@@ -186,7 +367,16 @@ export default function AdminOrderListPage() {
         ) : orders.length === 0 ? (
           <div className="p-12 text-center text-on-surface-variant space-y-2">
             <span className="material-symbols-outlined text-5xl text-outline">inbox</span>
-            <p className="text-sm font-medium">Không tìm thấy đơn hàng nào phù hợp.</p>
+            <p className="text-sm font-medium">Không tìm thấy đơn hàng nào phù hợp với bộ lọc.</p>
+            {activeFilters.length > 0 && (
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="text-xs text-primary font-semibold hover:underline"
+              >
+                Đặt lại toàn bộ bộ lọc
+              </button>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -199,41 +389,70 @@ export default function AdminOrderListPage() {
                   <th className="px-5 py-3.5">Tổng tiền</th>
                   <th className="px-5 py-3.5 text-center">Trạng thái</th>
                   <th className="px-5 py-3.5 text-center">Thanh toán</th>
-                  <th className="px-5 py-3.5 text-right">Thao tác</th>
+                  <th className="px-5 py-3.5 text-right">Chi tiết</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-outline-variant/10">
+              <tbody className="divide-y divide-outline-variant/10 text-on-surface">
                 {orders.map((order) => {
-                  const cfg = STATUS_CONFIG[order.status] || { label: order.status, variant: 'neutral' }
+                  const cfg = STATUS_CONFIG[order.status] || {
+                    label: order.status,
+                    variant: 'neutral',
+                  }
+                  const isPaid = order.payment_status === 'paid'
+
                   return (
-                    <tr key={order.id} className="hover:bg-surface-container-high/40 transition-colors">
-                      <td className="px-5 py-4 font-mono font-bold text-primary">
-                        #{order.order_code || order.id}
+                    <tr
+                      key={order.id}
+                      className="hover:bg-surface-container-high/40 transition-colors"
+                    >
+                      <td className="px-5 py-4 font-mono font-semibold text-primary">
+                        <Link
+                          to={`/admin/orders/${order.id}`}
+                          className="hover:underline flex items-center gap-1.5"
+                        >
+                          <span className="material-symbols-outlined text-base">receipt</span>
+                          <span>{order.order_code || `#${order.id}`}</span>
+                        </Link>
                       </td>
                       <td className="px-5 py-4">
-                        <p className="font-semibold text-on-surface">{order.recipient_name || order.user?.name || 'Khách'}</p>
-                        <p className="text-xs text-outline">{order.recipient_phone || order.phone || '—'}</p>
+                        <div className="font-semibold text-on-surface">
+                          {order.shipping_name || order.user?.name || 'Khách lẻ'}
+                        </div>
+                        <div className="text-xs text-on-surface-variant">
+                          {order.shipping_phone || order.user?.email || '—'}
+                        </div>
                       </td>
                       <td className="px-5 py-4 text-xs text-on-surface-variant">
                         {formatDateTime(order.created_at)}
                       </td>
-                      <td className="px-5 py-4 font-extrabold text-on-surface">
-                        {formatCurrencyVND(order.total_amount ?? order.total)}
+                      <td className="px-5 py-4 font-semibold text-primary whitespace-nowrap">
+                        {formatCurrencyVND(order.total_amount)}
                       </td>
                       <td className="px-5 py-4 text-center">
                         <Badge variant={cfg.variant}>{cfg.label}</Badge>
                       </td>
                       <td className="px-5 py-4 text-center">
-                        <span className="text-xs font-semibold uppercase text-outline">
-                          {order.payment_method || 'COD'}
+                        <span
+                          className={[
+                            'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold',
+                            isPaid
+                              ? 'bg-success-container text-on-success-container'
+                              : 'bg-surface-container-high text-on-surface-variant',
+                          ].join(' ')}
+                        >
+                          <span className="material-symbols-outlined text-xs">
+                            {isPaid ? 'check_circle' : 'schedule'}
+                          </span>
+                          {isPaid ? 'Đã thanh toán' : 'Chưa thanh toán'}
                         </span>
                       </td>
                       <td className="px-5 py-4 text-right">
                         <Link
                           to={`/admin/orders/${order.id}`}
-                          className="px-3 py-1.5 bg-surface-container-high hover:bg-surface-bright rounded-lg text-xs font-semibold text-on-surface transition-colors"
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-surface-container-high hover:bg-primary hover:text-on-primary transition-all text-xs font-semibold text-on-surface border border-outline-variant/30"
                         >
-                          Chi tiết
+                          <span>Xem</span>
+                          <span className="material-symbols-outlined text-sm">arrow_forward</span>
                         </Link>
                       </td>
                     </tr>
@@ -243,18 +462,18 @@ export default function AdminOrderListPage() {
             </table>
           </div>
         )}
-      </div>
 
-      {/* Pagination */}
-      {meta.last_page > 1 && (
-        <div className="flex justify-center pt-2">
-          <Pagination
-            currentPage={meta.current_page}
-            totalPages={meta.last_page}
-            onPageChange={handlePageChange}
-          />
-        </div>
-      )}
+        {/* Pagination */}
+        {meta.last_page > 1 && (
+          <div className="p-4 border-t border-outline-variant/20 flex justify-center">
+            <Pagination
+              currentPage={meta.current_page}
+              totalPages={meta.last_page}
+              onPageChange={handlePageChange}
+            />
+          </div>
+        )}
+      </div>
     </div>
   )
 }

@@ -62,6 +62,7 @@ describe('API Endpoints Definition', () => {
   })
 
   it('contains admin trash (recycle bin) endpoints', () => {
+    expect(EP.ADMIN_OMNISEARCH).toBe('/admin/omnisearch')
     expect(EP.ADMIN_TRASH_SUMMARY).toBe('/admin/trash/summary')
     expect(EP.ADMIN_TRASH_LIST('products')).toBe('/admin/trash/products')
     expect(EP.ADMIN_TRASH_RESTORE('categories', 10)).toBe('/admin/trash/categories/10/restore')
