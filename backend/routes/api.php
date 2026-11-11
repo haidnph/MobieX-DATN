@@ -114,6 +114,10 @@ Route::get(
 )->name('api.products.compare');
 
 Route::get(
+    '/compatible-phones',
+    [ProductController::class, 'compatiblePhones'],
+)->name('api.compatible-phones.index');
+Route::get(
     '/products/{id}',
     [ProductController::class, 'show'],
 )->whereNumber('id')
