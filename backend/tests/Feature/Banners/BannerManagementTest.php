@@ -140,6 +140,6 @@ class BannerManagementTest extends TestCase
         $deleteRes = $this->actingAs($this->adminUser, 'sanctum')
             ->deleteJson("/api/admin/banners/{$bannerId}");
         $deleteRes->assertStatus(200);
-        $this->assertDatabaseMissing('banners', ['id' => $bannerId]);
+        $this->assertSoftDeleted('banners', ['id' => $bannerId]);
     }
 }

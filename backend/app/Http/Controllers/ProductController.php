@@ -436,8 +436,7 @@ class ProductController extends Controller
     // API xóa sản phẩm
     public function destroy($id)
     {
-        // Tìm sản phẩm theo ID kèm các quan hệ
-        $product = Product::with(['variants.inventory', 'images', 'specifications'])->find($id);
+        $product = Product::with(['variants'])->find($id);
 
         if (! $product) {
             return response()->json([
@@ -446,80 +445,16 @@ class ProductController extends Controller
             ], 404);
         }
 
-        // Kiểm tra xem sản phẩm hoặc bất kỳ biến thể nào đã từng phát sinh đơn hàng chưa
-        $variantIds = $product->variants->pluck('id')->toArray();
-        $hasOrders = DB::table('order_items')
-            ->where('product_id', $product->id)
-            ->exists();
+        // Chuyển vào Thùng rác (Soft Delete) - giữ nguyên ảnh, thông số kỹ thuật để có thể khôi phục
+        DB::transaction(function () use ($product) {
+            $product->variants()->delete();
+            $product->delete();
+        });
 
-        if ($hasOrders) {
-            // Không được hard delete để bảo vệ toàn vẹn lịch sử hóa đơn & kế toán
-            $product->update(['status' => 'inactive']);
-            $product->variants()->update(['is_active' => false]);
-
-            return response()->json([
-                'status' => true,
-                'is_deactivated' => true,
-                'message' => 'Sản phẩm "'.$product->name.'" đã có đơn hàng trong hệ thống nên không thể xóa vĩnh viễn. Hệ thống đã chuyển trạng thái sang "Ngừng kinh doanh" (inactive) để ẩn khỏi cửa hàng và bảo toàn lịch sử đơn hàng.',
-                'data' => $product,
-            ], 200);
-        }
-
-        // Nếu sản phẩm chưa có đơn hàng nào, tiến hành xóa sạch an toàn trong DB Transaction
-        try {
-            DB::transaction(function () use ($product) {
-                // 1. Xóa ảnh sản phẩm
-                $product->images()->delete();
-
-                // 2. Xóa thông số kỹ thuật
-                $product->specifications()->delete();
-
-                // 3. Xóa các liên kết thuộc tính
-                $product->attributeValues()->delete();
-
-                // 4. Xóa đánh giá (nếu có)
-                $product->reviews()->delete();
-
-                // 5. Xóa các biến thể và tồn kho
-                foreach ($product->variants as $variant) {
-                    DB::table('cart_items')
-                        ->where('product_variant_id', $variant->id)
-                        ->delete();
-
-                    DB::table('product_variant_attribute_values')
-                        ->where('product_variant_id', $variant->id)
-                        ->delete();
-
-                    DB::table('inventory_transactions')
-                        ->where('product_variant_id', $variant->id)
-                        ->delete();
-
-                    DB::table('inventories')
-                        ->where('product_variant_id', $variant->id)
-                        ->delete();
-
-                    $variant->delete();
-                }
-
-                // 6. Xóa chính sản phẩm
-                $product->delete();
-            });
-
-            return response()->json([
-                'status' => true,
-                'message' => 'Xóa sản phẩm thành công',
-            ], 200);
-        } catch (\Throwable $e) {
-            $product->update(['status' => 'inactive']);
-            $product->variants()->update(['is_active' => false]);
-
-            return response()->json([
-                'status' => true,
-                'is_deactivated' => true,
-                'message' => 'Sản phẩm có dữ liệu ràng buộc nên đã được chuyển sang trạng thái "Ngừng kinh doanh".',
-                'data' => $product,
-            ], 200);
-        }
+        return response()->json([
+            'status' => true,
+            'message' => 'Sản phẩm đã được chuyển vào Thùng rác.',
+        ], 200);
     }
 
     /**
@@ -558,56 +493,23 @@ class ProductController extends Controller
         ]);
 
         $deletedCount = 0;
-        $deactivatedCount = 0;
 
-        foreach ($validated['ids'] as $id) {
-            $product = Product::find($id);
-            if (! $product) {
-                continue;
-            }
-
-            $hasOrders = DB::table('order_items')
-                ->where('product_id', $product->id)
-                ->exists();
-
-            if ($hasOrders) {
-                $product->update(['status' => 'inactive']);
-                $product->variants()->update(['is_active' => false]);
-                $deactivatedCount++;
-
-                continue;
-            }
-
-            try {
-                DB::transaction(function () use ($product) {
-                    $product->images()->delete();
-                    $product->specifications()->delete();
-                    $product->attributeValues()->delete();
-                    $product->reviews()->delete();
-
-                    foreach ($product->variants as $variant) {
-                        DB::table('cart_items')->where('product_variant_id', $variant->id)->delete();
-                        DB::table('product_variant_attribute_values')->where('product_variant_id', $variant->id)->delete();
-                        DB::table('inventory_transactions')->where('product_variant_id', $variant->id)->delete();
-                        DB::table('inventories')->where('product_variant_id', $variant->id)->delete();
-                        $variant->delete();
-                    }
-
-                    $product->delete();
-                });
+        DB::transaction(function () use ($validated, &$deletedCount) {
+            foreach ($validated['ids'] as $id) {
+                $product = Product::find($id);
+                if (! $product) {
+                    continue;
+                }
+                $product->variants()->delete();
+                $product->delete();
                 $deletedCount++;
-            } catch (\Throwable $e) {
-                $product->update(['status' => 'inactive']);
-                $product->variants()->update(['is_active' => false]);
-                $deactivatedCount++;
             }
-        }
+        });
 
         return response()->json([
             'status' => true,
             'deleted_count' => $deletedCount,
-            'deactivated_count' => $deactivatedCount,
-            'message' => "Đã xử lý: {$deletedCount} sản phẩm đã xóa, {$deactivatedCount} sản phẩm đã chuyển sang ẩn (do có đơn hàng).",
+            'message' => "Đã chuyển {$deletedCount} sản phẩm vào Thùng rác.",
         ]);
     }
 

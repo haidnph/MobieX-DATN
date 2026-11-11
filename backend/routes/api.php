@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\AdminCouponController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminOrderController;
 use App\Http\Controllers\Admin\AdminReviewController;
+use App\Http\Controllers\Admin\AdminTrashController;
 use App\Http\Controllers\Admin\PermissionController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\SpecDefinitionController;
@@ -893,4 +894,14 @@ Route::prefix('admin')
         Route::apiResource('spec-definitions', SpecDefinitionController::class)->parameters([
             'spec-definitions' => 'specDefinition',
         ]);
+
+        // Admin Trash (Recycle Bin)
+        Route::prefix('trash')->name('trash.')->middleware('permission:dashboard.view')->group(function (): void {
+            Route::get('summary', [AdminTrashController::class, 'summary'])->name('summary');
+            Route::get('{type}', [AdminTrashController::class, 'index'])->name('index');
+            Route::post('restore-all/{type}', [AdminTrashController::class, 'restoreAll'])->name('restore-all');
+            Route::post('{type}/{id}/restore', [AdminTrashController::class, 'restore'])->name('restore');
+            Route::delete('empty/{type}', [AdminTrashController::class, 'emptyTrash'])->name('empty');
+            Route::delete('{type}/{id}', [AdminTrashController::class, 'forceDelete'])->name('force-delete');
+        });
     });

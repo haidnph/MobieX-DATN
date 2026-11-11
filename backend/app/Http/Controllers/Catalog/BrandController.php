@@ -213,6 +213,32 @@ class BrandController extends Controller
                     }
 
                     /*
+                     * Check if any other table has foreign key references to this brand.
+                     */
+                    try {
+                        foreach ($schema->getTables() as $tableInfo) {
+                            $tableName = is_array($tableInfo) ? ($tableInfo['name'] ?? null) : ($tableInfo->name ?? null);
+                            if (! $tableName || $tableName === $brandsTable || $tableName === $productsTable) {
+                                continue;
+                            }
+                            $foreignKeys = $schema->getForeignKeys($tableName);
+                            foreach ($foreignKeys as $foreignKey) {
+                                $foreignTable = strtolower((string) ($foreignKey['foreign_table'] ?? ''));
+                                if ($foreignTable === strtolower($brandsTable)) {
+                                    $columns = $foreignKey['columns'] ?? [];
+                                    foreach ($columns as $column) {
+                                        if ($connection->table($tableName)->where($column, $brand->getKey())->exists()) {
+                                            return 'Brand cannot be deleted because another record references it. Set status to false to hide the brand instead.';
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (\Throwable) {
+                        // Safe fallback if table listing is not supported
+                    }
+
+                    /*
                      * The database remains the final authority.
                      * Other tables may also have foreign keys referencing
                      * brands, and those constraints must never be bypassed.

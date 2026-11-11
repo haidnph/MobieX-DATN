@@ -162,7 +162,7 @@ class AdminCouponCrudTest extends TestCase
             ->deleteJson("/api/admin/coupons/{$coupon->id}");
 
         $response->assertStatus(200);
-        $this->assertDatabaseMissing('coupons', ['id' => $coupon->id]);
+        $this->assertSoftDeleted('coupons', ['id' => $coupon->id]);
     }
 
     public function test_admin_cannot_delete_used_coupon(): void

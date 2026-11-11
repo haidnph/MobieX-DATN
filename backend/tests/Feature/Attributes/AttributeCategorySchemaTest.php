@@ -88,7 +88,7 @@ class AttributeCategorySchemaTest extends TestCase
 
         $attribute->categories()->attach($category->id);
 
-        $category->delete();
+        $category->forceDelete();
 
         $this->assertDatabaseMissing('attribute_category', [
             'attribute_id' => $attribute->id,

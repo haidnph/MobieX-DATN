@@ -104,7 +104,7 @@ class BrandDeletionTest extends TestCase
                 'message' => 'Brand deleted successfully.',
             ]);
 
-        $this->assertDatabaseMissing('brands', [
+        $this->assertSoftDeleted('brands', [
             'id' => $brand->getKey(),
         ]);
 
@@ -137,7 +137,7 @@ class BrandDeletionTest extends TestCase
                 'message' => 'Brand deleted successfully.',
             ]);
 
-        $this->assertDatabaseMissing('brands', [
+        $this->assertSoftDeleted('brands', [
             'id' => $brand->getKey(),
         ]);
     }
@@ -346,7 +346,7 @@ class BrandDeletionTest extends TestCase
                 'message' => 'Brand deleted successfully.',
             ]);
 
-        $this->assertDatabaseMissing('brands', [
+        $this->assertSoftDeleted('brands', [
             'id' => $brand->getKey(),
         ]);
     }
