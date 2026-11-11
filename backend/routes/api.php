@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ProductImageController;
 use App\Http\Controllers\Api\ProductSpecificationController;
+use App\Http\Controllers\Api\ProductCompatibilityController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Auth\CurrentUserController;
 use App\Http\Controllers\Auth\LoginController;
@@ -117,6 +118,11 @@ Route::get(
     '/compatible-phones',
     [ProductController::class, 'compatiblePhones'],
 )->name('api.compatible-phones.index');
+Route::get(
+    '/products/{id}/compatible-phones',
+    [ProductCompatibilityController::class, 'index'],
+)->whereNumber('id')
+    ->name('api.products.compatible-phones.index');
 Route::get(
     '/products/{id}',
     [ProductController::class, 'show'],
@@ -357,6 +363,26 @@ Route::middleware([
     'active',
 ])->group(function (): void {
     // Products
+    // Quản lý điện thoại tương thích với phụ kiện
+    Route::post(
+        '/products/{id}/compatible-phones',
+        [ProductCompatibilityController::class, 'store'],
+    )->whereNumber('id')
+        ->name('api.products.compatible-phones.store');
+
+    Route::patch(
+        '/products/{id}/compatible-phones/{phoneId}',
+        [ProductCompatibilityController::class, 'update'],
+    )->whereNumber('id')
+        ->whereNumber('phoneId')
+        ->name('api.products.compatible-phones.update');
+
+    Route::delete(
+        '/products/{id}/compatible-phones/{phoneId}',
+        [ProductCompatibilityController::class, 'destroy'],
+    )->whereNumber('id')
+        ->whereNumber('phoneId')
+        ->name('api.products.compatible-phones.destroy');
     Route::post(
         '/products',
         [ProductController::class, 'store'],

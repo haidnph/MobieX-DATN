@@ -99,7 +99,7 @@ class Product extends Model
 
     public function compatibilities(): HasMany
     {
-        return $this->hasMany(ProductCompatibility::class, 'accessory_product_id');
+        return $this->hasMany(ProductCompatibility::class, 'product_id');
     }
 
     public function attributeValues(): HasMany
