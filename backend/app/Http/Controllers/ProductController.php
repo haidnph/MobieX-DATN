@@ -1,29 +1,120 @@
 <?php
 
+
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use App\Models\InventoryTransaction;
 use App\Models\Product;
-use App\Models\ProductSpecificationDefinition;
+use App\Models\ProductVariant;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
-use App\Models\ProductVariant;
+use Illuminate\Validation\ValidationException;
 
 class ProductController extends Controller
 {
-    // API hiển thị danh sách điện thoại, hỗ trợ tìm kiếm
+    /**
+     * Tạo SKU duy nhất cho biến thể.
+     */
+    private function generateVariantSku(Product $product, ?string $requestedSku = null): string
+    {
+        if (! empty($requestedSku)) {
+            $sku = strtoupper(trim($requestedSku));
+
+            if (ProductVariant::where('sku', $sku)->exists()) {
+                throw ValidationException::withMessages([
+                    'sku' => ['SKU này đã tồn tại. Vui lòng sử dụng SKU khác.'],
+                ]);
+            }
+
+            return $sku;
+        }
+
+        $source = Str::ascii($product->slug ?: $product->name);
+        $cleanCode = strtoupper(substr(
+            preg_replace('/[^A-Za-z0-9]/', '', $source) ?: 'PRODUCT',
+            0,
+            8
+        ));
+
+        $baseSku = "MBX-{$cleanCode}-STD-{$product->id}";
+        $sku = $baseSku;
+        $suffix = 1;
+
+        while (ProductVariant::where('sku', $sku)->exists()) {
+            $sku = $baseSku . '-' . $suffix;
+            $suffix++;
+        }
+
+        return $sku;
+    }
+
+    /**
+     * Xác định sản phẩm có thuộc nhóm phụ kiện hay không.
+     */
+    private function isAccessoryCategory(?int $categoryId): bool
+    {
+        if (! $categoryId) {
+            return false;
+        }
+
+        $accessoryCategory = Category::where('name', 'Phụ kiện')
+            ->whereNull('parent_id')
+            ->first();
+
+        if (! $accessoryCategory) {
+            return false;
+        }
+
+        $selectedCategory = Category::find($categoryId);
+
+        if (! $selectedCategory) {
+            return false;
+        }
+
+        return (int) $selectedCategory->id === (int) $accessoryCategory->id
+            || (int) $selectedCategory->parent_id === (int) $accessoryCategory->id;
+    }
+
+    /**
+     * Ghi lịch sử điều chỉnh tồn kho.
+     */
+    private function createInventoryTransaction(
+        ProductVariant $variant,
+        int $quantity,
+        string $type,
+        int $productId,
+        string $note
+    ): void {
+        if ($quantity <= 0) {
+            return;
+        }
+
+        InventoryTransaction::create([
+            'variant_id' => $variant->id,
+            'user_id' => Auth::id(),
+            'transaction_type' => $type,
+            'quantity' => $quantity,
+            'reference_type' => 'product_update',
+            'reference_id' => $productId,
+            'note' => $note,
+        ]);
+    }
+
+    /**
+     * API hiển thị danh sách sản phẩm.
+     */
     public function index(Request $request)
     {
-        // Support 'q' and 'search' query aliases for 'keyword'
         if ($request->filled('q') && ! $request->filled('keyword')) {
             $request->merge(['keyword' => $request->q]);
         } elseif ($request->filled('search') && ! $request->filled('keyword')) {
             $request->merge(['keyword' => $request->search]);
         }
 
-        // Kiểm tra các tham số lọc
         $validated = $request->validate([
             'keyword' => 'nullable|string|max:255',
             'brand_id' => 'nullable|integer|exists:brands,id',
@@ -39,26 +130,24 @@ class ProductController extends Controller
         $query = Product::with([
             'brand',
             'category',
-            'variants',
+            'variants.inventory',
+            'variants.attributeValues.attribute',
             'images',
         ]);
 
-        // Tìm kiếm theo tên hoặc slug
         if (! empty($validated['keyword'])) {
             $keyword = $validated['keyword'];
 
             $query->where(function ($q) use ($keyword) {
-                $q->where('name', 'like', '%' . $keyword . '%')
-                    ->orWhere('slug', 'like', '%' . $keyword . '%');
+                $q->where('name', 'like', "%{$keyword}%")
+                    ->orWhere('slug', 'like', "%{$keyword}%");
             });
         }
 
-        // Lọc theo thương hiệu
         if (! empty($validated['brand_id'])) {
             $query->where('brand_id', $validated['brand_id']);
         }
 
-        // Lọc theo danh mục, bao gồm các danh mục con trực tiếp
         if (! empty($validated['category_id'])) {
             $categoryId = (int) $validated['category_id'];
 
@@ -71,12 +160,10 @@ class ProductController extends Controller
             $query->whereIn('category_id', $categoryIds);
         }
 
-        // Lọc theo trạng thái
         if (! empty($validated['status'])) {
             $query->where('status', $validated['status']);
         }
 
-        // Lọc giá, RAM, bộ nhớ theo cùng một biến thể
         $hasVariantFilters =
             isset($validated['min_price']) ||
             isset($validated['max_price']) ||
@@ -85,44 +172,30 @@ class ProductController extends Controller
 
         if ($hasVariantFilters) {
             $query->whereHas('variants', function ($variantQuery) use ($validated) {
-
-                // Khoảng giá
                 if (isset($validated['min_price'])) {
-                    $variantQuery->where(
-                        'price',
-                        '>=',
-                        $validated['min_price']
-                    );
+                    $variantQuery->where('price', '>=', $validated['min_price']);
                 }
 
                 if (isset($validated['max_price'])) {
-                    $variantQuery->where(
-                        'price',
-                        '<=',
-                        $validated['max_price']
-                    );
+                    $variantQuery->where('price', '<=', $validated['max_price']);
                 }
 
-                // RAM
                 if (! empty($validated['ram'])) {
                     $ram = $validated['ram'];
 
                     $variantQuery->whereHas('attributeValues', function ($valueQuery) use ($ram) {
-                        $valueQuery
-                            ->where('value', $ram)
+                        $valueQuery->where('value', $ram)
                             ->whereHas('attribute', function ($attributeQuery) {
                                 $attributeQuery->where('code', 'ram');
                             });
                     });
                 }
 
-                // Bộ nhớ trong
                 if (! empty($validated['storage'])) {
                     $storage = $validated['storage'];
 
                     $variantQuery->whereHas('attributeValues', function ($valueQuery) use ($storage) {
-                        $valueQuery
-                            ->where('value', $storage)
+                        $valueQuery->where('value', $storage)
                             ->whereHas('attribute', function ($attributeQuery) {
                                 $attributeQuery->where('code', 'storage');
                             });
@@ -131,12 +204,9 @@ class ProductController extends Controller
             });
         }
 
-        // Phân trang
-        $perPage = $validated['per_page'] ?? 10;
-
         $products = $query
             ->latest()
-            ->paginate($perPage)
+            ->paginate($validated['per_page'] ?? 10)
             ->withQueryString();
 
         return response()->json([
@@ -146,7 +216,9 @@ class ProductController extends Controller
         ], 200);
     }
 
-
+    /**
+     * API so sánh sản phẩm.
+     */
     public function compare(Request $request)
     {
         $idsParam = $request->input('ids');
@@ -154,7 +226,7 @@ class ProductController extends Controller
         if (empty($idsParam)) {
             return response()->json([
                 'status' => false,
-                'message' => 'Vui lòng cung cấp danh sách ID sản phẩm cần so sánh (tham số ids)',
+                'message' => 'Vui lòng cung cấp danh sách ID sản phẩm cần so sánh.',
             ], 422);
         }
 
@@ -166,28 +238,28 @@ class ProductController extends Controller
             $ids = [];
         }
 
+        $ids = array_slice(array_unique($ids), 0, 4);
+
         if (empty($ids)) {
             return response()->json([
                 'status' => false,
-                'message' => 'Danh sách ID sản phẩm không hợp lệ',
+                'message' => 'Danh sách ID sản phẩm không hợp lệ.',
             ], 422);
         }
-
-        // Tối đa 4 sản phẩm so sánh cùng lúc
-        $ids = array_slice(array_unique($ids), 0, 4);
 
         $products = Product::with([
             'brand',
             'category',
             'images',
-            'specifications.definition',
+            'specifications',
             'variants.inventory',
             'variants.attributeValues.attribute',
         ])->whereIn('id', $ids)->get();
 
-        $comparableDefinitions = ProductSpecificationDefinition::where('is_active', true)
-            ->where('is_comparable', true)
-            ->orderBy('sort_order')
+        $comparableDefinitions = \App\Models\ProductSpecification::query()
+            ->select('specification_name')
+            ->distinct()
+            ->orderBy('specification_name')
             ->get();
 
         return response()->json([
@@ -200,8 +272,9 @@ class ProductController extends Controller
         ], 200);
     }
 
-
-    // API lấy danh sách điện thoại đang hoạt động để chọn sản phẩm tương thích
+    /**
+     * Lấy danh sách điện thoại đang hoạt động để chọn sản phẩm tương thích.
+     */
     public function compatiblePhones(Request $request)
     {
         $validated = $request->validate([
@@ -234,8 +307,8 @@ class ProductController extends Controller
             $keyword = $validated['keyword'];
 
             $query->where(function ($q) use ($keyword) {
-                $q->where('name', 'like', '%' . $keyword . '%')
-                    ->orWhere('slug', 'like', '%' . $keyword . '%');
+                $q->where('name', 'like', "%{$keyword}%")
+                    ->orWhere('slug', 'like', "%{$keyword}%");
             });
         }
 
@@ -251,14 +324,16 @@ class ProductController extends Controller
         ], 200);
     }
 
-
+    /**
+     * API lấy chi tiết sản phẩm.
+     */
     public function show($id)
     {
         $product = Product::with([
             'brand',
             'category',
             'images',
-            'specifications.definition',
+            'specifications',
             'variants.inventory',
             'variants.images',
             'variants.attributeValues.attribute',
@@ -271,44 +346,6 @@ class ProductController extends Controller
             ], 404);
         }
 
-        // Tự động bảo toàn dữ liệu: Đảm bảo sản phẩm luôn có ít nhất 1 biến thể có tồn kho để mua hàng
-        if ($product->variants->isEmpty()) {
-            $cleanCode = strtoupper(substr(preg_replace('/[^a-zA-Z0-9]/', '', Str::ascii($product->slug ?? $product->name)), 0, 8));
-            $defaultSku = "MBX-{$cleanCode}-STD-{$product->id}";
-
-            $variant = $product->variants()->create([
-                'sku' => $defaultSku,
-                'option_signature' => 'Phiên bản tiêu chuẩn',
-                'price' => 15990000.00,
-                'compare_price' => 17990000.00,
-                'cost_price' => 13000000.00,
-                'is_active' => true,
-            ]);
-
-            $variant->inventory()->create([
-                'on_hand_quantity' => 50,
-                'reserved_quantity' => 0,
-                'min_stock' => 5,
-            ]);
-
-            if ($product->images->isEmpty()) {
-                $product->images()->create([
-                    'product_variant_id' => $variant->id,
-                    'image_path' => 'https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?w=800&auto=format&fit=crop&q=80',
-                    'alt_text' => $product->name,
-                    'is_primary' => true,
-                    'sort_order' => 0,
-                ]);
-            }
-
-            $product->load([
-                'images',
-                'variants.inventory',
-                'variants.images',
-                'variants.attributeValues.attribute',
-            ]);
-        }
-
         return response()->json([
             'status' => true,
             'message' => 'Lấy chi tiết sản phẩm thành công',
@@ -316,10 +353,17 @@ class ProductController extends Controller
         ], 200);
     }
 
-    // API thêm sản phẩm mới
+    /**
+     * API thêm sản phẩm mới.
+     */
     public function store(Request $request)
     {
-        // Kiểm tra dữ liệu đầu vào
+        $isAccessory = $this->isAccessoryCategory(
+            $request->filled('category_id')
+                ? (int) $request->input('category_id')
+                : null
+        );
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'slug' => 'required|string|max:255|unique:products,slug',
@@ -327,14 +371,21 @@ class ProductController extends Controller
             'brand_id' => 'nullable|exists:brands,id',
             'category_id' => 'nullable|exists:categories,id',
             'status' => 'sometimes|in:draft,active,inactive,out_of_stock',
-            'price' => 'nullable|numeric|min:0',
+            'price' => $isAccessory
+                ? 'required|numeric|min:0'
+                : 'nullable|numeric|min:0',
             'compare_price' => 'nullable|numeric|min:0',
             'stock_quantity' => 'nullable|integer|min:0',
-            'sku' => 'nullable|string|max:50',
+            'sku' => [
+                'nullable',
+                'string',
+                'max:50',
+                Rule::unique('product_variants', 'sku'),
+            ],
             'image_url' => 'nullable|string|max:1000',
         ]);
 
-        $product = DB::transaction(function () use ($validated) {
+        $product = DB::transaction(function () use ($validated, $isAccessory) {
             $productData = collect($validated)->only([
                 'name',
                 'slug',
@@ -346,47 +397,70 @@ class ProductController extends Controller
 
             $product = Product::create($productData);
 
-            // Tự động tạo biến thể mặc định và tồn kho ban đầu
-            $cleanCode = strtoupper(substr(preg_replace('/[^a-zA-Z0-9]/', '', Str::ascii($product->slug ?? $product->name)), 0, 8));
-            $sku = ! empty($validated['sku'])
-                ? strtoupper(trim($validated['sku']))
-                : "MBX-{$cleanCode}-STD-{$product->id}";
+            $sku = $this->generateVariantSku(
+                $product,
+                $validated['sku'] ?? null
+            );
 
-            $price = isset($validated['price']) ? (float) $validated['price'] : 15990000.00;
-            $comparePrice = isset($validated['compare_price']) ? (float) $validated['compare_price'] : null;
-            $stockQuantity = isset($validated['stock_quantity']) ? (int) $validated['stock_quantity'] : 50;
+            $price = isset($validated['price'])
+                ? (float) $validated['price']
+                : ($isAccessory ? 0 : 15990000);
+
+            $stockQuantity = isset($validated['stock_quantity'])
+                ? (int) $validated['stock_quantity']
+                : ($isAccessory ? 0 : 50);
 
             $variant = $product->variants()->create([
                 'sku' => $sku,
-                'option_signature' => 'Phiên bản tiêu chuẩn',
                 'price' => $price,
-                'compare_price' => $comparePrice,
-                'is_active' => true,
+                'compare_price' => $validated['compare_price'] ?? null,
+                'status' => 'active',
             ]);
 
             $variant->inventory()->create([
-                'on_hand_quantity' => $stockQuantity,
+                'quantity' => $stockQuantity,
                 'reserved_quantity' => 0,
                 'min_stock' => 5,
             ]);
 
-            // Thêm hình ảnh ban đầu nếu có
-            $imageUrl = ! empty($validated['image_url'])
-                ? $validated['image_url']
-                : 'https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?w=800&auto=format&fit=crop&q=80';
+            // Ghi nhận số lượng tồn kho ban đầu nếu có nhập tồn.
+            if ($stockQuantity > 0) {
+                $this->createInventoryTransaction(
+                    $variant,
+                    $stockQuantity,
+                    'import',
+                    $product->id,
+                    'Ghi nhận tồn kho ban đầu khi tạo sản phẩm'
+                );
+            }
 
-            $product->images()->create([
-                'product_variant_id' => $variant->id,
-                'image_path' => $imageUrl,
-                'alt_text' => $product->name,
-                'is_primary' => true,
-                'sort_order' => 0,
-            ]);
+            if (! empty($validated['image_url'])) {
+                $imageUrl = $validated['image_url'];
+            } elseif (! $isAccessory) {
+                $imageUrl = 'https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?w=800&auto=format&fit=crop&q=80';
+            } else {
+                $imageUrl = null;
+            }
+
+            if ($imageUrl !== null) {
+                $product->images()->create([
+                    'variant_id' => $variant->id,
+                    'image_url' => $imageUrl,
+                    'alt_text' => $product->name,
+                    'is_primary' => true,
+                    'sort_order' => 0,
+                ]);
+            }
 
             return $product;
         });
 
-        $product->load(['brand', 'category', 'images', 'variants.inventory']);
+        $product->load([
+            'brand',
+            'category',
+            'images',
+            'variants.inventory',
+        ]);
 
         return response()->json([
             'status' => true,
@@ -395,10 +469,11 @@ class ProductController extends Controller
         ], 201);
     }
 
-    // API cập nhật sản phẩm
+    /**
+     * API cập nhật sản phẩm.
+     */
     public function update(Request $request, $id)
     {
-        // Tìm sản phẩm theo ID
         $product = Product::find($id);
 
         if (! $product) {
@@ -408,21 +483,27 @@ class ProductController extends Controller
             ], 404);
         }
 
-        // Kiểm tra dữ liệu đầu vào
         $validated = $request->validate([
             'name' => 'sometimes|required|string|max:255',
-            'slug' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('products', 'slug')->ignore($request->route('id'))],
+            'slug' => [
+                'sometimes',
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('products', 'slug')->ignore($product->id),
+            ],
             'description' => 'nullable|string',
             'brand_id' => 'nullable|exists:brands,id',
             'category_id' => 'nullable|exists:categories,id',
             'status' => 'sometimes|in:draft,active,inactive,out_of_stock',
-            'price' => 'nullable|numeric|min:0',
-            'compare_price' => 'nullable|numeric|min:0',
-            'stock_quantity' => 'nullable|integer|min:0',
+            'price' => 'sometimes|nullable|numeric|min:0',
+            'compare_price' => 'sometimes|nullable|numeric|min:0',
+            'stock_quantity' => 'sometimes|nullable|integer|min:0',
             'image_url' => 'nullable|string|max:1000',
         ]);
 
         DB::transaction(function () use ($product, $validated) {
+            // Cập nhật thông tin sản phẩm.
             $productData = collect($validated)->only([
                 'name',
                 'slug',
@@ -434,53 +515,105 @@ class ProductController extends Controller
 
             $product->update($productData);
 
-            // Cập nhật giá & tồn kho của biến thể đầu tiên nếu có truyền lên
-            $firstVariant = $product->variants()->first();
-            if ($firstVariant) {
-                if (isset($validated['price'])) {
-                    $firstVariant->price = $validated['price'];
-                }
-                if (array_key_exists('compare_price', $validated)) {
-                    $firstVariant->compare_price = $validated['compare_price'];
-                }
-                $firstVariant->save();
+            $firstVariant = $product->variants()
+                ->orderBy('id')
+                ->first();
 
-                if (isset($validated['stock_quantity'])) {
-                    $inventory = $firstVariant->inventory;
-                    if ($inventory) {
-                        $inventory->on_hand_quantity = (int) $validated['stock_quantity'];
-                        $inventory->save();
-                    } else {
-                        $firstVariant->inventory()->create([
-                            'on_hand_quantity' => (int) $validated['stock_quantity'],
+            // Tạo biến thể nếu sản phẩm chưa có biến thể.
+            if (
+                ! $firstVariant &&
+                (
+                    isset($validated['price']) ||
+                    array_key_exists('compare_price', $validated) ||
+                    isset($validated['stock_quantity'])
+                )
+            ) {
+                $firstVariant = $product->variants()->create([
+                    'sku' => $this->generateVariantSku($product),
+                    'price' => $validated['price'] ?? 0,
+                    'compare_price' => $validated['compare_price'] ?? null,
+                    'status' => 'active',
+                ]);
+            }
+
+            if ($firstVariant) {
+                $variantData = [];
+
+                if (array_key_exists('price', $validated)
+                    && $validated['price'] !== null) {
+                    $variantData['price'] = $validated['price'];
+                }
+
+                if (array_key_exists('compare_price', $validated)) {
+                    $variantData['compare_price'] = $validated['compare_price'];
+                }
+
+                if (! empty($variantData)) {
+                    $firstVariant->update($variantData);
+                }
+
+                // Chỉ điều chỉnh tồn kho khi request có gửi stock_quantity.
+                if (
+                    array_key_exists('stock_quantity', $validated) &&
+                    $validated['stock_quantity'] !== null
+                ) {
+                    $inventory = $firstVariant->inventory()
+                        ->lockForUpdate()
+                        ->first();
+
+                    if (! $inventory) {
+                        $inventory = $firstVariant->inventory()->create([
+                            'quantity' => 0,
                             'reserved_quantity' => 0,
                             'min_stock' => 5,
                         ]);
                     }
+
+                    $oldQuantity = (int) $inventory->quantity;
+                    $newQuantity = (int) $validated['stock_quantity'];
+                    $reservedQuantity = (int) $inventory->reserved_quantity;
+
+                    if ($newQuantity < $reservedQuantity) {
+                        throw ValidationException::withMessages([
+                            'stock_quantity' => [
+                                'Tồn kho không được nhỏ hơn số lượng sản phẩm đang được giữ chỗ.',
+                            ],
+                        ]);
+                    }
+
+                    $difference = $newQuantity - $oldQuantity;
+
+                    if ($difference !== 0) {
+                        $inventory->update([
+                            'quantity' => $newQuantity,
+                        ]);
+
+                        $this->createInventoryTransaction(
+                            $firstVariant,
+                            abs($difference),
+                            $difference > 0 ? 'import' : 'export',
+                            $product->id,
+                            $difference > 0
+                                ? 'Điều chỉnh tăng tồn kho khi cập nhật sản phẩm'
+                                : 'Điều chỉnh giảm tồn kho khi cập nhật sản phẩm'
+                        );
+                    }
                 }
-            } elseif (isset($validated['price']) || isset($validated['stock_quantity'])) {
-                $cleanCode = strtoupper(substr(preg_replace('/[^a-zA-Z0-9]/', '', Str::ascii($product->slug ?? $product->name)), 0, 8));
-                $newVar = $product->variants()->create([
-                    'sku' => "MBX-{$cleanCode}-STD-{$product->id}",
-                    'option_signature' => 'Phiên bản tiêu chuẩn',
-                    'price' => $validated['price'] ?? 15990000.00,
-                    'compare_price' => $validated['compare_price'] ?? null,
-                    'is_active' => true,
-                ]);
-                $newVar->inventory()->create([
-                    'on_hand_quantity' => $validated['stock_quantity'] ?? 50,
-                    'reserved_quantity' => 0,
-                    'min_stock' => 5,
-                ]);
             }
 
+            // Cập nhật ảnh đại diện.
             if (! empty($validated['image_url'])) {
-                $primaryImg = $product->images()->where('is_primary', true)->first();
+                $primaryImg = $product->images()
+                    ->where('is_primary', true)
+                    ->first();
+
                 if ($primaryImg) {
-                    $primaryImg->update(['image_path' => $validated['image_url']]);
+                    $primaryImg->update([
+                        'image_url' => $validated['image_url'],
+                    ]);
                 } else {
                     $product->images()->create([
-                        'image_path' => $validated['image_url'],
+                        'image_url' => $validated['image_url'],
                         'alt_text' => $product->name,
                         'is_primary' => true,
                         'sort_order' => 0,
@@ -489,7 +622,12 @@ class ProductController extends Controller
             }
         });
 
-        $product->load(['brand', 'category', 'images', 'variants.inventory']);
+        $product->load([
+            'brand',
+            'category',
+            'images',
+            'variants.inventory',
+        ]);
 
         return response()->json([
             'status' => true,
@@ -498,116 +636,159 @@ class ProductController extends Controller
         ], 200);
     }
 
-    // API xóa sản phẩm
+    /**
+     * Ngừng kinh doanh một sản phẩm.
+     */
     public function destroy($id)
     {
-        $product = Product::with(['variants'])->find($id);
+        $product = Product::find($id);
 
         if (! $product) {
             return response()->json([
                 'status' => false,
-                'message' => 'Không tìm thấy sản phẩm',
+                'message' => 'Không tìm thấy sản phẩm.',
             ], 404);
         }
 
-        // Chuyển vào Thùng rác (Soft Delete) - giữ nguyên ảnh, thông số kỹ thuật để có thể khôi phục
         DB::transaction(function () use ($product) {
-            $product->variants()->delete();
-            $product->delete();
+            $product->update([
+                'status' => 'inactive',
+            ]);
+
+            $product->variants()->update([
+                'status' => 'inactive',
+            ]);
         });
 
         return response()->json([
             'status' => true,
-            'message' => 'Sản phẩm đã được chuyển vào Thùng rác.',
+            'message' => 'Đã ngừng kinh doanh sản phẩm thành công.',
+            'data' => [
+                'id' => $product->id,
+                'name' => $product->name,
+                'status' => 'inactive',
+            ],
         ], 200);
     }
 
     /**
-     * Bulk update status for multiple products.
+     * Cập nhật trạng thái nhiều sản phẩm.
      */
     public function bulkStatus(Request $request)
     {
         $validated = $request->validate([
             'ids' => 'required|array|min:1',
-            'ids.*' => 'required|integer|exists:products,id',
+            'ids.*' => 'required|integer|distinct|exists:products,id',
             'status' => 'required|in:active,draft,inactive,out_of_stock',
         ]);
 
-        $status = $validated['status'];
-        $isActive = ($status === 'active');
+        DB::transaction(function () use ($validated) {
+            Product::whereIn('id', $validated['ids'])
+                ->update([
+                    'status' => $validated['status'],
+                ]);
 
-        DB::transaction(function () use ($validated, $status, $isActive) {
-            Product::whereIn('id', $validated['ids'])->update(['status' => $status]);
-            ProductVariant::whereIn('product_id', $validated['ids'])->update(['is_active' => $isActive]);
+            // Chỉ thay đổi trạng thái biến thể khi sản phẩm được
+            // kích hoạt hoặc ngừng kinh doanh.
+            if (in_array($validated['status'], ['active', 'inactive'], true)) {
+                ProductVariant::whereIn('product_id', $validated['ids'])
+                    ->update([
+                        'status' => $validated['status'],
+                    ]);
+            }
         });
 
         return response()->json([
             'status' => true,
-            'message' => 'Cập nhật trạng thái cho ' . count($validated['ids']) . ' sản phẩm thành công.',
-        ]);
+            'message' => 'Cập nhật trạng thái cho '
+                . count($validated['ids'])
+                . ' sản phẩm thành công.',
+        ], 200);
     }
 
     /**
-     * Bulk safe-delete multiple products.
+     * Ngừng kinh doanh nhiều sản phẩm.
+     * Không xóa vật lý để bảo toàn dữ liệu liên quan.
      */
     public function bulkDelete(Request $request)
     {
         $validated = $request->validate([
             'ids' => 'required|array|min:1',
-            'ids.*' => 'required|integer|exists:products,id',
+            'ids.*' => 'required|integer|distinct|exists:products,id',
         ]);
 
-        $deletedCount = 0;
+        $count = count($validated['ids']);
 
-        DB::transaction(function () use ($validated, &$deletedCount) {
-            foreach ($validated['ids'] as $id) {
-                $product = Product::find($id);
-                if (! $product) {
-                    continue;
-                }
-                $product->variants()->delete();
-                $product->delete();
-                $deletedCount++;
+        DB::transaction(function () use ($validated) {
+            Product::whereIn('id', $validated['ids'])
+                ->update([
+                    'status' => 'inactive',
+                ]);
+
+            ProductVariant::whereIn('product_id', $validated['ids'])
+                ->update([
+                    'status' => 'inactive',
+                ]);
+        });
+
+        return response()->json([
+            'status' => true,
+            'deactivated_count' => $count,
+            'message' => "Đã ngừng kinh doanh {$count} sản phẩm thành công.",
+        ], 200);
+    }
+
+    /**
+     * Đồng bộ thông số kỹ thuật của sản phẩm.
+     */
+    public function syncSpecifications(Request $request, $product)
+    {
+        $product = Product::find($product);
+
+        if (! $product) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Không tìm thấy sản phẩm.',
+            ], 404);
+        }
+
+        $validated = $request->validate([
+            'specs' => ['present', 'array'],
+            'specs.*.specification_name' => [
+                'required',
+                'string',
+                'max:255',
+            ],
+            'specs.*.specification_value' => [
+                'required',
+                'string',
+                'max:1000',
+            ],
+            'specs.*.sort_order' => [
+                'nullable',
+                'integer',
+                'min:0',
+            ],
+        ]);
+
+        DB::transaction(function () use ($product, $validated) {
+            $product->specifications()->delete();
+
+            foreach ($validated['specs'] as $index => $spec) {
+                $product->specifications()->create([
+                    'specification_name' => trim($spec['specification_name']),
+                    'specification_value' => trim($spec['specification_value']),
+                    'sort_order' => $spec['sort_order'] ?? $index,
+                ]);
             }
         });
 
         return response()->json([
             'status' => true,
-            'deleted_count' => $deletedCount,
-            'message' => "Đã chuyển {$deletedCount} sản phẩm vào Thùng rác.",
-        ]);
-    }
-
-    public function syncSpecifications(Request $request, Product $product)
-    {
-        $data = $request->validate([
-            'specs'                        => 'required|array',
-            'specs.*.definition_id'        => 'required|exists:product_specification_definitions,id',
-            'specs.*.value'                => 'nullable',
-        ]);
-
-        foreach ($data['specs'] as $spec) {
-            $def = \App\Models\ProductSpecificationDefinition::find($spec['definition_id']);
-            $payload = [
-                'product_id'                   => $product->id,
-                'specification_definition_id'  => $spec['definition_id'],
-                'value_text'                   => null,
-                'numeric_value'                => null,
-                'value_boolean'                => null,
-            ];
-            if ($def->value_type === 'number') {
-                $payload['numeric_value'] = is_numeric($spec['value']) ? (float) $spec['value'] : null;
-            } elseif ($def->value_type === 'boolean') {
-                $payload['value_boolean'] = filter_var($spec['value'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-            } else {
-                $payload['value_text'] = $spec['value'];
-            }
-            \App\Models\ProductSpecification::updateOrCreate(
-                ['product_id' => $product->id, 'specification_definition_id' => $spec['definition_id']],
-                $payload
-            );
-        }
-
-        return response()->json(['message' => 'Specifications synced', 'count' => count($data['specs'])]);
+            'message' => 'Đồng bộ thông số kỹ thuật thành công.',
+            'data' => $product->specifications()
+                ->orderBy('sort_order')
+                ->get(),
+        ], 200);
     }
 }
