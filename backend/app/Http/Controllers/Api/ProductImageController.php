@@ -1,5 +1,6 @@
 <?php
 
+
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
@@ -22,19 +23,23 @@ class ProductImageController extends Controller
         }
 
         if ($request->filled('product_variant_id')) {
-            if ($request->product_variant_id === 'null' || $request->product_variant_id === 'none') {
-                $query->whereNull('product_variant_id');
+            $variantId = $request->product_variant_id;
+
+            if ($variantId === 'null' || $variantId === 'none') {
+                $query->whereNull('variant_id');
             } else {
-                $query->where('product_variant_id', $request->product_variant_id);
+                $query->where('variant_id', $variantId);
             }
         } elseif ($request->filled('variant_id')) {
-            if ($request->variant_id === 'null' || $request->variant_id === 'none') {
-                $query->whereNull('product_variant_id');
+            $variantId = $request->variant_id;
+
+            if ($variantId === 'null' || $variantId === 'none') {
+                $query->whereNull('variant_id');
             } else {
-                $query->where('product_variant_id', $request->variant_id);
+                $query->where('variant_id', $variantId);
             }
         } elseif ($request->boolean('general_only')) {
-            $query->whereNull('product_variant_id');
+            $query->whereNull('variant_id');
         }
 
         return response()->json([
@@ -68,9 +73,9 @@ class ProductImageController extends Controller
         $query = ProductImage::where('product_id', $productId);
 
         if ($variantId === null) {
-            $query->whereNull('product_variant_id');
+            $query->whereNull('variant_id');
         } else {
-            $query->where('product_variant_id', $variantId);
+            $query->where('variant_id', $variantId);
         }
 
         if ($exceptId !== null) {
@@ -86,10 +91,8 @@ class ProductImageController extends Controller
         $validated = $request->validate([
             'product_id' => 'required|exists:products,id',
             'variant_id' => 'nullable|exists:product_variants,id',
-
             'images' => 'required|array|min:1|max:10',
             'images.*' => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
-
             'alt_text' => 'nullable|string|max:255',
             'sort_order' => 'nullable|integer|min:0',
             'is_primary' => 'nullable|boolean',
@@ -105,25 +108,28 @@ class ProductImageController extends Controller
         }
 
         $createdImages = [];
+        $storedPaths = [];
 
         try {
-            DB::transaction(function () use ($request, $validated, &$createdImages) {
+            DB::transaction(function () use (
+                $request,
+                $validated,
+                &$createdImages,
+                &$storedPaths
+            ) {
                 $productId = $validated['product_id'];
                 $variantId = $validated['variant_id'] ?? null;
-
                 $files = $request->file('images');
 
                 foreach ($files as $index => $file) {
-                    // Lưu file vào storage/app/public/products
                     $path = $file->store('products', 'public');
+                    $storedPaths[] = $path;
 
-                    // Đường dẫn công khai
-                    $imageUrl = asset('storage/'.$path);
+                    $imageUrl = asset('storage/' . $path);
 
                     $isPrimary = ! empty($validated['is_primary'])
                         && $index === 0;
 
-                    // Chỉ có một ảnh chính trên mỗi biến thể
                     if ($isPrimary) {
                         $this->clearPrimaryImage(
                             $productId,
@@ -144,9 +150,8 @@ class ProductImageController extends Controller
                 }
             });
         } catch (\Throwable $e) {
-            // Dọn các file nếu quá trình lưu thất bại
-            foreach ($createdImages as $image) {
-                $this->deleteImageFile($image->image_url);
+            foreach ($storedPaths as $path) {
+                Storage::disk('public')->delete($path);
             }
 
             throw $e;
@@ -172,9 +177,11 @@ class ProductImageController extends Controller
             'image' => 'sometimes|image|mimes:jpg,jpeg,png,webp|max:5120',
         ]);
 
+        $oldVariantId = $image->variant_id;
+
         $variantId = array_key_exists('variant_id', $validated)
             ? $validated['variant_id']
-            : $image->product_variant_id;
+            : $oldVariantId;
 
         $variantError = $this->checkVariant(
             $image->product_id,
@@ -195,7 +202,7 @@ class ProductImageController extends Controller
                     'public'
                 );
 
-                $validated['image_url'] = asset('storage/'.$newPath);
+                $validated['image_url'] = asset('storage/' . $newPath);
             }
 
             unset($validated['image']);
@@ -203,11 +210,12 @@ class ProductImageController extends Controller
             DB::transaction(function () use (
                 $image,
                 $validated,
-                $variantId
+                $variantId,
+                $oldVariantId
             ) {
                 if (
                     ! empty($validated['is_primary'])
-                    || $variantId != $image->product_variant_id
+                    || $variantId != $oldVariantId
                 ) {
                     $this->clearPrimaryImage(
                         $image->product_id,
@@ -226,7 +234,6 @@ class ProductImageController extends Controller
             throw $e;
         }
 
-        // Chỉ xóa ảnh cũ sau khi cập nhật database thành công
         if ($newPath) {
             $this->deleteImageFile($oldImageUrl);
         }
@@ -251,7 +258,6 @@ class ProductImageController extends Controller
             return;
         }
 
-        // Tìm vị trí /storage/ trong URL
         $storagePosition = strpos($path, '/storage/');
 
         if ($storagePosition === false) {
@@ -268,10 +274,7 @@ class ProductImageController extends Controller
         }
     }
 
-    /**
-     * Bulk-reorder images for a product.
-     * Expects: { "images": [{ "id": 1, "sort_order": 0 }, { "id": 2, "sort_order": 1 }] }
-     */
+    // Sắp xếp hình ảnh
     public function reorder(Request $request)
     {
         $validated = $request->validate([
@@ -293,9 +296,7 @@ class ProductImageController extends Controller
         ]);
     }
 
-    /**
-     * Set an image as primary within its scope (product-level or variant-level).
-     */
+    // Đặt ảnh làm ảnh đại diện
     public function setPrimary(Request $request, $id)
     {
         $image = ProductImage::findOrFail($id);
@@ -303,7 +304,7 @@ class ProductImageController extends Controller
         DB::transaction(function () use ($image) {
             $this->clearPrimaryImage(
                 $image->product_id,
-                $image->product_variant_id,
+                $image->variant_id,
                 $image->id
             );
 
@@ -321,7 +322,6 @@ class ProductImageController extends Controller
     public function destroy($id)
     {
         $image = ProductImage::findOrFail($id);
-
         $imageUrl = $image->image_url;
 
         DB::transaction(function () use ($image) {
