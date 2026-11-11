@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use App\Models\ProductVariant;
 
 class ProductController extends Controller
 {
@@ -47,8 +48,8 @@ class ProductController extends Controller
             $keyword = $validated['keyword'];
 
             $query->where(function ($q) use ($keyword) {
-                $q->where('name', 'like', '%'.$keyword.'%')
-                    ->orWhere('slug', 'like', '%'.$keyword.'%');
+                $q->where('name', 'like', '%' . $keyword . '%')
+                    ->orWhere('slug', 'like', '%' . $keyword . '%');
             });
         }
 
@@ -145,9 +146,11 @@ class ProductController extends Controller
         ], 200);
     }
 
+
     public function compare(Request $request)
     {
         $idsParam = $request->input('ids');
+
         if (empty($idsParam)) {
             return response()->json([
                 'status' => false,
@@ -196,6 +199,58 @@ class ProductController extends Controller
             ],
         ], 200);
     }
+
+
+    // API lấy danh sách điện thoại đang hoạt động để chọn sản phẩm tương thích
+    public function compatiblePhones(Request $request)
+    {
+        $validated = $request->validate([
+            'keyword' => 'nullable|string|max:255',
+            'per_page' => 'nullable|integer|min:1|max:100',
+        ]);
+
+        $phoneCategory = Category::where('name', 'Điện thoại')
+            ->whereNull('parent_id')
+            ->first();
+
+        if (! $phoneCategory) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Không tìm thấy danh mục Điện thoại',
+            ], 404);
+        }
+
+        $categoryIds = Category::where('parent_id', $phoneCategory->id)
+            ->pluck('id')
+            ->toArray();
+
+        $categoryIds[] = $phoneCategory->id;
+
+        $query = Product::with(['brand', 'category'])
+            ->whereIn('category_id', $categoryIds)
+            ->where('status', 'active');
+
+        if (! empty($validated['keyword'])) {
+            $keyword = $validated['keyword'];
+
+            $query->where(function ($q) use ($keyword) {
+                $q->where('name', 'like', '%' . $keyword . '%')
+                    ->orWhere('slug', 'like', '%' . $keyword . '%');
+            });
+        }
+
+        $products = $query
+            ->latest()
+            ->paginate($validated['per_page'] ?? 10)
+            ->withQueryString();
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Lấy danh sách điện thoại tương thích thành công',
+            'data' => $products,
+        ], 200);
+    }
+
 
     public function show($id)
     {
@@ -281,7 +336,12 @@ class ProductController extends Controller
 
         $product = DB::transaction(function () use ($validated) {
             $productData = collect($validated)->only([
-                'name', 'slug', 'description', 'brand_id', 'category_id', 'status',
+                'name',
+                'slug',
+                'description',
+                'brand_id',
+                'category_id',
+                'status',
             ])->toArray();
 
             $product = Product::create($productData);
@@ -364,7 +424,12 @@ class ProductController extends Controller
 
         DB::transaction(function () use ($product, $validated) {
             $productData = collect($validated)->only([
-                'name', 'slug', 'description', 'brand_id', 'category_id', 'status',
+                'name',
+                'slug',
+                'description',
+                'brand_id',
+                'category_id',
+                'status',
             ])->toArray();
 
             $product->update($productData);
@@ -478,7 +543,7 @@ class ProductController extends Controller
 
         return response()->json([
             'status' => true,
-            'message' => 'Cập nhật trạng thái cho '.count($validated['ids']).' sản phẩm thành công.',
+            'message' => 'Cập nhật trạng thái cho ' . count($validated['ids']) . ' sản phẩm thành công.',
         ]);
     }
 
