@@ -319,9 +319,9 @@ export default function AdminCouponPage() {
       {/* Delete Confirmation */}
       <ConfirmDialog
         open={!!deleteTarget}
-        title="Xóa mã giảm giá"
-        message={`Bạn có chắc chắn muốn xóa mã "${deleteTarget?.code}"? Hành động này không thể hoàn tác.`}
-        confirmLabel="Xác nhận xóa"
+        title="Chuyển vào Thùng rác"
+        message={`Bạn có chắc chắn muốn chuyển mã "${deleteTarget?.code}" vào Thùng rác? Bạn có thể khôi phục lại bất kỳ lúc nào.`}
+        confirmLabel="Chuyển vào Thùng rác"
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
         loading={deleting}

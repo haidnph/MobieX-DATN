@@ -888,9 +888,9 @@ export default function AdminProductPage() {
       {/* Delete Confirmation */}
       <ConfirmDialog
         open={!!deleteTarget}
-        title="Xóa sản phẩm"
-        message={`Bạn có chắc chắn muốn xóa sản phẩm "${deleteTarget?.name}"? Tất cả hình ảnh và liên kết liên quan sẽ bị gỡ bỏ.`}
-        confirmLabel="Xác nhận xóa"
+        title="Chuyển vào Thùng rác"
+        message={`Bạn có chắc chắn muốn chuyển sản phẩm "${deleteTarget?.name}" vào Thùng rác? Bạn có thể khôi phục lại bất kỳ lúc nào.`}
+        confirmLabel="Chuyển vào Thùng rác"
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
         loading={deleting}

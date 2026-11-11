@@ -106,6 +106,14 @@ const EP = {
   PRODUCT_IMAGE_DETAIL: (id) => `/product-images/${id}`,
   PRODUCT_IMAGE_REORDER: '/product-images/reorder',
   PRODUCT_IMAGE_PRIMARY: (id) => `/product-images/${id}/primary`,
+
+  // ── Admin: Trash / Recycle Bin ─────────────────────────
+  ADMIN_TRASH_SUMMARY: '/admin/trash/summary',
+  ADMIN_TRASH_LIST: (type) => `/admin/trash/${type}`,
+  ADMIN_TRASH_RESTORE: (type, id) => `/admin/trash/${type}/${id}/restore`,
+  ADMIN_TRASH_RESTORE_ALL: (type) => `/admin/trash/restore-all/${type}`,
+  ADMIN_TRASH_FORCE_DELETE: (type, id) => `/admin/trash/${type}/${id}`,
+  ADMIN_TRASH_EMPTY: (type) => `/admin/trash/empty/${type}`,
 }
 
 export default EP

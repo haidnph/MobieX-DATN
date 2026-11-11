@@ -60,4 +60,13 @@ describe('API Endpoints Definition', () => {
     expect(EP.PRODUCT_IMAGE_REORDER).toBe('/product-images/reorder')
     expect(EP.PRODUCT_IMAGE_PRIMARY(5)).toBe('/product-images/5/primary')
   })
+
+  it('contains admin trash (recycle bin) endpoints', () => {
+    expect(EP.ADMIN_TRASH_SUMMARY).toBe('/admin/trash/summary')
+    expect(EP.ADMIN_TRASH_LIST('products')).toBe('/admin/trash/products')
+    expect(EP.ADMIN_TRASH_RESTORE('categories', 10)).toBe('/admin/trash/categories/10/restore')
+    expect(EP.ADMIN_TRASH_RESTORE_ALL('brands')).toBe('/admin/trash/restore-all/brands')
+    expect(EP.ADMIN_TRASH_FORCE_DELETE('coupons', 5)).toBe('/admin/trash/coupons/5')
+    expect(EP.ADMIN_TRASH_EMPTY('banners')).toBe('/admin/trash/empty/banners')
+  })
 })

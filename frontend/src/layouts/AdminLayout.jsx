@@ -1,9 +1,11 @@
 // src/layouts/AdminLayout.jsx
 // Wraps admin portal pages: collapsible sidebar + top navbar + main content area.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import axiosClient from '../api/axiosClient'
+import EP from '../api/endpoints'
 
 const NAV_ITEMS = [
   { to: '/admin',            icon: 'dashboard',           label: 'Tổng quan',       end: true },
@@ -17,12 +19,26 @@ const NAV_ITEMS = [
   { to: '/admin/coupons',    icon: 'local_offer',         label: 'Mã giảm giá' },
   { to: '/admin/reviews',    icon: 'rate_review',         label: 'Đánh giá' },
   { to: '/admin/banners',    icon: 'image',               label: 'Banner' },
+  { to: '/admin/trash',      icon: 'auto_delete',         label: 'Thùng rác' },
 ]
 
 export default function AdminLayout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState(false)
+  const [trashCount, setTrashCount] = useState(0)
+
+  useEffect(() => {
+    let mounted = true
+    axiosClient.get(EP.ADMIN_TRASH_SUMMARY)
+      .then(({ data }) => {
+        if (mounted && data?.data?.total) {
+          setTrashCount(data.data.total)
+        }
+      })
+      .catch(() => {})
+    return () => { mounted = false }
+  }, [])
 
   const handleLogout = async () => {
     await logout()
@@ -67,7 +83,16 @@ export default function AdminLayout() {
               }
             >
               <span className="material-symbols-outlined text-xl shrink-0">{icon}</span>
-              {!collapsed && <span className="truncate">{label}</span>}
+              {!collapsed && (
+                <div className="flex-1 flex items-center justify-between min-w-0">
+                  <span className="truncate">{label}</span>
+                  {to === '/admin/trash' && trashCount > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full text-xs font-semibold bg-error-container text-on-error-container shrink-0">
+                      {trashCount}
+                    </span>
+                  )}
+                </div>
+              )}
             </NavLink>
           ))}
         </nav>

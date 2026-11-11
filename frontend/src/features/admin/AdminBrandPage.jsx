@@ -366,9 +366,9 @@ export default function AdminBrandPage() {
         open={Boolean(deleteTarget)}
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
-        title="Xác nhận xóa thương hiệu"
-        message={`Bạn có chắc chắn muốn xóa thương hiệu "${deleteTarget?.name}"? Hệ thống sẽ chặn xóa nếu thương hiệu này đang có sản phẩm liên kết.`}
-        confirmText="Xóa thương hiệu"
+        title="Chuyển vào Thùng rác"
+        message={`Bạn có chắc chắn muốn chuyển thương hiệu "${deleteTarget?.name}" vào Thùng rác? Bạn có thể khôi phục lại bất kỳ lúc nào.`}
+        confirmText="Chuyển vào Thùng rác"
         variant="error"
         loading={deleting}
       />

@@ -417,9 +417,9 @@ export default function AdminCategoryPage() {
         open={Boolean(deleteTarget)}
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
-        title="Xác nhận xóa danh mục"
-        message={`Bạn có chắc chắn muốn xóa danh mục "${deleteTarget?.name}"? Hệ thống sẽ từ chối xóa nếu danh mục đang chứa danh mục con hoặc sản phẩm.`}
-        confirmText="Xóa danh mục"
+        title="Chuyển vào Thùng rác"
+        message={`Bạn có chắc chắn muốn chuyển danh mục "${deleteTarget?.name}" vào Thùng rác? Bạn có thể khôi phục lại bất kỳ lúc nào.`}
+        confirmText="Chuyển vào Thùng rác"
         variant="error"
         loading={deleting}
       />

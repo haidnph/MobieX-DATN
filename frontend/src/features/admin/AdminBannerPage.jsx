@@ -313,9 +313,9 @@ export default function AdminBannerPage() {
       {/* Delete Confirmation */}
       <ConfirmDialog
         open={!!deleteTarget}
-        title="Xóa banner"
-        message={`Bạn có chắc chắn muốn xóa banner "${deleteTarget?.title}"?`}
-        confirmLabel="Xác nhận xóa"
+        title="Chuyển vào Thùng rác"
+        message={`Bạn có chắc chắn muốn chuyển banner "${deleteTarget?.title}" vào Thùng rác? Bạn có thể khôi phục lại bất kỳ lúc nào.`}
+        confirmLabel="Chuyển vào Thùng rác"
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
         loading={deleting}
