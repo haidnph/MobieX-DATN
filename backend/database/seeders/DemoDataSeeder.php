@@ -252,7 +252,7 @@ class DemoDataSeeder extends Seeder
                     'subtotal'       => $v4->price,
                     'total_amount'   => $v4->price,
                     'payment_method' => 'cod',
-                    'payment_status' => 'cancelled',
+                    'payment_status' => 'failed',
                     'status'         => 'cancelled',
                     'cancel_reason'  => 'Khách hàng thay đổi ý định, muốn mua màu khác',
                     'created_at'     => now()->subDays(3),

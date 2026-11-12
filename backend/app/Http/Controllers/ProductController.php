@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 use App\Models\Category;
 use App\Models\InventoryTransaction;
 use App\Models\Product;
+use App\Models\ProductSpecificationDefinition;
 use App\Models\ProductVariant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -117,13 +118,14 @@ class ProductController extends Controller
 
         $validated = $request->validate([
             'keyword' => 'nullable|string|max:255',
-            'brand_id' => 'nullable|integer|exists:brands,id',
+            'brand_id' => 'nullable',
             'category_id' => 'nullable|integer|exists:categories,id',
             'min_price' => 'nullable|numeric|min:0',
             'max_price' => 'nullable|numeric|min:0',
             'ram' => 'nullable|string|max:50',
             'storage' => 'nullable|string|max:50',
             'status' => 'nullable|in:draft,active,inactive,out_of_stock',
+            'sort_by' => 'nullable|string|in:price_asc,price_desc,newest,oldest,name_asc,name_desc,popular',
             'per_page' => 'nullable|integer|min:1|max:100',
         ]);
 
@@ -144,8 +146,17 @@ class ProductController extends Controller
             });
         }
 
+        // Lọc theo thương hiệu (hỗ trợ single id, mảng id hoặc chuỗi phân cách bởi dấu phẩy)
         if (! empty($validated['brand_id'])) {
-            $query->where('brand_id', $validated['brand_id']);
+            $rawBrand = $validated['brand_id'];
+            if (is_array($rawBrand)) {
+                $brandIds = array_filter(array_map('intval', $rawBrand));
+            } else {
+                $brandIds = array_filter(array_map('intval', explode(',', (string) $rawBrand)));
+            }
+            if (! empty($brandIds)) {
+                $query->whereIn('brand_id', $brandIds);
+            }
         }
 
         if (! empty($validated['category_id'])) {
@@ -204,9 +215,46 @@ class ProductController extends Controller
             });
         }
 
+        // Sắp xếp
+        $sortBy = $validated['sort_by'] ?? 'newest';
+        switch ($sortBy) {
+            case 'price_asc':
+                $query->orderBy(
+                    ProductVariant::selectRaw('COALESCE(MIN(price), 0)')
+                        ->whereColumn('product_variants.product_id', 'products.id'),
+                    'asc'
+                );
+                break;
+            case 'price_desc':
+                $query->orderBy(
+                    ProductVariant::selectRaw('COALESCE(MAX(price), 0)')
+                        ->whereColumn('product_variants.product_id', 'products.id'),
+                    'desc'
+                );
+                break;
+            case 'name_asc':
+                $query->orderByRaw('LOWER(name) asc');
+                break;
+            case 'name_desc':
+                $query->orderByRaw('LOWER(name) desc');
+                break;
+            case 'oldest':
+                $query->oldest();
+                break;
+            case 'popular':
+                $query->withCount('reviews')->orderByDesc('reviews_count')->latest();
+                break;
+            case 'newest':
+            default:
+                $query->latest();
+                break;
+        }
+
+        // Phân trang
+        $perPage = $validated['per_page'] ?? 10;
+
         $products = $query
-            ->latest()
-            ->paginate($validated['per_page'] ?? 10)
+            ->paginate($perPage)
             ->withQueryString();
 
         return response()->json([
