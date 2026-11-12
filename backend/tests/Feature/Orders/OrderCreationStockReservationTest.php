@@ -196,4 +196,52 @@ class OrderCreationStockReservationTest extends TestCase
             'payment_status' => 'pending',
         ]);
     }
+
+    public function test_order_creation_fails_when_product_is_inactive(): void
+    {
+        $this->variant->product->update(['status' => 'inactive']);
+
+        $cart = Cart::create(['user_id' => $this->user->id]);
+        CartItem::create([
+            'cart_id' => $cart->id,
+            'product_variant_id' => $this->variant->id,
+            'quantity' => 1,
+        ]);
+
+        $payload = [
+            'shipping_name' => 'Lê Thị C',
+            'shipping_phone' => '0987654321',
+            'shipping_address_line' => '789 Đường Test',
+            'shipping_method_id' => $this->shippingMethod->id,
+            'payment_method' => 'COD',
+        ];
+
+        $response = $this->actingAs($this->user)->postJson('/api/orders', $payload);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['cart']);
+    }
+
+    public function test_order_creation_fails_when_quantity_exceeds_available_inventory(): void
+    {
+        $cart = Cart::create(['user_id' => $this->user->id]);
+        CartItem::create([
+            'cart_id' => $cart->id,
+            'product_variant_id' => $this->variant->id,
+            'quantity' => 999, // available is only 8
+        ]);
+
+        $payload = [
+            'shipping_name' => 'Lê Thị D',
+            'shipping_phone' => '0987654321',
+            'shipping_address_line' => '789 Đường Test',
+            'shipping_method_id' => $this->shippingMethod->id,
+            'payment_method' => 'COD',
+        ];
+
+        $response = $this->actingAs($this->user)->postJson('/api/orders', $payload);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['cart']);
+    }
 }

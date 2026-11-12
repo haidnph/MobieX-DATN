@@ -101,13 +101,14 @@ class CartController extends Controller
         ]);
 
         $result = DB::transaction(function () use ($request, $validated) {
-            $variant = ProductVariant::whereKey($validated['variant_id'])
+            $variant = ProductVariant::with('product')
+                ->whereKey($validated['variant_id'])
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            if ($variant->status !== 'active') {
+            if ($variant->status !== 'active' || ! $variant->product || $variant->product->status !== 'active') {
                 return [
-                    'error' => 'Biến thể sản phẩm không hoạt động.',
+                    'error' => 'Sản phẩm hoặc biến thể này hiện đã ngừng kinh doanh.',
                     'code' => 422,
                 ];
             }
@@ -207,13 +208,14 @@ class CartController extends Controller
                 ];
             }
 
-            $variant = ProductVariant::whereKey($cartItem->variant_id)
+            $variant = ProductVariant::with('product')
+                ->whereKey($cartItem->variant_id)
                 ->lockForUpdate()
                 ->first();
 
-            if (! $variant || $variant->status !== 'active') {
+            if (! $variant || $variant->status !== 'active' || ! $variant->product || $variant->product->status !== 'active') {
                 return [
-                    'error' => 'Biến thể sản phẩm không hoạt động.',
+                    'error' => 'Sản phẩm hoặc biến thể này không còn khả dụng.',
                     'code' => 422,
                 ];
             }

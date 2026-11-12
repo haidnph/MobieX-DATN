@@ -45,30 +45,46 @@ class Product extends Model
     public function getMinPriceAttribute(): float
     {
         if ($this->relationLoaded('variants')) {
-            if ($this->variants->isEmpty()) {
-                return 0.0;
+            if ($this->variants->isNotEmpty()) {
+                $minVariant = $this->variants->where('is_active', true)->min('price') ?? $this->variants->min('price');
+                if ($minVariant !== null && (float) $minVariant > 0) {
+                    return (float) $minVariant;
+                }
             }
 
-            return (float) $this->variants->min('price');
+            return (float) ($this->attributes['base_price'] ?? 0.0);
         }
 
-        return (float) ($this->variants()->min('price') ?? 0.0);
+        $minVariant = $this->variants()->where('is_active', true)->min('price') ?? $this->variants()->min('price');
+        if ($minVariant !== null && (float) $minVariant > 0) {
+            return (float) $minVariant;
+        }
+
+        return (float) ($this->attributes['base_price'] ?? 0.0);
     }
 
     public function getMaxPriceAttribute(): ?float
     {
         if ($this->relationLoaded('variants')) {
-            if ($this->variants->isEmpty()) {
-                return null;
+            if ($this->variants->isNotEmpty()) {
+                $maxCompare = $this->variants->max('compare_price');
+                if ($maxCompare && (float) $maxCompare > 0) {
+                    return (float) $maxCompare;
+                }
+                $maxPrice = $this->variants->max('price');
+                return ($maxPrice && (float) $maxPrice > 0) ? (float) $maxPrice : null;
             }
-            $maxCompare = $this->variants->max('compare_price');
 
-            return $maxCompare ? (float) $maxCompare : null;
+            return null;
         }
 
         $maxCompare = $this->variants()->max('compare_price');
+        if ($maxCompare && (float) $maxCompare > 0) {
+            return (float) $maxCompare;
+        }
+        $maxPrice = $this->variants()->max('price');
 
-        return $maxCompare ? (float) $maxCompare : null;
+        return ($maxPrice && (float) $maxPrice > 0) ? (float) $maxPrice : null;
     }
 
     public function brand(): BelongsTo

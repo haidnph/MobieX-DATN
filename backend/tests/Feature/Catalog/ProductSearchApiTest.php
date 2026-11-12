@@ -139,4 +139,33 @@ class ProductSearchApiTest extends TestCase
         $this->assertEquals('iPhone 16 Pro Max', $nameData[0]['name']);
         $this->assertEquals('Samsung Galaxy S24 Ultra', $nameData[1]['name']);
     }
+
+    public function test_filter_by_parent_category_includes_child_and_grandchild_categories(): void
+    {
+        $root = Category::create(['name' => 'Thiết bị công nghệ', 'slug' => 'thiet-bi-cong-nghe', 'is_active' => true]);
+        $sub = Category::create(['name' => 'Điện thoại thông minh', 'slug' => 'dt-thong-minh', 'parent_id' => $root->id, 'is_active' => true]);
+        $grandchild = Category::create(['name' => 'Điện thoại iOS', 'slug' => 'dt-ios', 'parent_id' => $sub->id, 'is_active' => true]);
+
+        $productInGrandchild = Product::create([
+            'category_id' => $grandchild->id,
+            'brand_id' => $this->brand1->id,
+            'name' => 'iPhone SE 2026',
+            'slug' => 'iphone-se-2026',
+            'status' => 'active',
+            'product_type' => 'phone',
+            'base_price' => 12000000,
+        ]);
+        ProductVariant::create([
+            'product_id' => $productInGrandchild->id,
+            'sku' => 'IP-SE-2026',
+            'price' => 12000000,
+            'is_active' => true,
+        ]);
+
+        $response = $this->getJson('/api/products?category_id=' . $root->id);
+        $response->assertStatus(200);
+        $data = $response->json('data.data') ?? $response->json('data');
+        $ids = array_column($data, 'id');
+        $this->assertContains($productInGrandchild->id, $ids);
+    }
 }

@@ -323,9 +323,27 @@ class ProductImageController extends Controller
     {
         $image = ProductImage::findOrFail($id);
         $imageUrl = $image->image_url;
+        $productId = $image->product_id;
+        $variantId = $image->product_variant_id;
+        $wasPrimary = (bool) $image->is_primary;
 
-        DB::transaction(function () use ($image) {
+        DB::transaction(function () use ($image, $productId, $variantId, $wasPrimary) {
             $image->delete();
+
+            // Nếu ảnh bị xóa là ảnh chính, tự động chỉ định ảnh tiếp theo làm ảnh chính mới
+            if ($wasPrimary) {
+                $nextPrimaryQuery = ProductImage::where('product_id', $productId);
+                if ($variantId === null) {
+                    $nextPrimaryQuery->whereNull('product_variant_id');
+                } else {
+                    $nextPrimaryQuery->where('product_variant_id', $variantId);
+                }
+
+                $nextPrimary = $nextPrimaryQuery->orderBy('sort_order')->orderBy('id')->first();
+                if ($nextPrimary) {
+                    $nextPrimary->update(['is_primary' => true]);
+                }
+            }
         });
 
         $this->deleteImageFile($imageUrl);

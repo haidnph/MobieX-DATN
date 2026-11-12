@@ -119,10 +119,19 @@ export default function ProductDetailPage() {
 
   const variants = product.variants ?? []
   const hasNoVariants = variants.length === 0
+  const isDiscontinued = product.status !== 'active'
+  const allVariantsOutOfStock =
+    variants.length > 0 &&
+    variants.every((v) => {
+      const stock = v.inventory?.available_quantity ?? v.available_quantity ?? 0
+      return stock <= 0 || v.is_active === false
+    })
+
   const availableStock = selectedVariant?.inventory?.available_quantity ?? selectedVariant?.available_quantity ?? 0
+  const isSelectedVariantOutOfStock = isDiscontinued || hasNoVariants || availableStock <= 0
   const currentPrice = selectedVariant?.price ?? product.min_price ?? product.base_price ?? 0
   const originalPrice = selectedVariant?.compare_price ?? selectedVariant?.original_price ?? product.max_price ?? null
-  const isOutOfStock = hasNoVariants || availableStock <= 0 || product.status !== 'active'
+  const isOutOfStock = isDiscontinued || allVariantsOutOfStock || hasNoVariants
 
   const handleVariantSelect = async (variant) => {
     setSelectedVariant(variant)
@@ -163,6 +172,10 @@ export default function ProductDetailPage() {
   }
 
   const handleAddToCart = async () => {
+    if (isDiscontinued) {
+      showToast('Sản phẩm đã ngừng kinh doanh', 'warning')
+      return
+    }
     if (hasNoVariants || !selectedVariant) {
       showToast('Sản phẩm hiện chưa có phiên bản kinh doanh', 'warning')
       return
@@ -212,14 +225,21 @@ export default function ProductDetailPage() {
             ) : (
               <span className="material-symbols-outlined text-8xl text-outline">smartphone</span>
             )}
-            {isOutOfStock && (
+            {isDiscontinued ? (
+              <div className="absolute inset-0 bg-background/75 backdrop-blur-xs flex items-center justify-center z-20">
+                <span className="bg-slate-800 text-slate-200 border border-slate-600 text-sm font-bold px-4 py-1.5 rounded-full shadow-lg flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-base">do_not_disturb_on</span>
+                  Ngừng kinh doanh
+                </span>
+              </div>
+            ) : allVariantsOutOfStock ? (
               <div className="absolute inset-0 bg-background/70 backdrop-blur-xs flex items-center justify-center z-20">
                 <span className="bg-error text-white text-sm font-bold px-4 py-1.5 rounded-full shadow-lg flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-base">block</span>
                   Tạm hết hàng
                 </span>
               </div>
-            )}
+            ) : null}
           </div>
 
           {/* Thumbnails */}
@@ -279,10 +299,14 @@ export default function ProductDetailPage() {
               </span>
               <span className="text-xs text-outline">•</span>
               <span className="text-xs">
-                Kho: {hasNoVariants ? (
+                Kho: {isDiscontinued ? (
+                  <span className="text-slate-400 font-medium">Ngừng kinh doanh</span>
+                ) : hasNoVariants ? (
                   <span className="text-warning font-medium">Đang cập nhật</span>
-                ) : isOutOfStock ? (
-                  <span className="text-error font-medium">Hết hàng</span>
+                ) : isSelectedVariantOutOfStock ? (
+                  <span className="text-error font-medium">Phiên bản này hết hàng</span>
+                ) : availableStock <= 3 ? (
+                  <span className="text-amber-500 font-semibold">Chỉ còn {availableStock} máy</span>
                 ) : (
                   <span className="text-secondary font-medium">Còn {availableStock} sản phẩm</span>
                 )}
@@ -363,7 +387,7 @@ export default function ProductDetailPage() {
                 <button
                   type="button"
                   onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                  disabled={quantity <= 1 || isOutOfStock || hasNoVariants}
+                  disabled={quantity <= 1 || isSelectedVariantOutOfStock}
                   className="px-3 py-2 text-on-surface hover:bg-surface-container-high transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   <span className="material-symbols-outlined text-base">remove</span>
@@ -374,7 +398,7 @@ export default function ProductDetailPage() {
                 <button
                   type="button"
                   onClick={() => setQuantity((q) => Math.min(availableStock || 1, q + 1))}
-                  disabled={quantity >= availableStock || isOutOfStock || hasNoVariants}
+                  disabled={quantity >= availableStock || isSelectedVariantOutOfStock}
                   className="px-3 py-2 text-on-surface hover:bg-surface-container-high transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   <span className="material-symbols-outlined text-base">add</span>
@@ -387,12 +411,18 @@ export default function ProductDetailPage() {
                 variant="primary"
                 size="lg"
                 className="flex-1"
-                disabled={isOutOfStock || hasNoVariants || addingToCart}
+                disabled={isSelectedVariantOutOfStock || addingToCart}
                 loading={addingToCart}
                 onClick={handleAddToCart}
               >
                 <span className="material-symbols-outlined text-xl">shopping_cart</span>
-                {hasNoVariants ? 'Chưa có phiên bản' : isOutOfStock ? 'Tạm hết hàng' : 'Thêm vào giỏ hàng'}
+                {isDiscontinued
+                  ? 'Ngừng kinh doanh'
+                  : hasNoVariants
+                    ? 'Chưa có phiên bản'
+                    : isSelectedVariantOutOfStock
+                      ? 'Phiên bản này tạm hết hàng'
+                      : 'Thêm vào giỏ hàng'}
               </Button>
 
               <Button

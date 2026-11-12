@@ -81,6 +81,20 @@ class ProductController extends Controller
     }
 
     /**
+     * Lấy danh sách ID danh mục bao gồm danh mục hiện tại và tất cả các danh mục con cháu.
+     */
+    private function getAllCategoryIdsRecursively(int $categoryId): array
+    {
+        $ids = [$categoryId];
+        $children = Category::where('parent_id', $categoryId)->pluck('id')->toArray();
+        foreach ($children as $childId) {
+            $ids = array_merge($ids, $this->getAllCategoryIdsRecursively((int) $childId));
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    /**
      * Ghi lịch sử điều chỉnh tồn kho.
      */
     private function createInventoryTransaction(
@@ -161,13 +175,7 @@ class ProductController extends Controller
 
         if (! empty($validated['category_id'])) {
             $categoryId = (int) $validated['category_id'];
-
-            $categoryIds = Category::where('parent_id', $categoryId)
-                ->pluck('id')
-                ->toArray();
-
-            $categoryIds[] = $categoryId;
-
+            $categoryIds = $this->getAllCategoryIdsRecursively($categoryId);
             $query->whereIn('category_id', $categoryIds);
         }
 

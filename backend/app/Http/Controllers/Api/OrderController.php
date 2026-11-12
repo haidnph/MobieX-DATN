@@ -307,9 +307,9 @@ class OrderController extends Controller
                 }
 
                 $product = $variant->product;
-                if (! $product) {
+                if (! $product || $product->status !== 'active') {
                     throw ValidationException::withMessages([
-                        'cart' => 'Không tìm thấy thông tin sản phẩm.',
+                        'cart' => 'Một sản phẩm trong giỏ hàng không còn khả dụng hoặc đã ngừng kinh doanh.',
                     ]);
                 }
 

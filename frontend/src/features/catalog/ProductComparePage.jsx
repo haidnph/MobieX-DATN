@@ -103,7 +103,7 @@ export default function ProductComparePage() {
     if (spec.value_boolean !== null && spec.value_boolean !== undefined) {
       return spec.value_boolean ? 'Có' : 'Không'
     }
-    return spec.value_text || '—'
+    return spec.value_text || spec.value || '—'
   }
 
   // Determine if a spec has differences among products

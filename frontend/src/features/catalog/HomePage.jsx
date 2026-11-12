@@ -7,8 +7,7 @@ import axiosClient from '../../api/axiosClient'
 import EP from '../../api/endpoints'
 import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
 import Spinner from '../../components/common/Spinner'
-import { useCompare } from '../../contexts/CompareContext'
-import { useWishlist } from '../../contexts/WishlistContext'
+import ProductCard from '../../components/common/ProductCard'
 import { useRecentlyViewed } from '../../hooks/useRecentlyViewed'
 import FlashSaleSection from './FlashSaleSection'
 
@@ -112,141 +111,8 @@ function HeroBanner({ banners }) {
   )
 }
 
-// ── Product Card ──────────────────────────────────────────────────────────────
-function ProductCard({ product }) {
-  const { toggleCompare, isInCompare } = useCompare()
-  const { toggleWishlist, isInWishlist } = useWishlist()
-  const thumbnail =
-    product.images?.find((img) => img.is_primary)?.image_url ||
-    product.images?.find((img) => img.is_primary)?.image_path ||
-    product.primary_image_url ||
-    product.thumbnail ||
-    product.images?.[0]?.image_url ||
-    product.images?.[0]?.image_path ||
-    product.images?.[0]?.url ||
-    null
 
-  const price =
-    product.min_price && Number(product.min_price) > 0
-      ? Number(product.min_price)
-      : product.variants?.length
-        ? Math.min(...product.variants.map((v) => Number(v.price) || 0))
-        : Number(product.base_price) || 0
 
-  const originalPrice =
-    product.max_price && Number(product.max_price) > 0
-      ? Number(product.max_price)
-      : product.variants?.length
-        ? Math.max(...product.variants.map((v) => Number(v.compare_price) || 0))
-        : null
-
-  const discountPercent =
-    originalPrice && originalPrice > price
-      ? Math.round(((originalPrice - price) / originalPrice) * 100)
-      : (product.discount_percent || 0)
-
-  const totalStock = product.variants?.length
-    ? product.variants.reduce(
-        (sum, v) => sum + (v.inventory?.available_quantity ?? v.available_quantity ?? v.stock_quantity ?? 0),
-        0
-      )
-    : (product.stock_quantity ?? product.total_stock ?? 0)
-
-  const isOutOfStock = product.status !== 'active' || (product.variants?.length > 0 && totalStock <= 0)
-
-  return (
-    <Link
-      to={`/products/${product.id}`}
-      className={`group bg-surface-container rounded-xl overflow-hidden border border-outline-variant/10 hover:border-primary/30 hover:shadow-[0_0_30px_rgba(77,142,255,0.15)] transition-all duration-300 ${
-        isOutOfStock ? 'opacity-75' : ''
-      }`}
-    >
-      <div className="relative h-48 bg-surface-container-high overflow-hidden">
-        {isOutOfStock && (
-          <div className="absolute inset-0 bg-background/60 backdrop-blur-[1px] flex items-center justify-center z-20 pointer-events-none">
-            <span className="bg-error text-white text-[11px] font-bold px-3 py-1 rounded-full shadow-lg flex items-center gap-1">
-              <span className="material-symbols-outlined text-xs">block</span>
-              Tạm hết hàng
-            </span>
-          </div>
-        )}
-        {thumbnail ? (
-          <img
-            src={thumbnail}
-            alt={product.name}
-            className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-500"
-            onError={(e) => {
-              e.target.onerror = null
-              e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2UyZThmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1NSIgZm9udC1zaXplPSIxMiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzk0YTNiOCI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+'
-            }}
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <span className="material-symbols-outlined text-5xl text-outline">smartphone</span>
-          </div>
-        )}
-        {discountPercent > 0 && (
-          <span className="absolute top-2 left-2 bg-secondary-container text-on-secondary-container text-[10px] font-bold px-2 py-0.5 rounded-full">
-            -{discountPercent}%
-          </span>
-        )}
-        <div className="absolute top-2 right-2 flex items-center gap-1.5 z-10">
-          <button
-            type="button"
-            title={isInCompare(product.id) ? 'Đã thêm so sánh (bấm để bỏ)' : 'Thêm vào so sánh cấu hình'}
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              toggleCompare(product)
-            }}
-            className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
-              isInCompare(product.id)
-                ? 'bg-primary text-on-primary shadow-md scale-105'
-                : 'bg-surface-container/85 text-on-surface-variant hover:text-primary hover:bg-surface-bright backdrop-blur-xs'
-            }`}
-          >
-            <span className="material-symbols-outlined text-sm">compare_arrows</span>
-          </button>
-
-          <button
-            type="button"
-            title={isInWishlist(product.id) ? 'Đã lưu yêu thích (bấm để bỏ)' : 'Lưu vào yêu thích'}
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              toggleWishlist(product)
-            }}
-            className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
-              isInWishlist(product.id)
-                ? 'bg-error text-white shadow-md scale-105'
-                : 'bg-surface-container/85 text-on-surface-variant hover:text-error hover:bg-surface-bright backdrop-blur-xs'
-            }`}
-          >
-            <span className="material-symbols-outlined text-sm">
-              {isInWishlist(product.id) ? 'favorite' : 'favorite_border'}
-            </span>
-          </button>
-        </div>
-      </div>
-      <div className="p-4">
-        <p className="text-xs text-primary font-medium mb-1">{product.brand?.name}</p>
-        <h3 className="text-sm font-semibold text-on-surface leading-snug line-clamp-2 mb-2 group-hover:text-primary transition-colors">
-          {product.name}
-        </h3>
-        <div className="flex items-baseline gap-2">
-          <span className="text-base font-extrabold text-on-surface">
-            {formatCurrencyVND(price)}
-          </span>
-          {originalPrice && originalPrice > price && (
-            <span className="text-xs text-outline line-through">
-              {formatCurrencyVND(originalPrice)}
-            </span>
-          )}
-        </div>
-      </div>
-    </Link>
-  )
-}
 
 // ── Recently Viewed Row ───────────────────────────────────────────────────────
 function RecentlyViewedRow() {

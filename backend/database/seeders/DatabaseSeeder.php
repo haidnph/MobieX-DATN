@@ -29,6 +29,7 @@ class DatabaseSeeder extends Seeder
             OrderAndReviewSeeder::class,
             DemoDataSeeder::class,
             ProductSampleDataSeeder::class,
+            ProductEdgeCaseSeeder::class,
         ]);
     }
 }

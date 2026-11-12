@@ -261,6 +261,30 @@ class ProductImageApiTest extends TestCase
         $this->assertDatabaseMissing('product_images', ['id' => $image->id]);
     }
 
+    public function test_img11_delete_primary_image_promotes_next_image_to_primary(): void
+    {
+        Sanctum::actingAs($this->admin);
+
+        $img1 = ProductImage::create([
+            'product_id' => $this->product->id,
+            'image_path' => 'products/cover1.jpg',
+            'is_primary' => true,
+            'sort_order' => 0,
+        ]);
+        $img2 = ProductImage::create([
+            'product_id' => $this->product->id,
+            'image_path' => 'products/cover2.jpg',
+            'is_primary' => false,
+            'sort_order' => 1,
+        ]);
+
+        $this->deleteJson("/api/product-images/{$img1->id}")
+            ->assertStatus(200);
+
+        $this->assertDatabaseMissing('product_images', ['id' => $img1->id]);
+        $this->assertTrue((bool) $img2->fresh()->is_primary);
+    }
+
     // IMG-12: Upload ảnh cho biến thể hợp lệ
     public function test_img12_upload_image_for_valid_variant(): void
     {
