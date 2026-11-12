@@ -3,7 +3,7 @@
 // Visual hierarchy: Group A (Brand, Search, Navigation) | Group B (Utilities)
 // Integrates official GTranslate widget, unified red badges, and responsive 2-row mobile layout.
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import axiosClient from '../../api/axiosClient'
 import EP from '../../api/endpoints'
@@ -16,6 +16,10 @@ import { useToast } from '../../contexts/ToastContext'
 import { useDebounce } from '../../hooks/useDebounce'
 import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
 import LanguageSelector from './LanguageSelector'
+import CategoryMegaMenu, {
+  buildCategoryTree,
+  getCategoryIcon,
+} from './CategoryMegaMenu'
 
 export default function Header() {
   const { user, logout, isAdmin } = useAuth()
@@ -27,6 +31,7 @@ export default function Header() {
   const navigate = useNavigate()
 
   const [categories, setCategories] = useState([])
+  const categoryTree = useMemo(() => buildCategoryTree(categories), [categories])
   const [searchQuery, setSearchQuery] = useState('')
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -390,94 +395,14 @@ export default function Header() {
             )}
           </div>
 
-          {/* 3. Category Dropdown Button */}
-          <div ref={categoryMenuRef} className="relative shrink-0">
-            <button
-              type="button"
-              onClick={() => setCategoryMenuOpen((v) => !v)}
-              aria-expanded={categoryMenuOpen}
-              aria-label="Danh mục sản phẩm"
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs xl:text-sm font-semibold transition-all duration-200 border ${
-                categoryMenuOpen
-                  ? 'bg-primary/10 text-primary border-primary/30 ring-2 ring-primary/20'
-                  : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container border-transparent'
-              }`}
-            >
-              <span className="material-symbols-outlined text-lg">
-                grid_view
-              </span>
-              <span>Danh mục</span>
-              <span
-                className={`material-symbols-outlined text-base transition-transform duration-200 ${
-                  categoryMenuOpen ? 'rotate-180 text-primary' : 'text-outline'
-                }`}
-              >
-                expand_more
-              </span>
-            </button>
-
-            {/* Category Dropdown Content */}
-            {categoryMenuOpen && (
-              <div className="absolute top-full left-0 mt-2 w-[420px] bg-surface-container-high/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-outline-variant/30 p-3 z-50 animate-in fade-in zoom-in-95 duration-150">
-                <div className="flex items-center justify-between pb-2 mb-2 border-b border-outline-variant/20 px-2">
-                  <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-sm text-primary">
-                      category
-                    </span>
-                    Danh mục sản phẩm
-                  </span>
-                  <Link
-                    to="/products"
-                    onClick={() => setCategoryMenuOpen(false)}
-                    className="text-xs font-semibold text-primary hover:underline flex items-center gap-0.5"
-                  >
-                    Tất cả sản phẩm
-                    <span className="material-symbols-outlined text-sm">
-                      chevron_right
-                    </span>
-                  </Link>
-                </div>
-
-                <div className="max-h-[360px] overflow-y-auto space-y-2 pr-1">
-                  {categories.map((cat) => (
-                    <div
-                      key={cat.id}
-                      className="bg-surface-container/60 hover:bg-surface-container rounded-xl p-2.5 border border-outline-variant/10 transition-colors"
-                    >
-                      <Link
-                        to={`/products?category_id=${cat.id}`}
-                        onClick={() => setCategoryMenuOpen(false)}
-                        className="flex items-center justify-between text-xs xl:text-sm font-bold text-on-surface hover:text-primary transition-colors group mb-1"
-                      >
-                        <span className="flex items-center gap-2">
-                          <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                          {cat.name}
-                        </span>
-                        <span className="material-symbols-outlined text-xs text-outline group-hover:text-primary transition-colors">
-                          arrow_forward
-                        </span>
-                      </Link>
-
-                      {cat.children && cat.children.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 pl-3.5 pt-1">
-                          {cat.children.map((child) => (
-                            <Link
-                              key={child.id}
-                              to={`/products?category_id=${child.id}`}
-                              onClick={() => setCategoryMenuOpen(false)}
-                              className="px-2 py-0.5 rounded-lg bg-surface-container-low hover:bg-primary-container text-xs text-on-surface-variant hover:text-on-primary-container transition-all"
-                            >
-                              {child.name}
-                            </Link>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+          {/* 3. Category Mega Menu (Compact, Clean, Master-Detail Two-Column Layout) */}
+          <CategoryMegaMenu
+            categories={categories}
+            isOpen={categoryMenuOpen}
+            onToggle={() => setCategoryMenuOpen((v) => !v)}
+            onClose={() => setCategoryMenuOpen(false)}
+            categoryMenuRef={categoryMenuRef}
+          />
 
           {/* 4. Products Navigation Link */}
           <Link
@@ -946,18 +871,18 @@ export default function Header() {
               </button>
 
               {mobileCatOpen && (
-                <div className="pl-4 pr-2 py-1 space-y-2 max-h-56 overflow-y-auto">
+                <div className="pl-3 pr-2 py-1 space-y-2.5 max-h-60 overflow-y-auto">
                   <Link
                     to="/products"
                     onClick={() => {
                       setMobileCatOpen(false)
                       setMobileMenuOpen(false)
                     }}
-                    className="block text-xs font-bold text-primary py-1"
+                    className="block text-xs font-bold text-primary py-1 border-b border-outline-variant/15"
                   >
                     Xem tất cả sản phẩm →
                   </Link>
-                  {categories.map((cat) => (
+                  {categoryTree.map((cat) => (
                     <div key={cat.id} className="space-y-1">
                       <Link
                         to={`/products?category_id=${cat.id}`}
@@ -965,12 +890,15 @@ export default function Header() {
                           setMobileCatOpen(false)
                           setMobileMenuOpen(false)
                         }}
-                        className="block text-xs font-semibold text-on-surface hover:text-primary py-0.5"
+                        className="flex items-center gap-2 text-xs font-bold text-on-surface hover:text-primary py-0.5"
                       >
-                        {cat.name}
+                        <span className="material-symbols-outlined text-sm text-primary">
+                          {getCategoryIcon(cat.slug, cat.name)}
+                        </span>
+                        <span>{cat.name}</span>
                       </Link>
                       {cat.children && cat.children.length > 0 && (
-                        <div className="flex flex-wrap gap-1 pl-2">
+                        <div className="flex flex-wrap gap-1.5 pl-6">
                           {cat.children.map((child) => (
                             <Link
                               key={child.id}
@@ -979,7 +907,7 @@ export default function Header() {
                                 setMobileCatOpen(false)
                                 setMobileMenuOpen(false)
                               }}
-                              className="px-2 py-0.5 rounded-md text-[11px] bg-surface-container text-on-surface-variant hover:text-primary"
+                              className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-surface-container hover:bg-primary-container text-on-surface-variant hover:text-on-primary-container transition-all"
                             >
                               {child.name}
                             </Link>

@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { SUPPORTED_LANGUAGES, DICTIONARY } from '../contexts/LanguageContext'
+import {
+  buildCategoryTree,
+  getCategoryIcon,
+} from '../components/layout/CategoryMegaMenu'
 
 describe('Header & Navigation Architecture', () => {
   it('supports exactly 3 languages in strict order: vi (default), en, zh-CN', () => {
@@ -44,5 +48,30 @@ describe('Header & Navigation Architecture', () => {
     expect(wishlistBadgeClass).toContain('bg-[#ef4444]')
     expect(cartBadgeClass).toContain('bg-[#ef4444]')
     expect(wishlistBadgeClass).toBe(cartBadgeClass)
+  })
+
+  it('transforms flat category list into parent-child hierarchy tree', () => {
+    const flat = [
+      { id: 1, parent_id: null, name: 'Điện thoại', slug: 'dien-thoai' },
+      { id: 2, parent_id: 1, name: 'iPhone', slug: 'iphone' },
+      { id: 3, parent_id: 1, name: 'Android', slug: 'android' },
+      { id: 4, parent_id: null, name: 'Phụ kiện', slug: 'phu-kien' },
+      { id: 5, parent_id: 4, name: 'Sạc', slug: 'sac' },
+    ]
+    const tree = buildCategoryTree(flat)
+    expect(tree).toHaveLength(2)
+    expect(tree[0].name).toBe('Điện thoại')
+    expect(tree[0].children).toHaveLength(2)
+    expect(tree[0].children[0].name).toBe('iPhone')
+    expect(tree[1].name).toBe('Phụ kiện')
+    expect(tree[1].children).toHaveLength(1)
+  })
+
+  it('assigns correct category icons based on slug and name', () => {
+    expect(getCategoryIcon('dien-thoai', 'Điện thoại')).toBe('smartphone')
+    expect(getCategoryIcon('phu-kien', 'Phụ kiện')).toBe('headphones')
+    expect(getCategoryIcon('may-tinh-bang', 'Máy tính bảng')).toBe('tablet_mac')
+    expect(getCategoryIcon('smartwatch', 'Đồng hồ thông minh')).toBe('watch')
+    expect(getCategoryIcon('other', 'Khác')).toBe('category')
   })
 })
