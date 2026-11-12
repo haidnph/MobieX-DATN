@@ -17,6 +17,14 @@ const DICTIONARY = {
     compare: 'Compare',
     wishlist: 'Wishlist',
   },
+  'zh-CN': {
+    home: '首页',
+    phones: '智能手机',
+    accessories: '配件',
+    cart: '购物车',
+    compare: '对比',
+    wishlist: '收藏夹',
+  },
 }
 
 function translate(dict, lang, key) {
@@ -38,6 +46,12 @@ describe('Language Logic & Translations', () => {
     expect(translate(DICTIONARY, 'en', 'home')).toBe('Home')
     expect(translate(DICTIONARY, 'en', 'phones')).toBe('Smartphones')
     expect(translate(DICTIONARY, 'en', 'cart')).toBe('Cart')
+  })
+
+  it('translates navigation keys to Simplified Chinese when lang is zh-CN', () => {
+    expect(translate(DICTIONARY, 'zh-CN', 'home')).toBe('首页')
+    expect(translate(DICTIONARY, 'zh-CN', 'phones')).toBe('智能手机')
+    expect(translate(DICTIONARY, 'zh-CN', 'cart')).toBe('购物车')
   })
 
   it('toggles language between vi and en', () => {
