@@ -26,20 +26,20 @@ class ProductImageController extends Controller
             $variantId = $request->product_variant_id;
 
             if ($variantId === 'null' || $variantId === 'none') {
-                $query->whereNull('variant_id');
+                $query->whereNull('product_variant_id');
             } else {
-                $query->where('variant_id', $variantId);
+                $query->where('product_variant_id', $variantId);
             }
         } elseif ($request->filled('variant_id')) {
             $variantId = $request->variant_id;
 
             if ($variantId === 'null' || $variantId === 'none') {
-                $query->whereNull('variant_id');
+                $query->whereNull('product_variant_id');
             } else {
-                $query->where('variant_id', $variantId);
+                $query->where('product_variant_id', $variantId);
             }
         } elseif ($request->boolean('general_only')) {
-            $query->whereNull('variant_id');
+            $query->whereNull('product_variant_id');
         }
 
         return response()->json([
@@ -73,9 +73,9 @@ class ProductImageController extends Controller
         $query = ProductImage::where('product_id', $productId);
 
         if ($variantId === null) {
-            $query->whereNull('variant_id');
+            $query->whereNull('product_variant_id');
         } else {
-            $query->where('variant_id', $variantId);
+            $query->where('product_variant_id', $variantId);
         }
 
         if ($exceptId !== null) {

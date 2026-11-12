@@ -299,16 +299,25 @@ class ProductController extends Controller
             'brand',
             'category',
             'images',
-            'specifications',
+            'specifications.definition',
             'variants.inventory',
             'variants.attributeValues.attribute',
         ])->whereIn('id', $ids)->get();
 
-        $comparableDefinitions = \App\Models\ProductSpecification::query()
-            ->select('specification_name')
-            ->distinct()
-            ->orderBy('specification_name')
+        $comparableDefinitions = \App\Models\ProductSpecificationDefinition::query()
+            ->where('is_comparable', true)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
             ->get();
+
+        if ($comparableDefinitions->isEmpty()) {
+            $comparableDefinitions = \App\Models\ProductSpecification::query()
+                ->select('specification_name')
+                ->distinct()
+                ->whereNotNull('specification_name')
+                ->orderBy('specification_name')
+                ->get();
+        }
 
         return response()->json([
             'status' => true,
@@ -381,7 +390,7 @@ class ProductController extends Controller
             'brand',
             'category',
             'images',
-            'specifications',
+            'specifications.definition',
             'variants.inventory',
             'variants.images',
             'variants.attributeValues.attribute',
@@ -791,13 +800,64 @@ class ProductController extends Controller
      */
     public function syncSpecifications(Request $request, $product)
     {
-        $product = Product::find($product);
+        $product = $product instanceof Product ? $product : Product::find($product);
 
         if (! $product) {
             return response()->json([
                 'status' => false,
                 'message' => 'Không tìm thấy sản phẩm.',
             ], 404);
+        }
+
+        $specs = $request->input('specs', []);
+        $first = $specs[0] ?? [];
+
+        if (empty($specs) || array_key_exists('definition_id', $first)) {
+            $data = $request->validate([
+                'specs' => 'present|array',
+                'specs.*.definition_id' => 'required|exists:product_specification_definitions,id',
+                'specs.*.value' => 'nullable',
+                'specs.*.sort_order' => 'nullable|integer|min:0',
+            ]);
+
+            \Illuminate\Support\Facades\DB::transaction(function () use ($product, $data) {
+                foreach ($data['specs'] as $index => $spec) {
+                    $def = \App\Models\ProductSpecificationDefinition::find($spec['definition_id']);
+                    $payload = [
+                        'product_id' => $product->id,
+                        'specification_definition_id' => $spec['definition_id'],
+                        'value_text' => null,
+                        'numeric_value' => null,
+                        'value_boolean' => null,
+                        'sort_order' => $spec['sort_order'] ?? ($index + 1),
+                    ];
+
+                    if ($def) {
+                        if ($def->value_type === 'number') {
+                            $payload['numeric_value'] = is_numeric($spec['value']) ? (float) $spec['value'] : null;
+                        } elseif ($def->value_type === 'boolean') {
+                            $payload['value_boolean'] = filter_var($spec['value'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                        } else {
+                            $payload['value_text'] = $spec['value'] !== null ? (string) $spec['value'] : null;
+                        }
+                    }
+
+                    \App\Models\ProductSpecification::updateOrCreate(
+                        [
+                            'product_id' => $product->id,
+                            'specification_definition_id' => $spec['definition_id'],
+                        ],
+                        $payload
+                    );
+                }
+            });
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Specifications synced',
+                'count' => count($data['specs']),
+                'data' => $product->specifications()->with('definition')->orderBy('sort_order')->get(),
+            ], 200);
         }
 
         $validated = $request->validate([
@@ -819,13 +879,25 @@ class ProductController extends Controller
             ],
         ]);
 
-        DB::transaction(function () use ($product, $validated) {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($product, $validated) {
             $product->specifications()->delete();
 
             foreach ($validated['specs'] as $index => $spec) {
+                $code = \Illuminate\Support\Str::slug($spec['specification_name']);
+                $def = \App\Models\ProductSpecificationDefinition::firstOrCreate(
+                    ['code' => $code ?: ('spec_' . ($index + 1))],
+                    [
+                        'name' => trim($spec['specification_name']),
+                        'value_type' => 'text',
+                        'applies_to' => 'all',
+                        'is_comparable' => true,
+                        'is_active' => true,
+                    ]
+                );
+
                 $product->specifications()->create([
-                    'specification_name' => trim($spec['specification_name']),
-                    'specification_value' => trim($spec['specification_value']),
+                    'specification_definition_id' => $def->id,
+                    'value_text' => trim($spec['specification_value']),
                     'sort_order' => $spec['sort_order'] ?? $index,
                 ]);
             }
@@ -834,7 +906,9 @@ class ProductController extends Controller
         return response()->json([
             'status' => true,
             'message' => 'Đồng bộ thông số kỹ thuật thành công.',
+            'count' => count($validated['specs']),
             'data' => $product->specifications()
+                ->with('definition')
                 ->orderBy('sort_order')
                 ->get(),
         ], 200);
