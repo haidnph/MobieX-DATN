@@ -164,7 +164,8 @@ function ProductCard({ product }) {
       <div className="relative h-48 bg-surface-container-high overflow-hidden">
         {isOutOfStock && (
           <div className="absolute inset-0 bg-background/60 backdrop-blur-[1px] flex items-center justify-center z-20 pointer-events-none">
-            <span className="bg-error text-white text-[11px] font-bold px-3 py-1 rounded-full shadow-lg">
+            <span className="bg-error text-white text-[11px] font-bold px-3 py-1 rounded-full shadow-lg flex items-center gap-1">
+              <span className="material-symbols-outlined text-xs">block</span>
               Tạm hết hàng
             </span>
           </div>

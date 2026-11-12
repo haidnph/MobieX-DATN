@@ -343,7 +343,9 @@ export default function ProductComparePage() {
                       {totalStock > 0 ? (
                         <span className="text-secondary font-semibold">Còn {totalStock} máy</span>
                       ) : (
-                        <span className="text-error font-semibold">Tạm hết hàng</span>
+                        <span className="inline-flex items-center gap-1 text-xs font-bold text-white bg-error px-2.5 py-0.5 rounded-full shadow-xs">
+                          Tạm hết hàng
+                        </span>
                       )}
                     </td>
                   )

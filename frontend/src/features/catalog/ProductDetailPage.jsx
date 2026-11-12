@@ -213,8 +213,11 @@ export default function ProductDetailPage() {
               <span className="material-symbols-outlined text-8xl text-outline">smartphone</span>
             )}
             {isOutOfStock && (
-              <div className="absolute inset-0 bg-background/70 backdrop-blur-xs flex items-center justify-center">
-                <Badge variant="error" className="text-sm px-4 py-1">Tạm hết hàng</Badge>
+              <div className="absolute inset-0 bg-background/70 backdrop-blur-xs flex items-center justify-center z-20">
+                <span className="bg-error text-white text-sm font-bold px-4 py-1.5 rounded-full shadow-lg flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-base">block</span>
+                  Tạm hết hàng
+                </span>
               </div>
             )}
           </div>

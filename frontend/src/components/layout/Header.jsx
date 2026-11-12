@@ -30,6 +30,8 @@ export default function Header() {
   const [searchQuery, setSearchQuery] = useState('')
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [categoryMenuOpen, setCategoryMenuOpen] = useState(false)
+  const [mobileCatOpen, setMobileCatOpen] = useState(false)
 
   // Live autocomplete search states
   const [searchSuggestions, setSearchSuggestions] = useState([])
@@ -41,6 +43,7 @@ export default function Header() {
   const recognitionRef = useRef(null)
 
   const userMenuRef = useRef(null)
+  const categoryMenuRef = useRef(null)
   const searchRef = useRef(null)
   const mobileSearchRef = useRef(null)
 
@@ -151,6 +154,9 @@ export default function Header() {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
         setUserMenuOpen(false)
       }
+      if (categoryMenuRef.current && !categoryMenuRef.current.contains(e.target)) {
+        setCategoryMenuOpen(false)
+      }
       if (
         searchRef.current &&
         !searchRef.current.contains(e.target) &&
@@ -165,6 +171,7 @@ export default function Header() {
       if (e.key === 'Escape') {
         setShowSearchDropdown(false)
         setUserMenuOpen(false)
+        setCategoryMenuOpen(false)
       }
     }
 
@@ -330,28 +337,104 @@ export default function Header() {
         </div>
 
         {/* Desktop navigation */}
-        <nav className="hidden lg:flex items-center gap-4">
-          <Link to="/" className="text-sm text-on-surface-variant hover:text-on-surface transition-colors">
+        <nav className="hidden lg:flex items-center gap-3">
+          <Link
+            to="/"
+            className="px-2.5 py-1.5 rounded-xl text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/60 transition-colors"
+          >
             {t('home')}
           </Link>
-          <Link to="/products?category=phones" className="text-sm text-on-surface-variant hover:text-on-surface transition-colors">
-            {t('phones')}
+
+          {/* Compact Category Dropdown */}
+          <div ref={categoryMenuRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setCategoryMenuOpen((v) => !v)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-all ${
+                categoryMenuOpen
+                  ? 'bg-primary/10 text-primary ring-1 ring-primary/30'
+                  : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/60'
+              }`}
+            >
+              <span className="material-symbols-outlined text-lg">grid_view</span>
+              <span>Danh mục</span>
+              <span
+                className={`material-symbols-outlined text-base transition-transform duration-200 ${
+                  categoryMenuOpen ? 'rotate-180 text-primary' : 'text-outline'
+                }`}
+              >
+                expand_more
+              </span>
+            </button>
+
+            {categoryMenuOpen && (
+              <div className="absolute top-full left-0 mt-2 w-[440px] bg-surface-container-high/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-outline-variant/30 p-3 z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="flex items-center justify-between pb-2 mb-2 border-b border-outline-variant/20 px-2">
+                  <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-sm text-primary">category</span>
+                    Danh mục sản phẩm
+                  </span>
+                  <Link
+                    to="/products"
+                    onClick={() => setCategoryMenuOpen(false)}
+                    className="text-xs font-semibold text-primary hover:underline flex items-center gap-0.5"
+                  >
+                    Tất cả sản phẩm
+                    <span className="material-symbols-outlined text-sm">chevron_right</span>
+                  </Link>
+                </div>
+
+                <div className="max-h-[360px] overflow-y-auto space-y-2.5 pr-1">
+                  {categories.map((cat) => (
+                    <div key={cat.id} className="bg-surface-container/60 hover:bg-surface-container rounded-xl p-2.5 border border-outline-variant/10 transition-colors">
+                      <Link
+                        to={`/products?category_id=${cat.id}`}
+                        onClick={() => setCategoryMenuOpen(false)}
+                        className="flex items-center justify-between text-sm font-bold text-on-surface hover:text-primary transition-colors group mb-1"
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                          {cat.name}
+                        </span>
+                        <span className="material-symbols-outlined text-xs text-outline group-hover:text-primary transition-colors">
+                          arrow_forward
+                        </span>
+                      </Link>
+
+                      {cat.children && cat.children.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 pl-3.5 pt-1">
+                          {cat.children.map((child) => (
+                            <Link
+                              key={child.id}
+                              to={`/products?category_id=${child.id}`}
+                              onClick={() => setCategoryMenuOpen(false)}
+                              className="px-2 py-0.5 rounded-lg bg-surface-container-low hover:bg-primary-container text-xs text-on-surface-variant hover:text-on-primary-container transition-all"
+                            >
+                              {child.name}
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <Link
+            to="/products"
+            className="px-2.5 py-1.5 rounded-xl text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/60 transition-colors"
+          >
+            Sản phẩm
           </Link>
-          <Link to="/products?category=accessories" className="text-sm text-on-surface-variant hover:text-on-surface transition-colors">
-            {t('accessories')}
-          </Link>
-          <Link to="/tracking" className="text-sm text-on-surface-variant hover:text-on-surface transition-colors">
+
+          <Link
+            to="/tracking"
+            className="px-2.5 py-1.5 rounded-xl text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/60 transition-colors"
+          >
             Tra cứu đơn
           </Link>
-          {categories.slice(0, 3).map((cat) => (
-            <Link
-              key={cat.id}
-              to={`/products?category_id=${cat.id}`}
-              className="text-sm text-on-surface-variant hover:text-on-surface transition-colors"
-            >
-              {cat.name}
-            </Link>
-          ))}
         </nav>
 
         {/* Right actions */}
@@ -581,9 +664,79 @@ export default function Header() {
             )}
           </div>
           <nav className="flex flex-col gap-1">
+            <Link
+              to="/"
+              onClick={() => setMobileMenuOpen(false)}
+              className="px-3 py-2 rounded-lg text-sm text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
+            >
+              Trang chủ
+            </Link>
+
+            {/* Mobile Category Collapsible */}
+            <div className="border-y border-outline-variant/15 py-1 my-1">
+              <button
+                type="button"
+                onClick={() => setMobileCatOpen((v) => !v)}
+                className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium text-on-surface hover:bg-surface-container-high transition-colors"
+              >
+                <span className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-base text-primary">grid_view</span>
+                  Danh mục sản phẩm
+                </span>
+                <span className={`material-symbols-outlined text-sm transition-transform ${mobileCatOpen ? 'rotate-180 text-primary' : 'text-outline'}`}>
+                  expand_more
+                </span>
+              </button>
+
+              {mobileCatOpen && (
+                <div className="pl-4 pr-2 py-1 space-y-2 max-h-60 overflow-y-auto">
+                  <Link
+                    to="/products"
+                    onClick={() => {
+                      setMobileCatOpen(false)
+                      setMobileMenuOpen(false)
+                    }}
+                    className="block text-xs font-semibold text-primary py-1"
+                  >
+                    Xem tất cả sản phẩm →
+                  </Link>
+                  {categories.map((cat) => (
+                    <div key={cat.id} className="space-y-1">
+                      <Link
+                        to={`/products?category_id=${cat.id}`}
+                        onClick={() => {
+                          setMobileCatOpen(false)
+                          setMobileMenuOpen(false)
+                        }}
+                        className="block text-xs font-bold text-on-surface hover:text-primary py-0.5"
+                      >
+                        {cat.name}
+                      </Link>
+                      {cat.children && cat.children.length > 0 && (
+                        <div className="flex flex-wrap gap-1 pl-2">
+                          {cat.children.map((child) => (
+                            <Link
+                              key={child.id}
+                              to={`/products?category_id=${child.id}`}
+                              onClick={() => {
+                                setMobileCatOpen(false)
+                                setMobileMenuOpen(false)
+                              }}
+                              className="px-2 py-0.5 rounded text-[11px] bg-surface-container text-on-surface-variant hover:text-primary"
+                            >
+                              {child.name}
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {[
-              { to: '/', label: 'Trang chủ' },
-              { to: '/products', label: 'Sản phẩm' },
+              { to: '/products', label: 'Tất cả sản phẩm' },
               { to: '/cart', label: 'Giỏ hàng' },
               { to: '/tracking', label: 'Tra cứu đơn hàng' },
               { to: '/orders', label: 'Đơn hàng của tôi' },
