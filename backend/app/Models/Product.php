@@ -7,11 +7,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Product extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'brand_id',
@@ -32,18 +32,16 @@ class Product extends Model
     public function getThumbnailAttribute(): ?string
     {
         if ($this->relationLoaded('images')) {
-            $primary = $this->images->firstWhere('is_primary', true)
-                ?? $this->images->first();
+            $primary = $this->images->firstWhere('is_primary', true) ?? $this->images->first();
 
-            return $primary?->image_url;
+            return $primary?->image_path ?? $primary?->image_url ?? null;
         }
 
-        $primary = $this->images()
-            ->where('is_primary', true)
-            ->first() ?? $this->images()->first();
+        $primary = $this->images()->where('is_primary', true)->first() ?? $this->images()->first();
 
-        return $primary?->image_url;
+        return $primary?->image_path ?? $primary?->image_url ?? null;
     }
+
     public function getMinPriceAttribute(): float
     {
         if ($this->relationLoaded('variants')) {

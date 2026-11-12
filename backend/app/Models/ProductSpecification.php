@@ -1,6 +1,5 @@
 <?php
 
-
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -15,24 +14,29 @@ class ProductSpecification extends Model
 
     protected $fillable = [
         'product_id',
-        'specification_name',
-        'specification_value',
+        'specification_definition_id',
+        'value_text',
+        'numeric_value',
+        'value_boolean',
         'sort_order',
     ];
 
     protected function casts(): array
     {
         return [
-            'product_id' => 'integer',
+            'numeric_value' => 'decimal:4',
+            'value_boolean' => 'boolean',
             'sort_order' => 'integer',
         ];
     }
 
-    /**
-     * Một thông số kỹ thuật thuộc về một sản phẩm.
-     */
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function definition(): BelongsTo
+    {
+        return $this->belongsTo(ProductSpecificationDefinition::class, 'specification_definition_id');
     }
 }
