@@ -10,7 +10,7 @@ export default function StorefrontLayout() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Header />
-      <main className="flex-1 pt-20">
+      <main className="flex-1 pt-[104px] lg:pt-20">
         <Outlet />
       </main>
       <Footer />

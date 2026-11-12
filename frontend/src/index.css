@@ -158,6 +158,30 @@ html.dark {
   color-scheme: dark;
 }
 
+/* ── GTranslate & Clean Widget Support ────────────────────────────────────────── */
+.goog-te-banner-frame,
+.skiptranslate iframe,
+body > .skiptranslate {
+  display: none !important;
+}
+body {
+  top: 0 !important;
+}
+
+.gtranslate_wrapper select.gt_selector {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: var(--color-surface-container-low);
+  color: var(--color-on-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 0.75rem;
+  padding: 0.35rem 1.5rem 0.35rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+}
+
 
 /* ── Invoice Print Styles ──────────────────────────────────────────────────── */
 @media print {
