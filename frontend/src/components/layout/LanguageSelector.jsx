@@ -62,7 +62,7 @@ export default function LanguageSelector({ className = '' }) {
         <span className="material-symbols-outlined text-base select-none text-on-surface-variant">
           language
         </span>
-        <span className="uppercase tracking-wide font-bold text-[11px]">
+        <span translate="no" className="uppercase tracking-wide font-bold text-[11px] notranslate">
           {currentLangObj.short}
         </span>
         <span
@@ -109,7 +109,7 @@ export default function LanguageSelector({ className = '' }) {
                         isSelected ? 'bg-primary' : 'bg-transparent'
                       }`}
                     />
-                    <span>{item.label}</span>
+                    <span translate="no" className="notranslate">{item.label}</span>
                   </span>
                   {isSelected && (
                     <span className="material-symbols-outlined text-sm text-primary">

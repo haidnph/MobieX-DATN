@@ -215,10 +215,11 @@ export default function Header() {
           {/* 1. MobileX Logo (Navigates to Home; Home menu item is removed) */}
           <Link
             to="/"
-            className="flex items-center gap-2 shrink-0 group focus-visible:outline-2 focus-visible:outline-primary rounded-xl"
+            translate="no"
+            className="flex items-center gap-2 shrink-0 group focus-visible:outline-2 focus-visible:outline-primary rounded-xl notranslate"
             aria-label="MobileX — Trang chủ"
           >
-            <span className="text-2xl font-extrabold tracking-tight text-on-surface group-hover:text-primary transition-colors">
+            <span translate="no" className="text-2xl font-extrabold tracking-tight text-on-surface group-hover:text-primary transition-colors notranslate">
               Mobile<span className="text-primary font-black">X</span>
             </span>
           </Link>
@@ -407,7 +408,7 @@ export default function Header() {
           {/* 4. Products Navigation Link */}
           <Link
             to="/products"
-            className="px-3 py-2 rounded-xl text-xs xl:text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors shrink-0"
+            className="px-3 py-2 rounded-xl text-xs xl:text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors shrink-0 whitespace-nowrap"
           >
             Sản phẩm
           </Link>
@@ -426,7 +427,7 @@ export default function Header() {
         </div>
 
         {/* ── GROUP B: UTILITIES (Exact Order: Language -> Theme -> Compare -> Wishlist -> Cart -> Account) ── */}
-        <div className="flex items-center gap-1.5 xl:gap-2.5 shrink-0">
+        <div className="flex flex-nowrap items-center gap-1.5 xl:gap-2.5 shrink-0">
           {/* 1. Language Selector (GTranslate Official Integration) */}
           <LanguageSelector />
 
@@ -462,7 +463,7 @@ export default function Header() {
               compare_arrows
             </span>
             {compareCount > 0 && (
-              <span className="absolute -top-1 -right-1 flex min-w-[1.125rem] h-[1.125rem] px-1 items-center justify-center rounded-full bg-primary text-on-primary text-[10px] font-bold shadow-sm">
+              <span translate="no" className="absolute -top-1 -right-1 flex min-w-[1.125rem] h-[1.125rem] px-1 items-center justify-center rounded-full bg-primary text-on-primary text-[10px] font-bold shadow-sm notranslate">
                 {compareCount}
               </span>
             )}
@@ -479,7 +480,7 @@ export default function Header() {
               favorite_border
             </span>
             {wishlistCount > 0 && (
-              <span className="absolute -top-1 -right-1 flex min-w-[1.125rem] h-[1.125rem] px-1 items-center justify-center rounded-full bg-[#ef4444] text-white text-[10px] font-bold shadow-sm animate-in zoom-in-75">
+              <span translate="no" className="absolute -top-1 -right-1 flex min-w-[1.125rem] h-[1.125rem] px-1 items-center justify-center rounded-full bg-[#ef4444] text-white text-[10px] font-bold shadow-sm animate-in zoom-in-75 notranslate">
                 {wishlistCount}
               </span>
             )}
@@ -496,7 +497,7 @@ export default function Header() {
               shopping_bag
             </span>
             {itemCount > 0 && (
-              <span className="absolute -top-1 -right-1 flex min-w-[1.125rem] h-[1.125rem] px-1 items-center justify-center rounded-full bg-[#ef4444] text-white text-[10px] font-bold shadow-sm animate-in zoom-in-75">
+              <span translate="no" className="absolute -top-1 -right-1 flex min-w-[1.125rem] h-[1.125rem] px-1 items-center justify-center rounded-full bg-[#ef4444] text-white text-[10px] font-bold shadow-sm animate-in zoom-in-75 notranslate">
                 {cartBadgeCount}
               </span>
             )}
@@ -537,7 +538,7 @@ export default function Header() {
                     <p className="text-xs font-bold text-on-surface truncate">
                       {user.name}
                     </p>
-                    <p className="text-[11px] text-outline truncate">
+                    <p translate="no" className="text-[11px] text-outline truncate notranslate">
                       {user.email}
                     </p>
                   </div>
@@ -614,10 +615,11 @@ export default function Header() {
           {/* Logo MobileX */}
           <Link
             to="/"
-            className="flex items-center gap-1.5 shrink-0 py-1"
+            translate="no"
+            className="flex items-center gap-1.5 shrink-0 py-1 notranslate"
             aria-label="MobileX — Trang chủ"
           >
-            <span className="text-xl font-extrabold tracking-tight text-on-surface">
+            <span translate="no" className="text-xl font-extrabold tracking-tight text-on-surface notranslate">
               Mobile<span className="text-primary font-black">X</span>
             </span>
           </Link>
@@ -637,7 +639,7 @@ export default function Header() {
                 favorite_border
               </span>
               {wishlistCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 flex min-w-[1rem] h-[1rem] px-0.5 items-center justify-center rounded-full bg-[#ef4444] text-white text-[9px] font-bold shadow-sm">
+                <span translate="no" className="absolute -top-0.5 -right-0.5 flex min-w-[1rem] h-[1rem] px-0.5 items-center justify-center rounded-full bg-[#ef4444] text-white text-[9px] font-bold shadow-sm notranslate">
                   {wishlistCount}
                 </span>
               )}
@@ -653,7 +655,7 @@ export default function Header() {
                 shopping_bag
               </span>
               {itemCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 flex min-w-[1rem] h-[1rem] px-0.5 items-center justify-center rounded-full bg-[#ef4444] text-white text-[9px] font-bold shadow-sm">
+                <span translate="no" className="absolute -top-0.5 -right-0.5 flex min-w-[1rem] h-[1rem] px-0.5 items-center justify-center rounded-full bg-[#ef4444] text-white text-[9px] font-bold shadow-sm notranslate">
                   {cartBadgeCount}
                 </span>
               )}

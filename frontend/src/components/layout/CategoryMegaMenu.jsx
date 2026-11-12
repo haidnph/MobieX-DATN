@@ -63,7 +63,7 @@ export default function CategoryMegaMenu({
         aria-expanded={isOpen}
         aria-haspopup="true"
         aria-label="Danh mục sản phẩm"
-        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs xl:text-sm font-semibold transition-all duration-200 border ${
+        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs xl:text-sm font-semibold transition-all duration-200 border whitespace-nowrap ${
           isOpen
             ? 'bg-primary/10 text-primary border-primary/30 ring-2 ring-primary/20 shadow-xs'
             : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container border-transparent'

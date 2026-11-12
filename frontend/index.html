@@ -5,6 +5,26 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MobieX — Thế giới Công nghệ & Flagship Mobile</title>
+    <!-- Prevent GTranslate body shift and hide translation banner -->
+    <style>
+      body { top: 0 !important; position: static !important; }
+      .goog-te-banner-frame, .skiptranslate iframe, body > .skiptranslate, #goog-gt-tt { display: none !important; visibility: hidden !important; }
+    </style>
+    <!-- Automatic icon protection from translation -->
+    <script>
+      (function() {
+        function protectIcons() {
+          document.querySelectorAll('.material-symbols-outlined:not(.notranslate)').forEach(function(el) {
+            el.classList.add('notranslate');
+            el.setAttribute('translate', 'no');
+          });
+        }
+        if (typeof MutationObserver !== 'undefined') {
+          new MutationObserver(protectIcons).observe(document.documentElement, { childList: true, subtree: true });
+        }
+        document.addEventListener('DOMContentLoaded', protectIcons);
+      })();
+    </script>
     <!-- Google Fonts: Plus Jakarta Sans -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

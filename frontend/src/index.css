@@ -161,11 +161,35 @@ html.dark {
 /* ── GTranslate & Clean Widget Support ────────────────────────────────────────── */
 .goog-te-banner-frame,
 .skiptranslate iframe,
-body > .skiptranslate {
+body > .skiptranslate,
+#goog-gt-tt {
   display: none !important;
+  visibility: hidden !important;
 }
 body {
   top: 0 !important;
+  position: static !important;
+}
+
+/* Material Symbols icon protection: prevent codeword translation from altering font */
+.material-symbols-outlined,
+.material-symbols-rounded,
+.material-symbols-sharp {
+  font-family: 'Material Symbols Outlined' !important;
+  speak: never;
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+  letter-spacing: normal;
+  word-wrap: normal;
+  white-space: nowrap;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'liga';
 }
 
 .gtranslate_wrapper select.gt_selector {
