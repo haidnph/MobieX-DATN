@@ -14,6 +14,7 @@ import { formatDate } from '../../utils/formatDate'
 import Button from '../../components/common/Button'
 import Badge from '../../components/common/Badge'
 import Spinner from '../../components/common/Spinner'
+import ProductDetailGallery from '../../components/product/ProductDetailGallery'
 import { useRecentlyViewed } from '../../hooks/useRecentlyViewed'
 
 export default function ProductDetailPage() {
@@ -210,76 +211,14 @@ export default function ProductDetailPage() {
       {/* Main product view */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left: Gallery (5 cols) */}
-        <div className="lg:col-span-5 space-y-4">
-          <div className="relative aspect-square bg-surface-container rounded-2xl overflow-hidden border border-outline-variant/20 flex items-center justify-center p-6">
-            {activeImage ? (
-              <img
-                src={activeImage}
-                alt={product.name}
-                className="w-full h-full object-contain transition-all duration-300"
-                onError={(e) => {
-                  e.target.onerror = null
-                  e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2UyZThmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1NSIgZm9udC1zaXplPSIxMiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzk0YTNiOCI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+'
-                }}
-              />
-            ) : (
-              <span className="material-symbols-outlined text-8xl text-outline">smartphone</span>
-            )}
-            {isDiscontinued ? (
-              <div className="absolute inset-0 bg-background/75 backdrop-blur-xs flex items-center justify-center z-20">
-                <span className="bg-slate-800 text-slate-200 border border-slate-600 text-sm font-bold px-4 py-1.5 rounded-full shadow-lg flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-base">do_not_disturb_on</span>
-                  Ngừng kinh doanh
-                </span>
-              </div>
-            ) : allVariantsOutOfStock ? (
-              <div className="absolute inset-0 bg-background/70 backdrop-blur-xs flex items-center justify-center z-20">
-                <span className="bg-error text-white text-sm font-bold px-4 py-1.5 rounded-full shadow-lg flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-base">block</span>
-                  Tạm hết hàng
-                </span>
-              </div>
-            ) : null}
-          </div>
-
-          {/* Thumbnails */}
-          {(() => {
-            const gallery = (productImages && productImages.length > 0)
-              ? productImages.map((img) => img.image_url || img.image_path).filter(Boolean)
-              : [product.thumbnail, activeImage].filter(Boolean)
-
-            const uniqueGallery = [...new Set(gallery)]
-
-            if (uniqueGallery.length <= 1) return null
-
-            return (
-              <div className="flex gap-2 overflow-x-auto pb-2">
-                {uniqueGallery.map((imgSrc, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => setActiveImage(imgSrc)}
-                    className={[
-                      'w-16 h-16 rounded-xl border-2 overflow-hidden shrink-0 transition-all bg-surface-container flex items-center justify-center p-1',
-                      activeImage === imgSrc
-                        ? 'border-primary ring-2 ring-primary/30 scale-105'
-                        : 'border-outline-variant/30 hover:border-outline',
-                    ].join(' ')}
-                  >
-                    <img
-                      src={imgSrc}
-                      alt={`${product.name} ${idx + 1}`}
-                      className="w-full h-full object-contain"
-                      onError={(e) => {
-                        e.target.onerror = null
-                        e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2UyZThmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1NSIgZm9udC1zaXplPSIxMiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzk0YTNiOCI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+'
-                      }}
-                    />
-                  </button>
-                ))}
-              </div>
-            )
-          })()}
+        <div className="lg:col-span-5">
+          <ProductDetailGallery
+            images={productImages}
+            fallbackThumbnail={product.thumbnail || activeImage}
+            productName={product.name}
+            isDiscontinued={isDiscontinued}
+            isOutOfStock={allVariantsOutOfStock}
+          />
         </div>
 
         {/* Right: Details (7 cols) */}

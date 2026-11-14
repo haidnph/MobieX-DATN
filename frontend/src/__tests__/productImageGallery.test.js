@@ -138,4 +138,31 @@ describe('Product Image Gallery & Upload Logic', () => {
     expect(result.valid[1].name).toBe('clean.webp')
     expect(result.errors).toHaveLength(2)
   })
+
+  it('correctly calculates lightbox next and prev indices with wrap-around', () => {
+    const total = 5
+    const getNext = (current) => (current + 1) % total
+    const getPrev = (current) => (current - 1 + total) % total
+
+    expect(getNext(0)).toBe(1)
+    expect(getNext(4)).toBe(0) // wrap around
+    expect(getPrev(0)).toBe(4) // wrap around
+    expect(getPrev(3)).toBe(2)
+  })
+
+  it('normalizes client gallery images sorting by sort_order and deduplicating', () => {
+    const rawImages = [
+      { id: 2, image_url: 'https://cdn.example.com/2.jpg', sort_order: 1 },
+      { id: 1, image_url: 'https://cdn.example.com/1.jpg', sort_order: 0 },
+      { id: 3, image_url: 'https://cdn.example.com/1.jpg', sort_order: 2 }, // duplicate URL
+    ]
+
+    const sorted = [...rawImages].sort((a, b) => a.sort_order - b.sort_order)
+    const unique = [...new Set(sorted.map((img) => img.image_url))]
+
+    expect(unique).toEqual([
+      'https://cdn.example.com/1.jpg',
+      'https://cdn.example.com/2.jpg',
+    ])
+  })
 })

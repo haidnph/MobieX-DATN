@@ -160,11 +160,15 @@ export default function CartPage() {
                 <div key={item.id} className="p-4 md:p-6 flex flex-col sm:flex-row items-center gap-4">
                   {/* Thumbnail */}
                   <div className="w-20 h-20 bg-surface-container-high rounded-xl overflow-hidden shrink-0 flex items-center justify-center p-2">
-                    {variant.image_url || product.thumbnail ? (
+                    {variant.image_url || product.thumbnail || product.images?.find((i) => i.is_primary)?.image_url || product.images?.[0]?.image_url ? (
                       <img
-                        src={variant.image_url || product.thumbnail}
+                        src={variant.image_url || product.thumbnail || product.images?.find((i) => i.is_primary)?.image_url || product.images?.[0]?.image_url}
                         alt={product.name}
                         className="w-full h-full object-contain"
+                        onError={(e) => {
+                          e.target.onerror = null
+                          e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2UyZThmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1NSIgZm9udC1zaXplPSIxMiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzk0YTNiOCI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+'
+                        }}
                       />
                     ) : (
                       <span className="material-symbols-outlined text-3xl text-outline">smartphone</span>
