@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { resolveImageUrl } from '../utils/resolveImageUrl'
 
 // Helper function that mirrors gallery reordering and primary promotion logic
 function reorderGallery(items, fromIndex, toIndex) {
@@ -164,5 +165,30 @@ describe('Product Image Gallery & Upload Logic', () => {
       'https://cdn.example.com/1.jpg',
       'https://cdn.example.com/2.jpg',
     ])
+  })
+
+  it('correctly resolves image URLs from various sources and formats', () => {
+    // Local backend absolute URLs normalized to relative /storage/ paths
+    expect(resolveImageUrl('http://127.0.0.1:8000/storage/products/uAgLtj3l1s.png')).toBe('/storage/products/uAgLtj3l1s.png')
+    expect(resolveImageUrl('http://localhost:8000/storage/products/test.png')).toBe('/storage/products/test.png')
+
+    // Relative storage URLs
+    expect(resolveImageUrl('/storage/products/img.png')).toBe('/storage/products/img.png')
+    expect(resolveImageUrl('storage/products/img.png')).toBe('/storage/products/img.png')
+    expect(resolveImageUrl('products/img.png')).toBe('/storage/products/img.png')
+
+    // Object shapes
+    expect(resolveImageUrl({ image_url: 'http://127.0.0.1:8000/storage/products/a.jpg' })).toBe('/storage/products/a.jpg')
+    expect(resolveImageUrl({ image_path: 'products/b.jpg' })).toBe('/storage/products/b.jpg')
+
+    // External and Draft URLs
+    expect(resolveImageUrl('https://images.unsplash.com/photo-1512941937669')).toBe('https://images.unsplash.com/photo-1512941937669')
+    expect(resolveImageUrl('blob:http://localhost:5173/1234-abcd')).toBe('blob:http://localhost:5173/1234-abcd')
+    expect(resolveImageUrl('data:image/png;base64,iVBORw0KGgo=')).toBe('data:image/png;base64,iVBORw0KGgo=')
+
+    // Empty/Null fallbacks
+    expect(resolveImageUrl(null)).toBeNull()
+    expect(resolveImageUrl('')).toBeNull()
+    expect(resolveImageUrl({})).toBeNull()
   })
 })

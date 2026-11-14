@@ -3,6 +3,8 @@
 // Features:
 // - Dual Mode: Live API Sync (when productId provided) & Draft Mode (when creating new product)
 // - Unified Gallery Area: When 0 images -> single clean dropzone; when >= 1 images -> grid with "+ Thêm ảnh" slot
+// - Resilient Loading State: Clear loading indicator, error handling with retry, race-condition safety
+// - Smart Image URL Resolution: Handles relative storage, Vite proxy, local backend IPs, and blobs
 // - Drag-and-drop reorder (native HTML5 DnD) + Move Left / Move Right buttons
 // - One-click Primary image toggle with visual badge and icon
 // - Instant client-side preview for draft uploads
@@ -13,6 +15,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import axiosClient from '../../api/axiosClient'
 import EP from '../../api/endpoints'
 import ImageUploader from '../common/ImageUploader'
+import { resolveImageUrl } from '../../utils/resolveImageUrl'
 
 const PLACEHOLDER =
   'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2UyZThmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1NSIgZm9udC1zaXplPSIxMiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzk0YTNiOCI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+'
@@ -36,7 +39,8 @@ export default function ProductImageGallery({
 
   // Live mode state
   const [liveImages, setLiveImages] = useState([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(Boolean(productId))
+  const [fetchError, setFetchError] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState({}) // { fileName: percent }
 
@@ -52,36 +56,72 @@ export default function ProductImageGallery({
   const dragOverItem = useRef(null)
   const addMoreInputRef = useRef(null)
 
+  // Keep stable callback refs to avoid infinite re-render loops
+  const onImagesChangeRef = useRef(onImagesChange)
+  useEffect(() => {
+    onImagesChangeRef.current = onImagesChange
+  }, [onImagesChange])
+
+  const onDraftChangeRef = useRef(onDraftChange)
+  useEffect(() => {
+    onDraftChangeRef.current = onDraftChange
+  }, [onDraftChange])
+
+  // Track active request ID to discard out-of-order stale responses
+  const activeRequestIdRef = useRef(0)
+
   // ── Helpers ──────────────────────────────────────────────────────────────
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type })
     setTimeout(() => setToast(null), 3000)
   }
 
-  // ── Fetch images for Live mode ───────────────────────────────────────────
+  // ── Fetch images for Live mode with race-condition safety ─────────────────
   const fetchImages = useCallback(async () => {
-    if (!productId) return
+    if (!productId) {
+      setLoading(false)
+      setLiveImages([])
+      setFetchError(null)
+      return
+    }
+
+    const currentReqId = ++activeRequestIdRef.current
     setLoading(true)
+    setFetchError(null)
+
     try {
       const params = { product_id: productId }
       if (variantId) params.product_variant_id = variantId
 
       const { data } = await axiosClient.get(EP.PRODUCT_IMAGES, { params })
-      const list = (data.data ?? []).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-      setLiveImages(list)
-      onImagesChange?.(list)
-    } catch {
-      showToast('Không thể tải danh sách ảnh.', 'error')
+
+      // Check if this request is still current
+      if (currentReqId !== activeRequestIdRef.current) return
+
+      const rawList = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : [])
+      const sorted = [...rawList].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+
+      setLiveImages(sorted)
+      onImagesChangeRef.current?.(sorted)
+    } catch (err) {
+      if (currentReqId !== activeRequestIdRef.current) return
+      const msg = err.response?.data?.message || err.message || 'Không thể tải danh sách ảnh.'
+      setFetchError(msg)
+      showToast(msg, 'error')
     } finally {
-      setLoading(false)
+      if (currentReqId === activeRequestIdRef.current) {
+        setLoading(false)
+      }
     }
-  }, [productId, variantId, onImagesChange])
+  }, [productId, variantId])
 
   useEffect(() => {
-    if (productId) {
-      fetchImages()
+    fetchImages()
+    return () => {
+      // Invalidate on unmount or productId change
+      activeRequestIdRef.current++
     }
-  }, [productId, fetchImages])
+  }, [fetchImages])
 
   // Clean up object URLs on unmount
   useEffect(() => {
@@ -94,11 +134,11 @@ export default function ProductImageGallery({
 
   // Notify draft changes
   const notifyDraftChange = useCallback((newList) => {
-    if (!onDraftChange) return
+    if (!onDraftChangeRef.current) return
     const files = newList.map((item) => item.file)
     const primaryIndex = Math.max(0, newList.findIndex((item) => item.isPrimary))
-    onDraftChange({ files, primaryIndex })
-  }, [onDraftChange])
+    onDraftChangeRef.current({ files, primaryIndex })
+  }, [])
 
   // ── Upload / Add Files ────────────────────────────────────────────────────
   const handleUpload = useCallback(async (files) => {
@@ -263,8 +303,8 @@ export default function ProductImageGallery({
       return
     }
 
-    // Live Mode
-    setLiveImages(withOrder) // optimistic
+    // Live Mode: optimistic update
+    setLiveImages(withOrder)
     try {
       await axiosClient.patch(EP.PRODUCT_IMAGE_REORDER, {
         images: withOrder.map(({ id, sort_order }) => ({ id, sort_order })),
@@ -300,7 +340,7 @@ export default function ProductImageGallery({
     ? draftList.map((d, idx) => ({
         id: d.id,
         image_url: d.previewUrl,
-        alt_text: d.file.name,
+        alt_text: d.file?.name,
         is_primary: d.isPrimary,
         sort_order: idx,
         isDraft: true,
@@ -327,6 +367,13 @@ export default function ProductImageGallery({
           <h3 className="text-sm font-semibold text-on-surface flex items-center gap-2">
             <span className="material-symbols-outlined text-primary text-base">photo_library</span>
             {title}
+            {/* Syncing indicator badge when re-fetching in background */}
+            {loading && totalCount > 0 && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-normal text-primary bg-primary/10 px-2 py-0.5 rounded-full animate-pulse">
+                <span className="material-symbols-outlined text-xs animate-spin">sync</span>
+                Đang đồng bộ...
+              </span>
+            )}
           </h3>
           <p className="text-xs text-outline mt-0.5">
             {isDraftMode
@@ -335,6 +382,19 @@ export default function ProductImageGallery({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {productId && (
+            <button
+              type="button"
+              onClick={fetchImages}
+              disabled={loading || uploading}
+              className="p-1 rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors cursor-pointer"
+              title="Tải lại thư viện ảnh"
+            >
+              <span className={`material-symbols-outlined text-base ${loading ? 'animate-spin' : ''}`}>
+                refresh
+              </span>
+            </button>
+          )}
           {totalCount > 0 && totalCount < 10 && (
             <button
               type="button"
@@ -376,20 +436,38 @@ export default function ProductImageGallery({
         </div>
       )}
 
-      {/* Loading state for Live Mode */}
-      {loading && (
-        <div className="flex items-center justify-center py-8 text-outline text-sm gap-2">
-          <span className="material-symbols-outlined animate-spin text-lg">progress_activity</span>
-          Đang tải thư viện hình ảnh...
+      {/* Error State with Retry Button */}
+      {fetchError && totalCount === 0 && (
+        <div className="p-4 rounded-xl bg-error-container/20 border border-error/30 text-error flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-lg">error</span>
+            <span>{fetchError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={fetchImages}
+            className="px-3 py-1.5 rounded-lg bg-error text-on-error font-semibold hover:bg-error/90 transition-colors shrink-0 cursor-pointer"
+          >
+            Thử tải lại
+          </button>
         </div>
       )}
 
       {/* 
-        Unified Area:
-        - When totalCount === 0: Render ONLY the full dropzone. NO duplicate empty box!
-        - When totalCount > 0: Render the Gallery Grid with a "+ Thêm ảnh" slot tile.
+        Loading Skeleton: Render ONLY when loading AND no images currently exist.
+        Prevents dual-rendering of loading spinner alongside existing image grid!
       */}
-      {!loading && totalCount === 0 && (
+      {loading && totalCount === 0 && !fetchError && (
+        <div className="flex flex-col items-center justify-center py-12 rounded-2xl border border-dashed border-outline-variant/40 bg-surface-container-lowest/30 text-outline text-sm gap-2.5">
+          <span className="material-symbols-outlined animate-spin text-2xl text-primary">progress_activity</span>
+          <span>Đang tải thư viện hình ảnh...</span>
+        </div>
+      )}
+
+      {/* 
+        Single Empty State Dropzone: Render ONLY when not loading and totalCount === 0.
+      */}
+      {!loading && totalCount === 0 && !fetchError && (
         <ImageUploader
           onUpload={handleUpload}
           disabled={uploading}
@@ -397,7 +475,9 @@ export default function ProductImageGallery({
         />
       )}
 
-      {/* Images Grid */}
+      {/* 
+        Images Grid: Render whenever totalCount > 0
+      */}
       {totalCount > 0 && (
         <div className="space-y-2">
           <div className="flex items-center justify-between text-xs text-outline px-1">
@@ -408,7 +488,8 @@ export default function ProductImageGallery({
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {currentImages.map((img, index) => {
               const isPrimary = Boolean(img.is_primary)
-              const imgSrc = img.image_url ?? img.image_path ?? PLACEHOLDER
+              const rawSrc = img.image_url ?? img.image_path ?? img.url ?? img.path
+              const imgSrc = resolveImageUrl(rawSrc) || PLACEHOLDER
 
               return (
                 <div
@@ -430,8 +511,13 @@ export default function ProductImageGallery({
                     alt={img.alt_text ?? `Ảnh sản phẩm ${index + 1}`}
                     className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                     onError={(e) => {
-                      e.target.onerror = null
-                      e.target.src = PLACEHOLDER
+                      // Attempt fallback to raw URL before switching to placeholder
+                      if (rawSrc && e.target.src !== rawSrc) {
+                        e.target.src = rawSrc
+                      } else {
+                        e.target.onerror = null
+                        e.target.src = PLACEHOLDER
+                      }
                     }}
                   />
 

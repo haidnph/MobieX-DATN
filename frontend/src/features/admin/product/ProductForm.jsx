@@ -183,6 +183,18 @@ export default function ProductForm({
     setDraftGallery(draft)
   }
 
+  const handleLiveImagesChange = useCallback((imgs) => {
+    if (!imgs || imgs.length === 0) return
+    const primary = imgs.find((img) => img.is_primary) || imgs[0]
+    const newUrl = primary?.image_url || primary?.image_path
+    if (newUrl) {
+      setForm((prev) => {
+        if (prev.image_url === newUrl) return prev
+        return { ...prev, image_url: newUrl }
+      })
+    }
+  }, [])
+
   // Submit handler
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -367,15 +379,7 @@ export default function ProductForm({
               <ProductImageGallery
                 productId={initialData.id}
                 title="Ảnh chung của sản phẩm"
-                onImagesChange={(imgs) => {
-                  const primary = imgs.find((img) => img.is_primary) || imgs[0]
-                  if (primary) {
-                    setForm((prev) => ({
-                      ...prev,
-                      image_url: primary.image_url || primary.image_path || prev.image_url,
-                    }))
-                  }
-                }}
+                onImagesChange={handleLiveImagesChange}
               />
             )}
           </section>
