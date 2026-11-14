@@ -10,6 +10,7 @@ import {
   SPEC_ALIASES,
   CANONICAL_NAMES,
   normalizeSpecKey,
+  getProductConfigurations,
 } from '../features/catalog/ProductComparePage'
 
 // Pure functions mirror the compare logic
@@ -147,6 +148,62 @@ describe('Product Compare Logic & Limit Safeguards', () => {
       { id: 74, specifications: [] },
     ]
     expect(detectRealSpecDifference(productsBothMissing, 'display_size')).toBe(false)
+  })
+
+  it('correctly handles stress test products 488, 489, 791 with 0 specs and identical capacity', () => {
+    const stressProducts = [
+      {
+        id: 488,
+        name: 'MobieX Stress Scale Product #208 5G Performance',
+        brand: { name: 'JBL' },
+        variants: [{ option_signature: 'capacity:128gb', price: 5700000 }],
+        specifications: [],
+      },
+      {
+        id: 489,
+        name: 'MobieX Stress Scale Product #209 5G Performance',
+        brand: { name: 'Apple' },
+        variants: [{ option_signature: 'capacity:128gb', price: 5725000 }],
+        specifications: [],
+      },
+      {
+        id: 791,
+        name: 'MobieX Stress Scale Product #511 5G Performance',
+        brand: { name: 'OPPO' },
+        variants: [{ option_signature: 'capacity:128gb', price: 13275000 }],
+        specifications: [],
+      },
+    ]
+
+    // Hardware specs are missing for all 3 -> MUST NOT be counted as difference
+    expect(detectRealSpecDifference(stressProducts, 'chipset')).toBe(false)
+    expect(detectRealSpecDifference(stressProducts, 'display_size')).toBe(false)
+    expect(detectRealSpecDifference(stressProducts, 'battery_capacity')).toBe(false)
+
+    // Configurations extracted accurately without disjoint cross-products
+    const configs488 = getProductConfigurations(stressProducts[0])
+    expect(configs488).toEqual(['128GB ROM'])
+
+    const configs489 = getProductConfigurations(stressProducts[1])
+    expect(configs489).toEqual(['128GB ROM'])
+
+    const configs791 = getProductConfigurations(stressProducts[2])
+    expect(configs791).toEqual(['128GB ROM'])
+  })
+
+  it('extracts real variant configurations without creating fake cross-product combinations', () => {
+    const productWithSpecificPairs = {
+      variants: [
+        { option_signature: 'color:den|ram:8gb|storage:128gb', name: '8GB/128GB' },
+        { option_signature: 'color:trang|ram:12gb|storage:256gb', name: '12GB/256GB' },
+      ],
+    }
+
+    const configs = getProductConfigurations(productWithSpecificPairs)
+    expect(configs).toEqual(['8GB RAM / 128GB ROM', '12GB RAM / 256GB ROM'])
+    // Should NOT contain non-existent combinations like '8GB RAM / 256GB ROM' or '12GB RAM / 128GB ROM'
+    expect(configs).not.toContain('8GB RAM / 256GB ROM')
+    expect(configs).not.toContain('12GB RAM / 128GB ROM')
   })
 
   it('normalizes Vietnamese spec keys accurately across diacritics', () => {

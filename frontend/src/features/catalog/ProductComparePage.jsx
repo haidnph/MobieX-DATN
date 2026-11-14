@@ -16,7 +16,7 @@ export const COMPARE_UI = {
     subtitle: 'Đặt các dòng máy cạnh nhau để dễ dàng đánh giá cấu hình, màn hình, hiệu năng, camera và giá bán.',
     onlyDiff: 'Chỉ xem điểm khác biệt',
     diffCount: 'điểm khác biệt',
-    noDiffsFound: 'Không có điểm khác biệt thực tế nào giữa các sản phẩm được chọn.',
+    noDiffsFound: 'Không có điểm khác biệt thực tế nào giữa các thông số phần cứng được chọn.',
     updatingSpecs: 'Đang cập nhật danh mục thông số kỹ thuật.',
     addDevice: 'Thêm máy khác',
     clearAll: 'Xóa tất cả',
@@ -55,7 +55,7 @@ export const COMPARE_UI = {
     },
     fields: {
       brand: 'Thương hiệu',
-      variants: 'Các phiên bản có sẵn',
+      variants: 'Các phiên bản đang kinh doanh',
       stock: 'Tình trạng kho hàng',
       price: 'Giá niêm yết',
     },
@@ -66,7 +66,7 @@ export const COMPARE_UI = {
     subtitle: 'Place devices side by side to compare specifications, display, performance, cameras, and pricing.',
     onlyDiff: 'Show differences only',
     diffCount: 'differences',
-    noDiffsFound: 'No actual differences found between the selected devices.',
+    noDiffsFound: 'No actual differences found between the selected hardware specifications.',
     updatingSpecs: 'Updating specification list.',
     addDevice: 'Add Device',
     clearAll: 'Clear All',
@@ -105,7 +105,7 @@ export const COMPARE_UI = {
     },
     fields: {
       brand: 'Brand',
-      variants: 'Available Variants',
+      variants: 'Commercial Product Variants',
       stock: 'Stock Status',
       price: 'List Price',
     },
@@ -116,7 +116,7 @@ export const COMPARE_UI = {
     subtitle: '并排对比多款手机的屏幕、处理器性能、影像系统、电池续航及价格配置。',
     onlyDiff: '仅看差异项',
     diffCount: '处差异',
-    noDiffsFound: '所选机型之间暂无实际差异。',
+    noDiffsFound: '所选硬件参数之间暂无实际差异。',
     updatingSpecs: '正在更新参数列表。',
     addDevice: '添加对比机型',
     clearAll: '清空全部',
@@ -155,7 +155,7 @@ export const COMPARE_UI = {
     },
     fields: {
       brand: '品牌',
-      variants: '可选规格版本',
+      variants: '实际在售规格版本',
       stock: '库存状态',
       price: '参考售价',
     },
@@ -321,7 +321,7 @@ export const CANONICAL_NAMES = {
   refresh_rate: ['tansoquet', 'refreshrate', 'tanso'],
   chipset: ['vixuly', 'chipset', 'cpu', 'processor', 'chip'],
   ram: ['ram', 'bonhoram', 'dungluongram', 'memory'],
-  internal_storage: ['bonhotrong', 'dungluongbonho', 'storage', 'rom', 'internalstorage'],
+  internal_storage: ['bonhotrong', 'dungluongbonho', 'storage', 'rom', 'internalstorage', 'capacity'],
   rear_camera: ['camerasau', 'camerachinh', 'rearcamera', 'maincamera'],
   front_camera: ['cameratruoc', 'cameraselfie', 'frontcamera', 'selfiecamera'],
   battery_capacity: ['dungluongpin', 'pin', 'batterycapacity', 'battery'],
@@ -365,6 +365,47 @@ export const SPEC_GROUPS = [
     codes: ['connector_type'],
   },
 ]
+
+/**
+ * Extracts the real combinations of RAM and Storage from variants.
+ * Crucial rule: Never create Cartesian cross-products of disjoint RAM and ROM.
+ * Each configuration reflects an actual, physical commercial variant that exists in the database.
+ */
+export function getProductConfigurations(product) {
+  if (!product || !Array.isArray(product.variants) || product.variants.length === 0) return []
+  const configs = []
+  const seen = new Set()
+
+  product.variants.forEach((v) => {
+    const sig = (v.option_signature || v.name || v.sku || '').toLowerCase()
+
+    // 1. Extract RAM
+    const ramMatch = sig.match(/ram:([0-9]+[gt]b)/i) || sig.match(/([0-9]+)\s*gb\s*ram/i)
+    // 2. Extract Storage / ROM
+    const romMatch =
+      sig.match(/storage:([0-9]+[gt]b)/i) ||
+      sig.match(/capacity:([0-9]+[gt]b)/i) ||
+      sig.match(/([0-9]+)\s*(gb|tb)/i)
+
+    let label = ''
+    if (ramMatch && romMatch) {
+      label = `${ramMatch[1].toUpperCase()} RAM / ${romMatch[1].toUpperCase()} ROM`
+    } else if (romMatch) {
+      label = `${romMatch[1].toUpperCase()} ROM`
+    } else if (ramMatch) {
+      label = `${ramMatch[1].toUpperCase()} RAM`
+    } else if (v.name && v.name !== 'Phiên bản tiêu chuẩn') {
+      label = v.name
+    }
+
+    if (label && !seen.has(label)) {
+      seen.add(label)
+      configs.push(label)
+    }
+  })
+
+  return configs
+}
 
 /**
  * High-performance image component with:
@@ -516,7 +557,7 @@ export default function ProductComparePage() {
     if (!showSearchModal) return
 
     if (!searchKeyword.trim()) {
-      // Suggest top 4 flagship models (iPhone 16 Pro Max, Samsung S24 Ultra, Xiaomi 14 Pro, iPhone 15)
+      // Suggest top flagship models (iPhone 16 Pro Max, Samsung S24 Ultra, Xiaomi 14 Pro, iPhone 15)
       setSearching(true)
       axiosClient
         .get(EP.PRODUCT_COMPARE, { params: { ids: '1,2,3,4' } })
@@ -525,7 +566,6 @@ export default function ProductComparePage() {
           setSearchResults(list)
         })
         .catch(() => {
-          // Fallback to general popular products if compare endpoint fails
           axiosClient
             .get(EP.PRODUCTS, { params: { per_page: 5, sort: 'popular' } })
             .then((r) => setSearchResults(r.data?.data?.data || []))
@@ -684,10 +724,14 @@ export default function ProductComparePage() {
         if (defCode === 'internal_storage' || defCode === 'storage') {
           const storages = new Set()
           product.variants.forEach((v) => {
-            const sig = v.option_signature || v.name || v.sku || ''
-            const match = sig.match(/storage:([0-9]+[gt]b)/i) || sig.match(/([0-9]+)\s*(gb|tb)/i)
+            const sig = (v.option_signature || v.name || v.sku || '').toLowerCase()
+            const match =
+              sig.match(/storage:([0-9]+[gt]b)/i) ||
+              sig.match(/capacity:([0-9]+[gt]b)/i) ||
+              sig.match(/([0-9]+)\s*(gb|tb)/i)
             if (match) {
-              storages.add(match[1].toUpperCase())
+              const val = match[1].toUpperCase()
+              storages.add(val.endsWith('GB') || val.endsWith('TB') ? val : `${val}${match[2].toUpperCase()}`)
             }
           })
           if (storages.size > 0) {
@@ -704,7 +748,7 @@ export default function ProductComparePage() {
         if (defCode === 'ram') {
           const rams = new Set()
           product.variants.forEach((v) => {
-            const sig = v.option_signature || v.name || v.sku || ''
+            const sig = (v.option_signature || v.name || v.sku || '').toLowerCase()
             const match = sig.match(/ram:([0-9]+gb)/i) || sig.match(/([0-9]+)\s*gb\s*ram/i)
             if (match) {
               rams.add(match[1].toUpperCase())
@@ -790,10 +834,39 @@ export default function ProductComparePage() {
     return allDefinitions.filter((def) => hasDifference(def.code))
   }, [allDefinitions, onlyDifferences, hasDifference])
 
-  // Count total differences across all definitions
+  // Overview differences detection
+  const isBrandDiff = useMemo(() => {
+    if (displayProducts.length < 2) return false
+    const brands = displayProducts.map((p) => (p.brand?.name || p.brand_name || '').trim().toLowerCase())
+    const validBrands = brands.filter((b) => b !== '')
+    return validBrands.length >= 2 && validBrands.some((b) => b !== validBrands[0])
+  }, [displayProducts])
+
+  const isVariantsDiff = useMemo(() => {
+    if (displayProducts.length < 2) return false
+    const prices = displayProducts.map((p) =>
+      Number(p.base_price || p.min_price || p.price || p.variants?.[0]?.price || 0)
+    )
+    return prices.some((price) => price !== prices[0])
+  }, [displayProducts])
+
+  const isStockDiff = useMemo(() => {
+    if (displayProducts.length < 2) return false
+    const stocks = displayProducts.map((p) =>
+      p.variants?.reduce(
+        (sum, v) => sum + (v.inventory?.available_quantity || v.available_quantity || 0),
+        0
+      ) || 0
+    )
+    return stocks.some((s) => s !== stocks[0])
+  }, [displayProducts])
+
+  // Count total differences across all definitions + overview rows
   const totalDifferencesCount = useMemo(() => {
-    return allDefinitions.filter((def) => hasDifference(def.code)).length
-  }, [allDefinitions, hasDifference])
+    const specDiffs = allDefinitions.filter((def) => hasDifference(def.code)).length
+    const overviewDiffs = (isBrandDiff ? 1 : 0) + (isVariantsDiff ? 1 : 0) + (isStockDiff ? 1 : 0)
+    return specDiffs + overviewDiffs
+  }, [allDefinitions, hasDifference, isBrandDiff, isVariantsDiff, isStockDiff])
 
   // Determine best (minimum) price among compared products
   const minComparedPrice = useMemo(() => {
@@ -1043,87 +1116,120 @@ export default function ProductComparePage() {
 
           {/* Table Body */}
           <tbody className="divide-y divide-outline-variant/10 text-xs md:text-sm">
-            {/* Section 1: Overview & Pricing */}
-            <tr className="bg-surface-container/70">
-              <td
-                colSpan={displayProducts.length + 1 + (displayProducts.length < maxItems ? 1 : 0)}
-                className="p-3.5 text-xs font-bold text-primary uppercase tracking-wider"
-              >
-                {t.sections.overview}
-              </td>
-            </tr>
-
-            {/* Field: Brand */}
-            <tr>
-              <td className="p-4 font-semibold text-on-surface-variant bg-surface-container/30">
-                {t.fields.brand}
-              </td>
-              {displayProducts.map((p) => (
-                <td key={p.id} className="p-4 text-center border-l border-outline-variant/10 font-medium">
-                  {p.brand?.name || p.brand_name || (
-                    <span className="text-on-surface-variant/40 italic">{t.notSpecified}</span>
-                  )}
-                </td>
-              ))}
-              {displayProducts.length < maxItems && <td className="border-l border-outline-variant/10 print:hidden" />}
-            </tr>
-
-            {/* Field: Variants */}
-            <tr>
-              <td className="p-4 font-semibold text-on-surface-variant bg-surface-container/30">
-                {t.fields.variants}
-              </td>
-              {displayProducts.map((p) => (
-                <td key={p.id} className="p-4 text-center border-l border-outline-variant/10">
-                  {p.variants && p.variants.length > 0 ? (
-                    <div className="flex flex-col gap-1 items-center">
-                      {p.variants.map((v) => (
-                        <span
-                          key={v.id}
-                          className="inline-block px-2.5 py-1 rounded-lg bg-surface-container-high text-[11px] font-mono text-on-surface border border-outline-variant/15"
-                        >
-                          {v.name || v.option_signature || v.sku} • {formatCurrencyVND(v.price)}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <span className="text-on-surface-variant italic">{t.standardVariant}</span>
-                  )}
-                </td>
-              ))}
-              {displayProducts.length < maxItems && <td className="border-l border-outline-variant/10 print:hidden" />}
-            </tr>
-
-            {/* Field: Stock Status */}
-            <tr>
-              <td className="p-4 font-semibold text-on-surface-variant bg-surface-container/30">
-                {t.fields.stock}
-              </td>
-              {displayProducts.map((p) => {
-                const totalStock = p.variants?.reduce(
-                  (sum, v) => sum + (v.inventory?.available_quantity || v.available_quantity || 0),
-                  0
-                )
-                const hasStock = totalStock > 0 || !p.variants || p.variants.length === 0
-
-                return (
-                  <td key={p.id} className="p-4 text-center border-l border-outline-variant/10">
-                    {hasStock ? (
-                      <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        {totalStock > 0 ? `${t.inStock} (${totalStock})` : t.inStock}
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-xs font-bold text-error bg-error/10 px-2.5 py-1 rounded-full">
-                        <span className="material-symbols-outlined text-xs">block</span>
-                        {t.outOfStock}
-                      </span>
-                    )}
+            {/* Section 1: Overview & Pricing (Shown if Full Compare or if any overview field differs) */}
+            {(!onlyDifferences || isBrandDiff || isVariantsDiff || isStockDiff) && (
+              <>
+                <tr className="bg-surface-container/70">
+                  <td
+                    colSpan={displayProducts.length + 1 + (displayProducts.length < maxItems ? 1 : 0)}
+                    className="p-3.5 text-xs font-bold text-primary uppercase tracking-wider"
+                  >
+                    {t.sections.overview}
                   </td>
-                )
-              })}
-              {displayProducts.length < maxItems && <td className="border-l border-outline-variant/10 print:hidden" />}
-            </tr>
+                </tr>
+
+                {/* Field: Brand */}
+                {(!onlyDifferences || isBrandDiff) && (
+                  <tr className={isBrandDiff && onlyDifferences ? 'bg-primary/[0.04]' : ''}>
+                    <td className="p-4 font-semibold text-on-surface-variant bg-surface-container/30 flex items-center justify-between gap-2">
+                      <span>{t.fields.brand}</span>
+                      {isBrandDiff && (
+                        <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase tracking-tighter shrink-0">
+                          {t.differenceBadge}
+                        </span>
+                      )}
+                    </td>
+                    {displayProducts.map((p) => (
+                      <td
+                        key={p.id}
+                        className={`p-4 text-center border-l border-outline-variant/10 font-medium ${
+                          isBrandDiff ? 'text-primary font-bold' : 'text-on-surface'
+                        }`}
+                      >
+                        {p.brand?.name || p.brand_name || (
+                          <span className="inline-flex items-center gap-1.5 text-xs text-on-surface-variant/40 italic">
+                            <span className="w-1.5 h-1.5 rounded-full bg-outline-variant/60" />
+                            {t.notSpecified}
+                          </span>
+                        )}
+                      </td>
+                    ))}
+                    {displayProducts.length < maxItems && <td className="border-l border-outline-variant/10 print:hidden" />}
+                  </tr>
+                )}
+
+                {/* Field: Commercial Selling Variants */}
+                {(!onlyDifferences || isVariantsDiff) && (
+                  <tr className={isVariantsDiff && onlyDifferences ? 'bg-primary/[0.04]' : ''}>
+                    <td className="p-4 font-semibold text-on-surface-variant bg-surface-container/30 flex items-center justify-between gap-2">
+                      <span>{t.fields.variants}</span>
+                      {isVariantsDiff && (
+                        <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase tracking-tighter shrink-0">
+                          {t.differenceBadge}
+                        </span>
+                      )}
+                    </td>
+                    {displayProducts.map((p) => (
+                      <td key={p.id} className="p-4 text-center border-l border-outline-variant/10">
+                        {p.variants && p.variants.length > 0 ? (
+                          <div className="flex flex-col gap-1 items-center">
+                            {p.variants.map((v) => (
+                              <span
+                                key={v.id}
+                                className="inline-block px-2.5 py-1 rounded-lg bg-surface-container-high text-[11px] font-mono text-on-surface border border-outline-variant/15"
+                              >
+                                {v.name || v.option_signature || v.sku} • {formatCurrencyVND(v.price)}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-on-surface-variant italic">{t.standardVariant}</span>
+                        )}
+                      </td>
+                    ))}
+                    {displayProducts.length < maxItems && <td className="border-l border-outline-variant/10 print:hidden" />}
+                  </tr>
+                )}
+
+                {/* Field: Stock Status */}
+                {(!onlyDifferences || isStockDiff) && (
+                  <tr className={isStockDiff && onlyDifferences ? 'bg-primary/[0.04]' : ''}>
+                    <td className="p-4 font-semibold text-on-surface-variant bg-surface-container/30 flex items-center justify-between gap-2">
+                      <span>{t.fields.stock}</span>
+                      {isStockDiff && (
+                        <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase tracking-tighter shrink-0">
+                          {t.differenceBadge}
+                        </span>
+                      )}
+                    </td>
+                    {displayProducts.map((p) => {
+                      const totalStock = p.variants?.reduce(
+                        (sum, v) => sum + (v.inventory?.available_quantity || v.available_quantity || 0),
+                        0
+                      )
+                      const hasStock = totalStock > 0 || !p.variants || p.variants.length === 0
+
+                      return (
+                        <td key={p.id} className="p-4 text-center border-l border-outline-variant/10">
+                          {hasStock ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              {totalStock > 0 ? `${t.inStock} (${totalStock})` : t.inStock}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-xs font-bold text-error bg-error/10 px-2.5 py-1 rounded-full">
+                              <span className="material-symbols-outlined text-xs">block</span>
+                              {t.outOfStock}
+                            </span>
+                          )}
+                        </td>
+                      )
+                    })}
+                    {displayProducts.length < maxItems && <td className="border-l border-outline-variant/10 print:hidden" />}
+                  </tr>
+                )}
+              </>
+            )}
 
             {/* Sections 2..N: Categorized Specifications */}
             {loading ? (
