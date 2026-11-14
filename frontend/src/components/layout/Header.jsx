@@ -13,12 +13,15 @@ import { useCompare } from '../../contexts/CompareContext'
 import { useWishlist } from '../../contexts/WishlistContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { useToast } from '../../contexts/ToastContext'
+import { useLanguage } from '../../contexts/LanguageContext'
 import { useDebounce } from '../../hooks/useDebounce'
 import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
 import LanguageSelector from './LanguageSelector'
 import CategoryMegaMenu, {
   buildCategoryTree,
   getCategoryIcon,
+  getLocalizedCategoryName,
+  CATEGORY_UI,
 } from './CategoryMegaMenu'
 
 export default function Header() {
@@ -28,6 +31,8 @@ export default function Header() {
   const { wishlistCount } = useWishlist()
   const { isDark, toggleTheme } = useTheme()
   const { showToast } = useToast()
+  const { lang } = useLanguage()
+  const ui = CATEGORY_UI[lang] || CATEGORY_UI.vi
   const navigate = useNavigate()
 
   const [categories, setCategories] = useState([])
@@ -255,8 +260,8 @@ export default function Header() {
                     }
                   }}
                   className="w-full bg-transparent text-sm text-on-surface placeholder:text-outline/80 focus:outline-none"
-                  placeholder="Tìm kiếm sản phẩm..."
-                  aria-label="Tìm kiếm sản phẩm"
+                  placeholder={lang === 'zh-CN' ? '搜索商品...' : lang === 'en' ? 'Search for products...' : 'Tìm kiếm sản phẩm...'}
+                  aria-label={lang === 'zh-CN' ? '搜索商品' : lang === 'en' ? 'Search products' : 'Tìm kiếm sản phẩm'}
                 />
                 {searchQuery && (
                   <button
@@ -301,11 +306,11 @@ export default function Header() {
             {showSearchDropdown && searchQuery.trim().length >= 2 && (
               <div className="absolute top-full left-0 right-0 mt-2 bg-surface-container-high/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-outline-variant/30 overflow-hidden z-50">
                 <div className="px-4 py-2.5 border-b border-outline-variant/20 flex items-center justify-between text-xs text-on-surface-variant font-medium">
-                  <span>Gợi ý tìm kiếm ({searchSuggestions.length})</span>
+                  <span>{lang === 'zh-CN' ? '搜索建议' : lang === 'en' ? 'Search Suggestions' : 'Gợi ý tìm kiếm'} ({searchSuggestions.length})</span>
                   {loadingSuggestions && (
                     <span className="flex items-center gap-1.5 text-primary">
                       <span className="inline-block w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                      Đang tìm...
+                      {lang === 'zh-CN' ? '正在搜索...' : lang === 'en' ? 'Searching...' : 'Đang tìm...'}
                     </span>
                   )}
                 </div>
@@ -385,7 +390,7 @@ export default function Header() {
                     className="w-full px-4 py-2.5 bg-surface-container-low hover:bg-surface-container text-xs text-primary font-semibold text-center border-t border-outline-variant/20 transition-colors flex items-center justify-center gap-1"
                   >
                     <span>
-                      Xem tất cả kết quả cho &ldquo;{searchQuery}&rdquo;
+                      {lang === 'zh-CN' ? '查看全部结果' : lang === 'en' ? 'View all results for' : 'Xem tất cả kết quả cho'} &ldquo;{searchQuery}&rdquo;
                     </span>
                     <span className="material-symbols-outlined text-sm">
                       arrow_forward
@@ -410,14 +415,14 @@ export default function Header() {
             to="/products"
             className="px-3 py-2 rounded-xl text-xs xl:text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors shrink-0 whitespace-nowrap"
           >
-            Sản phẩm
+            {ui.categoryTitle ? (lang === 'zh-CN' ? '全部商品' : lang === 'en' ? 'Products' : 'Sản phẩm') : 'Sản phẩm'}
           </Link>
 
           {/* 5. Order Tracking Icon Button (Refactored from text to clean icon with tooltip) */}
           <Link
             to="/tracking"
-            aria-label="Tra cứu đơn hàng"
-            title="Tra cứu đơn hàng"
+            aria-label={lang === 'zh-CN' ? '查询订单' : lang === 'en' ? 'Track Order' : 'Tra cứu đơn hàng'}
+            title={lang === 'zh-CN' ? '查询订单' : lang === 'en' ? 'Track Order' : 'Tra cứu đơn hàng'}
             className="h-9 w-9 rounded-xl flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors shrink-0 focus-visible:outline-2 focus-visible:outline-primary"
           >
             <span className="material-symbols-outlined text-xl">
@@ -701,8 +706,8 @@ export default function Header() {
                   }
                 }}
                 className="w-full bg-transparent text-xs text-on-surface placeholder:text-outline focus:outline-none"
-                placeholder="Tìm kiếm sản phẩm..."
-                aria-label="Tìm kiếm sản phẩm"
+                placeholder={lang === 'zh-CN' ? '搜索商品...' : lang === 'en' ? 'Search for products...' : 'Tìm kiếm sản phẩm...'}
+                aria-label={lang === 'zh-CN' ? '搜索商品' : lang === 'en' ? 'Search products' : 'Tìm kiếm sản phẩm'}
               />
               {searchQuery && (
                 <button
@@ -741,9 +746,9 @@ export default function Header() {
           {showSearchDropdown && searchQuery.trim().length >= 2 && (
             <div className="absolute top-full left-0 right-0 mt-1.5 bg-surface-container-high rounded-2xl shadow-2xl border border-outline-variant/30 overflow-hidden z-50">
               <div className="px-3.5 py-2 border-b border-outline-variant/20 flex items-center justify-between text-[11px] text-on-surface-variant font-medium">
-                <span>Gợi ý ({searchSuggestions.length})</span>
+                <span>{lang === 'zh-CN' ? '搜索建议' : lang === 'en' ? 'Search' : 'Gợi ý'} ({searchSuggestions.length})</span>
                 {loadingSuggestions && (
-                  <span className="text-primary text-[10px]">Đang tìm...</span>
+                  <span className="text-primary text-[10px]">{lang === 'zh-CN' ? '正在搜索...' : lang === 'en' ? 'Searching...' : 'Đang tìm...'}</span>
                 )}
               </div>
               {searchSuggestions.slice(0, 4).map((item) => (
@@ -774,7 +779,7 @@ export default function Header() {
                 }}
                 className="w-full px-3 py-2 text-center text-xs text-primary font-bold bg-surface-container-low hover:bg-surface-container"
               >
-                Xem tất cả kết quả →
+                {lang === 'zh-CN' ? '查看全部结果 →' : lang === 'en' ? 'View all results →' : 'Xem tất cả kết quả →'}
               </button>
             </div>
           )}
@@ -861,7 +866,7 @@ export default function Header() {
                   <span className="material-symbols-outlined text-base text-primary">
                     grid_view
                   </span>
-                  Danh mục sản phẩm
+                  {ui.categoryTitle}
                 </span>
                 <span
                   className={`material-symbols-outlined text-sm transition-transform ${
@@ -882,7 +887,7 @@ export default function Header() {
                     }}
                     className="block text-xs font-bold text-primary py-1 border-b border-outline-variant/15"
                   >
-                    Xem tất cả sản phẩm →
+                    {ui.allProducts} →
                   </Link>
                   {categoryTree.map((cat) => (
                     <div key={cat.id} className="space-y-1">
@@ -897,7 +902,7 @@ export default function Header() {
                         <span className="material-symbols-outlined text-sm text-primary">
                           {getCategoryIcon(cat.slug, cat.name)}
                         </span>
-                        <span>{cat.name}</span>
+                        <span>{getLocalizedCategoryName(cat, lang)}</span>
                       </Link>
                       {cat.children && cat.children.length > 0 && (
                         <div className="flex flex-wrap gap-1.5 pl-6">
@@ -911,7 +916,7 @@ export default function Header() {
                               }}
                               className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-surface-container hover:bg-primary-container text-on-surface-variant hover:text-on-primary-container transition-all"
                             >
-                              {child.name}
+                              {getLocalizedCategoryName(child, lang)}
                             </Link>
                           ))}
                         </div>
@@ -930,7 +935,7 @@ export default function Header() {
               <span className="material-symbols-outlined text-base">
                 smartphone
               </span>
-              Tất cả sản phẩm
+              {ui.allProducts}
             </Link>
 
             <Link
@@ -941,7 +946,7 @@ export default function Header() {
               <span className="material-symbols-outlined text-base">
                 local_shipping
               </span>
-              Tra cứu đơn hàng
+              {lang === 'zh-CN' ? '查询订单' : lang === 'en' ? 'Track Order' : 'Tra cứu đơn hàng'}
             </Link>
 
             <Link
@@ -972,7 +977,7 @@ export default function Header() {
                 <span className="material-symbols-outlined text-base">
                   {isDark ? 'light_mode' : 'dark_mode'}
                 </span>
-                {isDark ? 'Giao diện sáng' : 'Giao diện tối'}
+                {isDark ? (lang === 'zh-CN' ? '浅色模式' : lang === 'en' ? 'Light Mode' : 'Giao diện sáng') : (lang === 'zh-CN' ? '深色模式' : lang === 'en' ? 'Dark Mode' : 'Giao diện tối')}
               </span>
               <span className="text-[11px] text-outline uppercase font-bold">
                 {isDark ? 'Dark' : 'Light'}

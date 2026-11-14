@@ -3,6 +3,8 @@ import { SUPPORTED_LANGUAGES, DICTIONARY } from '../contexts/LanguageContext'
 import {
   buildCategoryTree,
   getCategoryIcon,
+  getLocalizedCategoryName,
+  CATEGORY_UI,
 } from '../components/layout/CategoryMegaMenu'
 
 describe('Header & Navigation Architecture', () => {
@@ -26,6 +28,44 @@ describe('Header & Navigation Architecture', () => {
         expect(DICTIONARY[lang][key].length).toBeGreaterThan(0)
       }
     }
+  })
+
+  it('localizes all category names across vi, en, and zh-CN without residual language mix', () => {
+    const phoneCat = { id: 1, slug: 'dien-thoai', name: 'Điện thoại' }
+    const accessoryCat = { id: 2, slug: 'phu-kien', name: 'Phụ kiện' }
+    const chargerCat = { id: 5, slug: 'sac', name: 'Sạc' }
+    const screenGlassCat = { id: 15, slug: 'kinh-cuong-luc-nano', name: 'Kính cường lực Nano 9D chống nhìn trộm' }
+
+    // Vietnamese
+    expect(getLocalizedCategoryName(phoneCat, 'vi')).toBe('Điện thoại')
+    expect(getLocalizedCategoryName(accessoryCat, 'vi')).toBe('Phụ kiện')
+    expect(getLocalizedCategoryName(chargerCat, 'vi')).toBe('Củ sạc')
+
+    // English
+    expect(getLocalizedCategoryName(phoneCat, 'en')).toBe('Smartphones')
+    expect(getLocalizedCategoryName(accessoryCat, 'en')).toBe('Accessories')
+    expect(getLocalizedCategoryName(chargerCat, 'en')).toBe('Chargers')
+    expect(getLocalizedCategoryName(screenGlassCat, 'en')).toBe('Privacy Tempered Glass 9D')
+
+    // Simplified Chinese (zh-CN)
+    expect(getLocalizedCategoryName(phoneCat, 'zh-CN')).toBe('手机')
+    expect(getLocalizedCategoryName(accessoryCat, 'zh-CN')).toBe('配件')
+    expect(getLocalizedCategoryName(chargerCat, 'zh-CN')).toBe('充电器')
+    expect(getLocalizedCategoryName(screenGlassCat, 'zh-CN')).toBe('9D 防窥纳米钢化膜')
+  })
+
+  it('provides complete Category MegaMenu UI labels for all 3 languages', () => {
+    for (const lang of ['vi', 'en', 'zh-CN']) {
+      expect(CATEGORY_UI[lang]).toBeDefined()
+      expect(CATEGORY_UI[lang].categoryBtn).toBeDefined()
+      expect(CATEGORY_UI[lang].categoryTitle).toBeDefined()
+      expect(CATEGORY_UI[lang].allProducts).toBeDefined()
+      expect(CATEGORY_UI[lang].genuineNote).toBeDefined()
+      expect(CATEGORY_UI[lang].deliveryNote).toBeDefined()
+    }
+    expect(CATEGORY_UI['zh-CN'].categoryTitle).toBe('商品全部分类')
+    expect(CATEGORY_UI['zh-CN'].allProducts).toBe('全部商品')
+    expect(CATEGORY_UI.en.allProducts).toBe('All Products')
   })
 
   it('defines GTranslate settings with required configuration keys', () => {

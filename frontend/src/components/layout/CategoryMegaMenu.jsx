@@ -4,6 +4,7 @@
 
 import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
+import { useLanguage } from '../../contexts/LanguageContext'
 
 export function buildCategoryTree(flatCategories) {
   if (!Array.isArray(flatCategories)) return []
@@ -35,6 +36,139 @@ export function getCategoryIcon(slug, name) {
   return 'category'
 }
 
+export const CATEGORY_TRANSLATIONS = {
+  'dien-thoai': {
+    vi: 'Điện thoại',
+    en: 'Smartphones',
+    'zh-CN': '手机',
+  },
+  'phu-kien': {
+    vi: 'Phụ kiện',
+    en: 'Accessories',
+    'zh-CN': '配件',
+  },
+  'may-tinh-bang': {
+    vi: 'Máy tính bảng',
+    en: 'Tablets',
+    'zh-CN': '平板电脑',
+  },
+  'smartwatch': {
+    vi: 'Đồng hồ thông minh',
+    en: 'Smartwatches',
+    'zh-CN': '智能手表',
+  },
+  'iphone': {
+    vi: 'iPhone',
+    en: 'iPhone',
+    'zh-CN': 'iPhone',
+  },
+  'android': {
+    vi: 'Android',
+    en: 'Android',
+    'zh-CN': 'Android',
+  },
+  'samsung-galaxy': {
+    vi: 'Samsung Galaxy',
+    en: 'Samsung Galaxy',
+    'zh-CN': '三星 Galaxy',
+  },
+  'xiaomi-mi': {
+    vi: 'Xiaomi Mi',
+    en: 'Xiaomi Mi',
+    'zh-CN': '小米系列',
+  },
+  'sac': {
+    vi: 'Củ sạc',
+    en: 'Chargers',
+    'zh-CN': '充电器',
+  },
+  'cap-sac': {
+    vi: 'Cáp sạc',
+    en: 'Charging Cables',
+    'zh-CN': '充电线',
+  },
+  'op-lung': {
+    vi: 'Ốp lưng',
+    en: 'Cases & Covers',
+    'zh-CN': '手机保护壳',
+  },
+  'tai-nghe': {
+    vi: 'Tai nghe',
+    en: 'Headphones',
+    'zh-CN': '耳机音频',
+  },
+  'loa-bluetooth': {
+    vi: 'Loa Bluetooth',
+    en: 'Bluetooth Speakers',
+    'zh-CN': '蓝牙音箱',
+  },
+  'phu-kien-bao-ve': {
+    vi: 'Bảo vệ màn hình & thân máy',
+    en: 'Screen & Body Protection',
+    'zh-CN': '屏幕机身保护',
+  },
+  'kinh-cuong-luc-nano': {
+    vi: 'Kính cường lực Nano 9D',
+    en: 'Privacy Tempered Glass 9D',
+    'zh-CN': '9D 防窥纳米钢化膜',
+  },
+}
+
+export const CATEGORY_UI = {
+  vi: {
+    categoryBtn: 'Danh mục',
+    categoryTitle: 'Danh mục sản phẩm',
+    allProducts: 'Tất cả sản phẩm',
+    viewAllPrefix: 'Xem tất cả',
+    genuineNote: '100% Hàng chính hãng',
+    deliveryNote: 'Giao nhanh toàn quốc',
+    loading: 'Đang tải danh mục...',
+    explorePrefix: 'Khám phá các sản phẩm',
+    exploreSuffix: 'chính hãng tại MobileX.',
+    viewBtnPrefix: 'Xem sản phẩm',
+  },
+  en: {
+    categoryBtn: 'Categories',
+    categoryTitle: 'Product Categories',
+    allProducts: 'All Products',
+    viewAllPrefix: 'View all',
+    genuineNote: '100% Genuine Products',
+    deliveryNote: 'Fast Nationwide Delivery',
+    loading: 'Loading categories...',
+    explorePrefix: 'Explore genuine',
+    exploreSuffix: 'at MobileX.',
+    viewBtnPrefix: 'View',
+  },
+  'zh-CN': {
+    categoryBtn: '商品分类',
+    categoryTitle: '商品全部分类',
+    allProducts: '全部商品',
+    viewAllPrefix: '查看全部',
+    genuineNote: '100% 正品保障',
+    deliveryNote: '全国极速配送',
+    loading: '正在加载分类...',
+    explorePrefix: '前往 MobileX 选购正品',
+    exploreSuffix: '。',
+    viewBtnPrefix: '查看',
+  },
+}
+
+export function getLocalizedCategoryName(cat, lang = 'vi') {
+  if (!cat) return ''
+  const slug = (cat.slug || '').toLowerCase().trim()
+  if (CATEGORY_TRANSLATIONS[slug]?.[lang]) {
+    return CATEGORY_TRANSLATIONS[slug][lang]
+  }
+  const name = (cat.name || '').toLowerCase().trim()
+  for (const [key, trans] of Object.entries(CATEGORY_TRANSLATIONS)) {
+    if (slug.includes(key) || name.includes(key)) {
+      if (trans[lang]) return trans[lang]
+    }
+  }
+  return cat.name
+}
+
+
 export default function CategoryMegaMenu({
   categories = [],
   isOpen = false,
@@ -42,6 +176,8 @@ export default function CategoryMegaMenu({
   onClose,
   categoryMenuRef,
 }) {
+  const { lang } = useLanguage()
+  const ui = CATEGORY_UI[lang] || CATEGORY_UI.vi
   const categoryTree = useMemo(() => buildCategoryTree(categories), [categories])
 
   const [activeParentId, setActiveParentId] = useState(null)
@@ -62,7 +198,7 @@ export default function CategoryMegaMenu({
         onClick={onToggle}
         aria-expanded={isOpen}
         aria-haspopup="true"
-        aria-label="Danh mục sản phẩm"
+        aria-label={ui.categoryTitle}
         className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs xl:text-sm font-semibold transition-all duration-200 border whitespace-nowrap ${
           isOpen
             ? 'bg-primary/10 text-primary border-primary/30 ring-2 ring-primary/20 shadow-xs'
@@ -70,7 +206,7 @@ export default function CategoryMegaMenu({
         }`}
       >
         <span className="material-symbols-outlined text-lg">grid_view</span>
-        <span>Danh mục</span>
+        <span>{ui.categoryBtn}</span>
         <span
           className={`material-symbols-outlined text-base transition-transform duration-200 ${
             isOpen ? 'rotate-180 text-primary' : 'text-outline'
@@ -93,14 +229,14 @@ export default function CategoryMegaMenu({
               <span className="material-symbols-outlined text-sm text-primary">
                 category
               </span>
-              Danh mục sản phẩm
+              {ui.categoryTitle}
             </span>
             <Link
               to="/products"
               onClick={onClose}
               className="text-xs font-semibold text-primary hover:underline flex items-center gap-0.5 group"
             >
-              <span>Tất cả sản phẩm</span>
+              <span>{ui.allProducts}</span>
               <span className="material-symbols-outlined text-sm group-hover:translate-x-0.5 transition-transform">
                 chevron_right
               </span>
@@ -133,7 +269,7 @@ export default function CategoryMegaMenu({
                       >
                         {getCategoryIcon(cat.slug, cat.name)}
                       </span>
-                      <span className="truncate">{cat.name}</span>
+                      <span className="truncate">{getLocalizedCategoryName(cat, lang)}</span>
                     </span>
                     <span
                       className={`material-symbols-outlined text-xs transition-transform ${
@@ -155,14 +291,14 @@ export default function CategoryMegaMenu({
                   <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-outline-variant/15">
                     <span className="text-xs font-bold text-on-surface flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                      {selectedParent.name}
+                      {getLocalizedCategoryName(selectedParent, lang)}
                     </span>
                     <Link
                       to={`/products?category_id=${selectedParent.id}`}
                       onClick={onClose}
                       className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-0.5"
                     >
-                      <span>Xem tất cả {selectedParent.name}</span>
+                      <span>{ui.viewAllPrefix} {getLocalizedCategoryName(selectedParent, lang)}</span>
                       <span className="material-symbols-outlined text-xs">
                         arrow_forward
                       </span>
@@ -180,7 +316,7 @@ export default function CategoryMegaMenu({
                             className="px-2.5 py-1.5 rounded-xl bg-surface-container/70 hover:bg-primary/10 border border-outline-variant/15 hover:border-primary/30 transition-all flex items-center justify-between group"
                           >
                             <span className="text-xs font-medium text-on-surface group-hover:text-primary transition-colors truncate">
-                              {child.name}
+                              {getLocalizedCategoryName(child, lang)}
                             </span>
                             <span className="material-symbols-outlined text-[13px] text-outline group-hover:text-primary group-hover:translate-x-0.5 transition-all shrink-0">
                               arrow_forward
@@ -197,7 +333,7 @@ export default function CategoryMegaMenu({
                                   onClick={onClose}
                                   className="text-[10px] text-outline hover:text-primary transition-colors py-0.5"
                                 >
-                                  • {grand.name}
+                                  • {getLocalizedCategoryName(grand, lang)}
                                 </Link>
                               ))}
                             </div>
@@ -212,21 +348,21 @@ export default function CategoryMegaMenu({
                         {getCategoryIcon(selectedParent.slug, selectedParent.name)}
                       </span>
                       <p className="text-xs text-on-surface-variant mb-3">
-                        Khám phá các sản phẩm {selectedParent.name} chính hãng tại MobileX.
+                        {ui.explorePrefix} {getLocalizedCategoryName(selectedParent, lang)} {ui.exploreSuffix}
                       </p>
                       <Link
                         to={`/products?category_id=${selectedParent.id}`}
                         onClick={onClose}
                         className="px-3.5 py-1.5 rounded-xl bg-primary-container text-on-primary-container text-xs font-bold hover:bg-primary hover:text-on-primary transition-all shadow-xs"
                       >
-                        Xem sản phẩm {selectedParent.name} →
+                        {ui.viewBtnPrefix} {getLocalizedCategoryName(selectedParent, lang)} →
                       </Link>
                     </div>
                   )}
                 </div>
               ) : (
                 <div className="py-8 text-center text-xs text-on-surface-variant">
-                  Đang tải danh mục...
+                  {ui.loading}
                 </div>
               )}
 
@@ -234,11 +370,11 @@ export default function CategoryMegaMenu({
               <div className="pt-2 mt-2 border-t border-outline-variant/10 flex items-center justify-between text-[10px] text-outline">
                 <span className="flex items-center gap-1">
                   <span className="material-symbols-outlined text-xs text-primary">verified</span>
-                  100% Hàng chính hãng
+                  {ui.genuineNote}
                 </span>
                 <span className="flex items-center gap-1">
                   <span className="material-symbols-outlined text-xs text-primary">local_shipping</span>
-                  Giao nhanh toàn quốc
+                  {ui.deliveryNote}
                 </span>
               </div>
             </div>
