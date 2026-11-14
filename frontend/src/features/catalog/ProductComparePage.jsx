@@ -1,18 +1,241 @@
-import { useState, useEffect, useMemo } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { useCompare } from '../../contexts/CompareContext'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useCompare, FALLBACK_PHONE_SVG, getProductThumbnail } from '../../contexts/CompareContext'
 import { useCart } from '../../contexts/CartContext'
+import { useLanguage } from '../../contexts/LanguageContext'
+import { useToast } from '../../contexts/ToastContext'
 import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
 import axiosClient from '../../api/axiosClient'
 import EP from '../../api/endpoints'
 import Button from '../../components/common/Button'
-import { useToast } from '../../contexts/ToastContext'
+
+export const COMPARE_UI = {
+  vi: {
+    badge: 'Công cụ đối chiếu cấu hình',
+    title: 'So sánh sản phẩm',
+    subtitle: 'Đặt các dòng máy cạnh nhau để dễ dàng đánh giá cấu hình, màn hình, hiệu năng, camera và giá bán.',
+    onlyDiff: 'Chỉ xem điểm khác biệt',
+    diffCount: 'điểm khác biệt',
+    noDiffsFound: 'Không có điểm khác biệt nào giữa các sản phẩm được chọn.',
+    updatingSpecs: 'Đang cập nhật danh mục thông số kỹ thuật.',
+    addDevice: 'Thêm máy khác',
+    clearAll: 'Xóa tất cả',
+    shareLink: 'Chia sẻ liên kết',
+    linkCopied: 'Đã sao chép liên kết so sánh vào bộ nhớ tạm!',
+    printView: 'In / PDF',
+    emptyTitle: 'Chưa có sản phẩm nào để so sánh',
+    emptySubtitle: 'Chọn tối đa 4 dòng điện thoại đặt cạnh nhau để so sánh chi tiết về thông số kỹ thuật, giá bán và cấu hình.',
+    exploreCatalog: 'Khám phá danh sách sản phẩm',
+    bestPriceBadge: 'Giá tốt nhất',
+    compareInfoCol: 'Thông số kỹ thuật',
+    addToCart: 'Thêm vào giỏ',
+    inStock: 'Còn hàng',
+    outOfStock: 'Tạm hết hàng',
+    deviceCountSuffix: 'máy',
+    standardVariant: 'Phiên bản tiêu chuẩn',
+    differenceBadge: 'Khác biệt',
+    searchModalTitle: 'Chọn máy thêm vào so sánh',
+    searchPlaceholder: 'Nhập tên điện thoại (iPhone 16, Galaxy S24, Xiaomi...)',
+    searching: 'Đang tìm kiếm...',
+    noProductsFound: 'Không tìm thấy sản phẩm phù hợp',
+    typeKeyword: 'Gõ từ khóa để tìm sản phẩm',
+    alreadyAdded: 'Đã thêm',
+    selectToCompare: 'Chọn so sánh',
+    recommendedPhones: 'Gợi ý sản phẩm nổi bật:',
+    sections: {
+      overview: '1. Tổng quan & Giá bán',
+      display: '2. Màn hình & Hiển thị',
+      performance: '3. Hiệu năng & Vi xử lý',
+      camera: '4. Hệ thống Camera',
+      battery: '5. Pin & Nguồn sạc',
+      durability: '6. Thiết kế & Tính năng',
+      others: '7. Thông số kỹ thuật khác',
+    },
+    fields: {
+      brand: 'Thương hiệu',
+      variants: 'Các phiên bản có sẵn',
+      stock: 'Tình trạng kho hàng',
+      price: 'Giá niêm yết',
+    },
+  },
+  en: {
+    badge: 'Device Comparison Tool',
+    title: 'Product Comparison',
+    subtitle: 'Place devices side by side to compare specifications, display, performance, cameras, and pricing.',
+    onlyDiff: 'Show differences only',
+    diffCount: 'differences',
+    noDiffsFound: 'No differences found between the selected devices.',
+    updatingSpecs: 'Updating specification list.',
+    addDevice: 'Add Device',
+    clearAll: 'Clear All',
+    shareLink: 'Share Link',
+    linkCopied: 'Comparison link copied to clipboard!',
+    printView: 'Print / PDF',
+    emptyTitle: 'No products selected for comparison',
+    emptySubtitle: 'Compare up to 4 smartphones side by side to evaluate specs, cameras, battery life, and prices.',
+    exploreCatalog: 'Explore Products',
+    bestPriceBadge: 'Best Value',
+    compareInfoCol: 'Specifications',
+    addToCart: 'Add to Cart',
+    inStock: 'In Stock',
+    outOfStock: 'Out of Stock',
+    deviceCountSuffix: 'devices',
+    standardVariant: 'Standard Edition',
+    differenceBadge: 'Difference',
+    searchModalTitle: 'Add Device to Comparison',
+    searchPlaceholder: 'Search phone name (iPhone 16, Galaxy S24, Xiaomi...)',
+    searching: 'Searching...',
+    noProductsFound: 'No matching products found',
+    typeKeyword: 'Type a keyword to find devices',
+    alreadyAdded: 'Added',
+    selectToCompare: 'Select',
+    recommendedPhones: 'Recommended popular devices:',
+    sections: {
+      overview: '1. Overview & Pricing',
+      display: '2. Display & Screen',
+      performance: '3. Performance & Processor',
+      camera: '4. Camera System',
+      battery: '5. Battery & Charging',
+      durability: '6. Design & Features',
+      others: '7. Other Specifications',
+    },
+    fields: {
+      brand: 'Brand',
+      variants: 'Available Variants',
+      stock: 'Stock Status',
+      price: 'List Price',
+    },
+  },
+  'zh-CN': {
+    badge: '机型参数对比工具',
+    title: '商品参数对比',
+    subtitle: '并排对比多款手机的屏幕、处理器性能、影像系统、电池续航及价格配置。',
+    onlyDiff: '仅看差异项',
+    diffCount: '处差异',
+    noDiffsFound: '所选机型之间暂无差异。',
+    updatingSpecs: '正在更新参数列表。',
+    addDevice: '添加对比机型',
+    clearAll: '清空全部',
+    shareLink: '分享对比链接',
+    linkCopied: '对比链接已复制到剪贴板！',
+    printView: '打印 / PDF',
+    emptyTitle: '暂无对比商品',
+    emptySubtitle: '最多可同时选择4款手机进行详细硬件参数、性能与价格对比。',
+    exploreCatalog: '去挑选商品',
+    bestPriceBadge: '最优价格',
+    compareInfoCol: '对比项目',
+    addToCart: '加入购物车',
+    inStock: '现货充足',
+    outOfStock: '暂时缺货',
+    deviceCountSuffix: '款',
+    standardVariant: '标准版',
+    differenceBadge: '不同',
+    searchModalTitle: '选择要加入对比的机型',
+    searchPlaceholder: '输入手机名称 (iPhone 16, Galaxy S24, 小米...)',
+    searching: '正在搜索...',
+    noProductsFound: '未找到相关机型',
+    typeKeyword: '输入关键词搜索商品',
+    alreadyAdded: '已加入',
+    selectToCompare: '选择对比',
+    recommendedPhones: '热门对比推荐：',
+    sections: {
+      overview: '1. 概览与价格',
+      display: '2. 屏幕与显示',
+      performance: '3. 性能与处理器',
+      camera: '4. 影像与摄像',
+      battery: '5. 电池与续航',
+      durability: '6. 外观与特性',
+      others: '7. 其它参数',
+    },
+    fields: {
+      brand: '品牌',
+      variants: '可选规格版本',
+      stock: '库存状态',
+      price: '参考售价',
+    },
+  },
+}
+
+export const SPEC_GROUPS = [
+  {
+    id: 'display',
+    titleKey: 'display',
+    codes: ['display_size', 'display_resolution', 'screen_technology', 'refresh_rate'],
+  },
+  {
+    id: 'performance',
+    titleKey: 'performance',
+    codes: ['chipset', 'cpu_speed', 'gpu', 'ram', 'internal_storage'],
+  },
+  {
+    id: 'camera',
+    titleKey: 'camera',
+    codes: ['rear_camera', 'front_camera', 'video_recording'],
+  },
+  {
+    id: 'battery',
+    titleKey: 'battery',
+    codes: ['battery_capacity', 'fast_charging', 'charging_port'],
+  },
+  {
+    id: 'durability',
+    titleKey: 'durability',
+    codes: ['operating_system', 'water_resistance', 'weight', 'dimensions', 'material'],
+  },
+]
+
+/**
+ * High-performance image component with:
+ * - Instant placeholder shimmer to eliminate visual lag and CLS
+ * - Smooth opacity transition on load
+ * - Bulletproof SVG fallback on 404/network error with zero infinite loops
+ */
+export function CompareImage({ src, alt, className = '' }) {
+  const [loaded, setLoaded] = useState(false)
+  const [error, setError] = useState(false)
+
+  const finalSrc = error || !src || src === '/placeholder-phone.png' ? FALLBACK_PHONE_SVG : src
+
+  return (
+    <div className={`relative overflow-hidden flex items-center justify-center bg-surface-container-high ${className}`}>
+      {/* Shimmer skeleton while image is loading */}
+      {!loaded && !error && (
+        <div className="absolute inset-0 bg-gradient-to-r from-surface-container via-surface-container-highest to-surface-container animate-pulse flex items-center justify-center">
+          <span className="material-symbols-outlined text-outline/30 text-2xl animate-pulse">
+            smartphone
+          </span>
+        </div>
+      )}
+
+      <img
+        src={finalSrc}
+        alt={alt || 'Sản phẩm'}
+        loading="eager"
+        decoding="async"
+        fetchPriority="high"
+        onLoad={() => setLoaded(true)}
+        onError={() => {
+          setError(true)
+          setLoaded(true)
+        }}
+        className={`max-h-full max-w-full object-contain p-1 transition-opacity duration-300 ${
+          loaded ? 'opacity-100' : 'opacity-0'
+        }`}
+      />
+    </div>
+  )
+}
 
 export default function ProductComparePage() {
-  const { compareItems, removeFromCompare, clearCompare, addToCompare } = useCompare()
+  const { compareItems, removeFromCompare, clearCompare, addToCompare, replaceCompareItems, maxItems } =
+    useCompare()
   const { addToCart } = useCart()
   const { showToast } = useToast()
+  const { lang } = useLanguage()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  const t = COMPARE_UI[lang] || COMPARE_UI.vi
 
   const [loading, setLoading] = useState(false)
   const [productsData, setProductsData] = useState([])
@@ -26,7 +249,60 @@ export default function ProductComparePage() {
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
 
-  // Fetch full details of items in compare list
+  // 1. Sync URL query params with compare items
+  useEffect(() => {
+    const idsParam = searchParams.get('ids')
+    if (idsParam) {
+      const urlIds = idsParam
+        .split(',')
+        .map((id) => Number(id.trim()))
+        .filter((id) => !isNaN(id) && id > 0)
+
+      const currentIds = compareItems.map((item) => Number(item.id))
+      const isDifferent =
+        urlIds.length !== currentIds.length || urlIds.some((id) => !currentIds.includes(id))
+
+      if (isDifferent && urlIds.length > 0) {
+        // Fetch products to initialize comparison from URL
+        axiosClient
+          .get(EP.PRODUCT_COMPARE, { params: { ids: urlIds.slice(0, maxItems).join(',') } })
+          .then((res) => {
+            const fetched = res.data?.data?.products || []
+            if (fetched.length > 0) {
+              replaceCompareItems(fetched)
+            }
+          })
+          .catch((err) => console.error('Failed to sync compare items from URL', err))
+      }
+    }
+  }, [searchParams, maxItems, replaceCompareItems])
+
+  // 2. Keep URL query param ?ids= in sync with compareItems
+  useEffect(() => {
+    if (compareItems.length > 0) {
+      const currentParam = searchParams.get('ids')
+      const newParam = compareItems.map((item) => item.id).join(',')
+      if (currentParam !== newParam) {
+        setSearchParams({ ids: newParam }, { replace: true })
+      }
+    } else if (searchParams.has('ids')) {
+      searchParams.delete('ids')
+      setSearchParams(searchParams, { replace: true })
+    }
+  }, [compareItems, searchParams, setSearchParams])
+
+  // 3. Image Preloader: Cache images into browser memory as soon as items are present
+  useEffect(() => {
+    compareItems.forEach((item) => {
+      const url = item.image_url
+      if (url && typeof url === 'string' && url.startsWith('http')) {
+        const img = new Image()
+        img.src = url
+      }
+    })
+  }, [compareItems])
+
+  // 4. Fetch full specification matrix from backend
   useEffect(() => {
     if (compareItems.length === 0) {
       setProductsData([])
@@ -53,28 +329,40 @@ export default function ProductComparePage() {
       })
   }, [compareItems, showToast])
 
-  // Search products to add into comparison
+  // 5. Search products in modal with debounce
   useEffect(() => {
-    if (!showSearchModal || !searchKeyword.trim()) {
-      setSearchResults([])
+    if (!showSearchModal) return
+
+    if (!searchKeyword.trim()) {
+      // Load top flagship recommendations when search is blank
+      setSearching(true)
+      axiosClient
+        .get(EP.PRODUCTS, { params: { per_page: 5, sort: 'popular' } })
+        .then((res) => {
+          const list = res.data?.data?.data || res.data?.data || []
+          setSearchResults(list.slice(0, 5))
+        })
+        .catch(() => setSearchResults([]))
+        .finally(() => setSearching(false))
       return
     }
 
     const timer = setTimeout(() => {
       setSearching(true)
       axiosClient
-        .get(EP.PRODUCTS, { params: { keyword: searchKeyword.trim(), per_page: 5 } })
+        .get(EP.PRODUCTS, { params: { keyword: searchKeyword.trim(), per_page: 6 } })
         .then((res) => {
-          const list = res.data?.data?.data || []
+          const list = res.data?.data?.data || res.data?.data || []
           setSearchResults(list)
         })
         .catch((err) => console.error(err))
         .finally(() => setSearching(false))
-    }, 300)
+    }, 280)
 
     return () => clearTimeout(timer)
   }, [searchKeyword, showSearchModal])
 
+  // Quick add to cart
   const handleQuickAddToCart = async (product) => {
     try {
       setAddingToCartId(product.id)
@@ -92,344 +380,488 @@ export default function ProductComparePage() {
     }
   }
 
+  // Copy share link
+  const handleShare = () => {
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(window.location.href)
+      showToast(t.linkCopied, 'success')
+    } else {
+      showToast(window.location.href, 'info')
+    }
+  }
+
+  // Print view
+  const handlePrint = () => {
+    window.print()
+  }
+
   // Helper to extract a spec value by definition code
-  const getProductSpec = (product, defCode) => {
-    const spec = product.specifications?.find((s) => s.definition?.code === defCode)
+  const getProductSpec = useCallback((product, defCode) => {
+    if (!product || !product.specifications) return '—'
+    const spec = product.specifications.find((s) => s.definition?.code === defCode)
     if (!spec) return '—'
+
     if (spec.numeric_value !== null && spec.numeric_value !== undefined) {
       const unit = spec.definition?.unit ? ` ${spec.definition.unit}` : ''
       return `${Number(spec.numeric_value)}${unit}`
     }
     if (spec.value_boolean !== null && spec.value_boolean !== undefined) {
-      return spec.value_boolean ? 'Có' : 'Không'
+      return spec.value_boolean ? (lang === 'en' ? 'Yes' : lang === 'zh-CN' ? '支持' : 'Có') : (lang === 'en' ? 'No' : lang === 'zh-CN' ? '不支持' : 'Không')
     }
     return spec.value_text || spec.value || '—'
-  }
+  }, [lang])
 
   // Determine if a spec has differences among products
-  const hasDifference = (defCode) => {
-    if (productsData.length < 2) return false
-    const values = productsData.map((p) => getProductSpec(p, defCode))
-    return values.some((val) => val !== values[0])
-  }
+  const hasDifference = useCallback(
+    (defCode) => {
+      if (productsData.length < 2) return false
+      const values = productsData.map((p) => getProductSpec(p, defCode))
+      return values.some((val) => val !== values[0])
+    },
+    [productsData, getProductSpec]
+  )
 
   // Filter definitions based on differences toggle
   const visibleDefinitions = useMemo(() => {
     if (!onlyDifferences) return definitions
     return definitions.filter((def) => hasDifference(def.code))
-  }, [definitions, onlyDifferences, productsData])
+  }, [definitions, onlyDifferences, hasDifference])
 
+  // Count total differences across all definitions
+  const totalDifferencesCount = useMemo(() => {
+    return definitions.filter((def) => hasDifference(def.code)).length
+  }, [definitions, hasDifference])
+
+  // Determine best (minimum) price among compared products
+  const minComparedPrice = useMemo(() => {
+    const list = productsData.length > 0 ? productsData : compareItems
+    const validPrices = list
+      .map((p) => Number(p.base_price || p.min_price || p.price || p.variants?.[0]?.price || 0))
+      .filter((price) => price > 0)
+    return validPrices.length > 0 ? Math.min(...validPrices) : 0
+  }, [productsData, compareItems])
+
+  // Optimistic merged products: use productsData if available, otherwise fallback to compareItems
+  const displayProducts = useMemo(() => {
+    return compareItems.map((item) => {
+      const fullData = productsData.find((p) => Number(p.id) === Number(item.id))
+      return fullData || item
+    })
+  }, [compareItems, productsData])
+
+  // Group definitions into categorized sections
+  const groupedDefinitions = useMemo(() => {
+    const assignedCodes = new Set()
+    const groups = []
+
+    SPEC_GROUPS.forEach((grp) => {
+      const matched = visibleDefinitions.filter((def) => grp.codes.includes(def.code))
+      if (matched.length > 0) {
+        matched.forEach((d) => assignedCodes.add(d.code))
+        groups.push({
+          id: grp.id,
+          title: t.sections[grp.titleKey] || grp.id,
+          definitions: matched,
+        })
+      }
+    })
+
+    // Catch any remaining unassigned definitions
+    const remaining = visibleDefinitions.filter((def) => !assignedCodes.has(def.code))
+    if (remaining.length > 0) {
+      groups.push({
+        id: 'others',
+        title: t.sections.others,
+        definitions: remaining,
+      })
+    }
+
+    return groups
+  }, [visibleDefinitions, t.sections])
+
+  // Empty state
   if (compareItems.length === 0) {
     return (
-      <div className="max-w-4xl mx-auto py-16 px-4 text-center">
-        <div className="w-20 h-20 mx-auto rounded-3xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary mb-6">
-          <span className="material-symbols-outlined text-4xl">compare_arrows</span>
+      <div className="max-w-4xl mx-auto py-20 px-4 text-center animate-fade-in">
+        <div className="w-24 h-24 mx-auto rounded-3xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary mb-6 shadow-inner">
+          <span className="material-symbols-outlined text-5xl">compare_arrows</span>
         </div>
-        <h1 className="text-2xl md:text-3xl font-extrabold text-on-surface mb-3">
-          Chưa có sản phẩm nào để so sánh
-        </h1>
-        <p className="text-sm md:text-base text-on-surface-variant max-w-md mx-auto mb-8">
-          Chọn tối đa 4 dòng điện thoại đặt cạnh nhau để so sánh chi tiết về thông số kỹ thuật, giá bán và cấu hình.
+        <h1 className="text-2xl md:text-3xl font-extrabold text-on-surface mb-3">{t.emptyTitle}</h1>
+        <p className="text-sm md:text-base text-on-surface-variant max-w-lg mx-auto mb-8 leading-relaxed">
+          {t.emptySubtitle}
         </p>
-        <Button variant="primary" size="lg" onClick={() => navigate('/products')}>
+        <Button variant="primary" size="lg" onClick={() => navigate('/products')} className="rounded-2xl shadow-lg">
           <span className="material-symbols-outlined text-xl">storefront</span>
-          Khám phá danh sách sản phẩm
+          {t.exploreCatalog}
         </Button>
       </div>
     )
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-outline-variant/20">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-fade-in">
+      {/* Header Bar */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-outline-variant/20 print:hidden">
         <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-primary uppercase tracking-wider mb-1">
+          <div className="flex items-center gap-2 text-xs font-bold text-primary uppercase tracking-wider mb-1">
             <span className="material-symbols-outlined text-base">balance</span>
-            Công cụ đối chiếu cấu hình
+            {t.badge}
           </div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-on-surface">
-            So sánh sản phẩm ({compareItems.length}/4)
+          <h1 className="text-2xl md:text-3xl font-extrabold text-on-surface flex items-center gap-2">
+            <span>{t.title}</span>
+            <span className="text-sm font-semibold px-2.5 py-0.5 rounded-full bg-primary/15 text-primary">
+              {compareItems.length}/{maxItems} {t.deviceCountSuffix}
+            </span>
           </h1>
-          <p className="text-xs md:text-sm text-on-surface-variant mt-1">
-            Đặt các dòng máy cạnh nhau để dễ dàng đánh giá cấu hình, màn hình, hiệu năng và camera.
-          </p>
+          <p className="text-xs md:text-sm text-on-surface-variant mt-1 max-w-2xl">{t.subtitle}</p>
         </div>
 
-        <div className="flex items-center flex-wrap gap-3">
-          <label className="flex items-center gap-2 text-xs font-medium text-on-surface cursor-pointer select-none bg-surface-container px-3 py-2 rounded-xl border border-outline-variant/20">
+        {/* Toolbar */}
+        <div className="flex items-center flex-wrap gap-2.5">
+          {/* Difference Toggle */}
+          <label className="flex items-center gap-2 text-xs font-semibold text-on-surface cursor-pointer select-none bg-surface-container px-3.5 py-2.5 rounded-xl border border-outline-variant/20 hover:border-primary/40 transition-colors shadow-xs">
             <input
               type="checkbox"
               checked={onlyDifferences}
               onChange={(e) => setOnlyDifferences(e.target.checked)}
               className="rounded text-primary focus:ring-primary h-4 w-4"
             />
-            <span>Chỉ xem điểm khác biệt</span>
+            <span>{t.onlyDiff}</span>
+            {totalDifferencesCount > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 rounded-full bg-primary text-on-primary text-[10px] font-bold">
+                {totalDifferencesCount} {t.diffCount}
+              </span>
+            )}
           </label>
 
-          {compareItems.length < 4 && (
+          {/* Add device button if slot available */}
+          {compareItems.length < maxItems && (
             <Button
               variant="outline"
               size="sm"
               onClick={() => setShowSearchModal(true)}
-              className="rounded-xl"
+              className="rounded-xl font-semibold"
             >
               <span className="material-symbols-outlined text-base">add</span>
-              Thêm máy khác
+              {t.addDevice}
             </Button>
           )}
 
+          {/* Share Link */}
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleShare}
+            className="rounded-xl font-medium"
+            title={t.shareLink}
+          >
+            <span className="material-symbols-outlined text-base">share</span>
+            <span className="hidden sm:inline">{t.shareLink}</span>
+          </Button>
+
+          {/* Print / Export */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handlePrint}
+            className="rounded-xl font-medium text-on-surface-variant hover:text-on-surface"
+            title={t.printView}
+          >
+            <span className="material-symbols-outlined text-base">print</span>
+            <span className="hidden sm:inline">{t.printView}</span>
+          </Button>
+
+          {/* Clear All */}
           <Button
             variant="ghost"
             size="sm"
             onClick={clearCompare}
-            className="text-error hover:bg-error/10 rounded-xl"
+            className="text-error hover:bg-error/10 rounded-xl font-semibold"
           >
             <span className="material-symbols-outlined text-base">delete_sweep</span>
-            Xóa tất cả
+            {t.clearAll}
           </Button>
         </div>
       </div>
 
-      {loading ? (
-        <div className="py-24 text-center">
-          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-sm text-on-surface-variant font-medium">Đang tải bảng đối chiếu thông số...</p>
-        </div>
-      ) : (
-        <div className="overflow-x-auto rounded-2xl border border-outline-variant/20 bg-surface-container-low shadow-sm">
-          <table className="w-full text-left border-collapse min-w-[700px]">
-            {/* Table Header: Sticky Product Cards */}
-            <thead>
-              <tr className="border-b border-outline-variant/20 bg-surface-container">
-                <th className="p-4 w-52 md:w-64 text-xs font-bold uppercase tracking-wider text-on-surface-variant align-top">
-                  Thông tin so sánh
-                </th>
-                {productsData.map((p) => {
-                  const primaryImg =
-                    p.primary_image_url ||
-                    p.images?.find((img) => img.is_primary)?.image_url ||
-                    p.images?.[0]?.image_url ||
-                    '/placeholder-phone.png'
-                  const minPrice = p.base_price || p.variants?.[0]?.price || 0
+      {/* Comparison Matrix Table */}
+      <div className="overflow-x-auto rounded-3xl border border-outline-variant/25 bg-surface-container-low shadow-md">
+        <table className="w-full text-left border-collapse min-w-[760px] table-fixed">
+          {/* Sticky Product Cards Header */}
+          <thead className="sticky top-16 lg:top-20 z-20 backdrop-blur-xl bg-surface-container/95 border-b border-outline-variant/25 shadow-xs">
+            <tr>
+              <th className="p-4 w-52 md:w-64 text-xs font-bold uppercase tracking-wider text-on-surface-variant align-middle bg-surface-container">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary text-base">view_column</span>
+                  <span>{t.compareInfoCol}</span>
+                </div>
+              </th>
 
-                  return (
-                    <th
-                      key={p.id}
-                      className="p-4 w-60 md:w-72 align-top border-l border-outline-variant/15 text-center relative"
+              {displayProducts.map((p) => {
+                const primaryImg = getProductThumbnail(p)
+                const price = Number(p.base_price || p.min_price || p.price || p.variants?.[0]?.price || 0)
+                const isBestPrice = minComparedPrice > 0 && price === minComparedPrice && displayProducts.length > 1
+
+                return (
+                  <th
+                    key={p.id}
+                    className="p-4 w-60 md:w-72 align-top border-l border-outline-variant/15 text-center relative bg-surface-container"
+                  >
+                    {/* Quick remove button */}
+                    <button
+                      type="button"
+                      onClick={() => removeFromCompare(p.id)}
+                      title="Bỏ khỏi so sánh"
+                      className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-surface-container-highest/80 text-on-surface-variant hover:text-error hover:bg-error/15 flex items-center justify-center transition-all z-10 print:hidden"
                     >
-                      <button
-                        onClick={() => removeFromCompare(p.id)}
-                        title="Bỏ khỏi so sánh"
-                        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-surface-container-high/80 text-on-surface-variant hover:text-error hover:bg-error/15 flex items-center justify-center transition-colors"
-                      >
-                        <span className="material-symbols-outlined text-base">close</span>
-                      </button>
+                      <span className="material-symbols-outlined text-base">close</span>
+                    </button>
 
-                      <div className="flex flex-col items-center">
-                        <Link to={`/products/${p.slug || p.id}`} className="group block mb-3">
-                          <div className="w-28 h-28 mx-auto rounded-xl overflow-hidden bg-surface-container-high p-2 flex items-center justify-center group-hover:scale-105 transition-transform duration-200">
-                            <img
-                              src={primaryImg}
-                              alt={p.name}
-                              className="max-h-full max-w-full object-contain"
-                              onError={(e) => {
-                                e.currentTarget.src = '/placeholder-phone.png'
-                              }}
-                            />
-                          </div>
-                          <span className="text-xs font-semibold text-primary block mt-1">
-                            {p.brand?.name || 'MobieX'}
-                          </span>
-                          <h3 className="text-sm font-bold text-on-surface group-hover:text-primary transition-colors line-clamp-2">
-                            {p.name}
-                          </h3>
-                        </Link>
-
-                        <div className="text-base font-extrabold text-primary mb-3">
-                          {formatCurrencyVND(minPrice)}
+                    <div className="flex flex-col items-center">
+                      <Link to={`/products/${p.slug || p.id}`} className="group block mb-2 w-full">
+                        {/* High-speed Image container */}
+                        <div className="w-24 h-24 md:w-28 md:h-28 mx-auto rounded-2xl overflow-hidden bg-surface-container-highest/60 p-2 flex items-center justify-center group-hover:scale-105 transition-transform duration-300 shadow-xs border border-outline-variant/20">
+                          <CompareImage src={primaryImg} alt={p.name} className="w-full h-full rounded-xl" />
                         </div>
 
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          className="w-full text-xs"
-                          loading={addingToCartId === p.id}
-                          disabled={addingToCartId === p.id}
-                          onClick={() => handleQuickAddToCart(p)}
-                        >
-                          <span className="material-symbols-outlined text-base">add_shopping_cart</span>
-                          Thêm vào giỏ
-                        </Button>
-                      </div>
-                    </th>
-                  )
-                })}
-
-                {/* Add slot placeholder if < 4 */}
-                {productsData.length < 4 && (
-                  <th className="p-4 w-48 align-middle border-l border-outline-variant/15 text-center bg-surface-container/40">
-                    <button
-                      onClick={() => setShowSearchModal(true)}
-                      className="w-full py-12 border-2 border-dashed border-outline-variant/50 hover:border-primary rounded-2xl flex flex-col items-center justify-center gap-2 text-on-surface-variant hover:text-primary transition-colors group"
-                    >
-                      <div className="w-10 h-10 rounded-full bg-primary/10 group-hover:bg-primary/20 flex items-center justify-center text-primary transition-colors">
-                        <span className="material-symbols-outlined text-xl">add</span>
-                      </div>
-                      <span className="text-xs font-medium">Thêm máy khác ({productsData.length}/4)</span>
-                    </button>
-                  </th>
-                )}
-              </tr>
-            </thead>
-
-            {/* Table Body: Sections */}
-            <tbody className="divide-y divide-outline-variant/10 text-xs md:text-sm">
-              {/* Section 1: Overview */}
-              <tr className="bg-surface-container/60">
-                <td
-                  colSpan={productsData.length + 1 + (productsData.length < 4 ? 1 : 0)}
-                  className="p-3 text-xs font-bold text-primary uppercase tracking-wider"
-                >
-                  1. Thông tin chung & Phiên bản
-                </td>
-              </tr>
-              <tr>
-                <td className="p-4 font-semibold text-on-surface-variant bg-surface-container/30">
-                  Thương hiệu
-                </td>
-                {productsData.map((p) => (
-                  <td key={p.id} className="p-4 text-center border-l border-outline-variant/10 font-medium">
-                    {p.brand?.name || '—'}
-                  </td>
-                ))}
-                {productsData.length < 4 && <td className="border-l border-outline-variant/10" />}
-              </tr>
-              <tr>
-                <td className="p-4 font-semibold text-on-surface-variant bg-surface-container/30">
-                  Các phiên bản có sẵn
-                </td>
-                {productsData.map((p) => (
-                  <td key={p.id} className="p-4 text-center border-l border-outline-variant/10">
-                    {p.variants && p.variants.length > 0 ? (
-                      <div className="flex flex-col gap-1 items-center">
-                        {p.variants.map((v) => (
-                          <span
-                            key={v.id}
-                            className="inline-block px-2 py-0.5 rounded bg-surface-container-high text-[11px] font-mono text-on-surface"
-                          >
-                            {v.name || v.option_signature || v.sku} • {formatCurrencyVND(v.price)}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      'Phiên bản tiêu chuẩn'
-                    )}
-                  </td>
-                ))}
-                {productsData.length < 4 && <td className="border-l border-outline-variant/10" />}
-              </tr>
-              <tr>
-                <td className="p-4 font-semibold text-on-surface-variant bg-surface-container/30">
-                  Tình trạng kho hàng
-                </td>
-                {productsData.map((p) => {
-                  const totalStock = p.variants?.reduce(
-                    (sum, v) => sum + (v.inventory?.available_quantity || v.available_quantity || 0),
-                    0
-                  )
-                  return (
-                    <td key={p.id} className="p-4 text-center border-l border-outline-variant/10">
-                      {totalStock > 0 ? (
-                        <span className="text-secondary font-semibold">Còn {totalStock} máy</span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-xs font-bold text-white bg-error px-2.5 py-0.5 rounded-full shadow-xs">
-                          Tạm hết hàng
+                        <span className="text-[11px] font-bold text-primary block mt-2 uppercase tracking-wide">
+                          {p.brand?.name || p.brand_name || 'MobieX'}
                         </span>
-                      )}
-                    </td>
-                  )
-                })}
-                {productsData.length < 4 && <td className="border-l border-outline-variant/10" />}
-              </tr>
+                        <h3 className="text-xs md:text-sm font-bold text-on-surface group-hover:text-primary transition-colors line-clamp-2 px-1">
+                          {p.name}
+                        </h3>
+                      </Link>
 
-              {/* Section 2: Technical Specifications */}
-              <tr className="bg-surface-container/60">
-                <td
-                  colSpan={productsData.length + 1 + (productsData.length < 4 ? 1 : 0)}
-                  className="p-3 text-xs font-bold text-primary uppercase tracking-wider"
-                >
-                  2. Thông số kỹ thuật chi tiết
-                </td>
-              </tr>
-
-              {visibleDefinitions.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={productsData.length + 1 + (productsData.length < 4 ? 1 : 0)}
-                    className="p-6 text-center text-on-surface-variant italic"
-                  >
-                    {onlyDifferences
-                      ? 'Không có điểm khác biệt nào giữa các sản phẩm được chọn.'
-                      : 'Đang cập nhật danh mục thông số kỹ thuật.'}
-                  </td>
-                </tr>
-              ) : (
-                visibleDefinitions.map((def) => {
-                  const diff = hasDifference(def.code)
-                  return (
-                    <tr
-                      key={def.code}
-                      className={diff ? 'bg-primary/[0.03]' : ''}
-                    >
-                      <td className="p-4 font-semibold text-on-surface-variant bg-surface-container/30 flex items-center justify-between">
-                        <span>{def.name}</span>
-                        {diff && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase tracking-tighter">
-                            Khác biệt
+                      {/* Pricing with Best Price badge */}
+                      <div className="mb-2.5 flex flex-col items-center gap-1">
+                        <div className="text-sm md:text-base font-extrabold text-primary">
+                          {formatCurrencyVND(price)}
+                        </div>
+                        {isBestPrice && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10px] font-extrabold uppercase tracking-wide">
+                            <span className="material-symbols-outlined text-[12px]">verified</span>
+                            {t.bestPriceBadge}
                           </span>
                         )}
-                      </td>
-                      {productsData.map((p) => {
-                        const val = getProductSpec(p, def.code)
-                        return (
-                          <td
-                            key={p.id}
-                            className={`p-4 text-center border-l border-outline-variant/10 font-medium ${
-                              diff ? 'text-primary font-semibold' : 'text-on-surface'
-                            }`}
-                          >
-                            {val}
-                          </td>
-                        )
-                      })}
-                      {productsData.length < 4 && <td className="border-l border-outline-variant/10" />}
-                    </tr>
-                  )
-                })
+                      </div>
+
+                      {/* Add to Cart button */}
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        className="w-full text-xs rounded-xl shadow-xs print:hidden"
+                        loading={addingToCartId === p.id}
+                        disabled={addingToCartId === p.id}
+                        onClick={() => handleQuickAddToCart(p)}
+                      >
+                        <span className="material-symbols-outlined text-base">add_shopping_cart</span>
+                        {t.addToCart}
+                      </Button>
+                    </div>
+                  </th>
+                )
+              })}
+
+              {/* Add slot placeholder if fewer than 4 */}
+              {displayProducts.length < maxItems && (
+                <th className="p-4 w-48 md:w-56 align-middle border-l border-outline-variant/15 text-center bg-surface-container/30 print:hidden">
+                  <button
+                    type="button"
+                    onClick={() => setShowSearchModal(true)}
+                    className="w-full py-10 border-2 border-dashed border-outline-variant/50 hover:border-primary rounded-2xl flex flex-col items-center justify-center gap-2 text-on-surface-variant hover:text-primary transition-all group hover:bg-primary/[0.03]"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-primary/10 group-hover:bg-primary/20 flex items-center justify-center text-primary transition-colors">
+                      <span className="material-symbols-outlined text-xl">add</span>
+                    </div>
+                    <span className="text-xs font-semibold">
+                      {t.addDevice} ({displayProducts.length}/{maxItems})
+                    </span>
+                  </button>
+                </th>
               )}
-            </tbody>
-          </table>
-        </div>
-      )}
+            </tr>
+          </thead>
+
+          {/* Table Body */}
+          <tbody className="divide-y divide-outline-variant/10 text-xs md:text-sm">
+            {/* Section 1: Overview & Pricing */}
+            <tr className="bg-surface-container/70">
+              <td
+                colSpan={displayProducts.length + 1 + (displayProducts.length < maxItems ? 1 : 0)}
+                className="p-3.5 text-xs font-bold text-primary uppercase tracking-wider"
+              >
+                {t.sections.overview}
+              </td>
+            </tr>
+
+            {/* Field: Brand */}
+            <tr>
+              <td className="p-4 font-semibold text-on-surface-variant bg-surface-container/30">
+                {t.fields.brand}
+              </td>
+              {displayProducts.map((p) => (
+                <td key={p.id} className="p-4 text-center border-l border-outline-variant/10 font-medium">
+                  {p.brand?.name || p.brand_name || '—'}
+                </td>
+              ))}
+              {displayProducts.length < maxItems && <td className="border-l border-outline-variant/10 print:hidden" />}
+            </tr>
+
+            {/* Field: Variants */}
+            <tr>
+              <td className="p-4 font-semibold text-on-surface-variant bg-surface-container/30">
+                {t.fields.variants}
+              </td>
+              {displayProducts.map((p) => (
+                <td key={p.id} className="p-4 text-center border-l border-outline-variant/10">
+                  {p.variants && p.variants.length > 0 ? (
+                    <div className="flex flex-col gap-1 items-center">
+                      {p.variants.map((v) => (
+                        <span
+                          key={v.id}
+                          className="inline-block px-2.5 py-1 rounded-lg bg-surface-container-high text-[11px] font-mono text-on-surface border border-outline-variant/15"
+                        >
+                          {v.name || v.option_signature || v.sku} • {formatCurrencyVND(v.price)}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-on-surface-variant italic">{t.standardVariant}</span>
+                  )}
+                </td>
+              ))}
+              {displayProducts.length < maxItems && <td className="border-l border-outline-variant/10 print:hidden" />}
+            </tr>
+
+            {/* Field: Stock Status */}
+            <tr>
+              <td className="p-4 font-semibold text-on-surface-variant bg-surface-container/30">
+                {t.fields.stock}
+              </td>
+              {displayProducts.map((p) => {
+                const totalStock = p.variants?.reduce(
+                  (sum, v) => sum + (v.inventory?.available_quantity || v.available_quantity || 0),
+                  0
+                )
+                const hasStock = totalStock > 0 || !p.variants || p.variants.length === 0
+
+                return (
+                  <td key={p.id} className="p-4 text-center border-l border-outline-variant/10">
+                    {hasStock ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        {totalStock > 0 ? `${t.inStock} (${totalStock})` : t.inStock}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-error bg-error/10 px-2.5 py-1 rounded-full">
+                        <span className="material-symbols-outlined text-xs">block</span>
+                        {t.outOfStock}
+                      </span>
+                    )}
+                  </td>
+                )
+              })}
+              {displayProducts.length < maxItems && <td className="border-l border-outline-variant/10 print:hidden" />}
+            </tr>
+
+            {/* Sections 2..N: Categorized Specifications */}
+            {loading ? (
+              // Shimmer skeleton rows while fetching deep specs
+              Array.from({ length: 6 }).map((_, sIdx) => (
+                <tr key={`skeleton-${sIdx}`} className="animate-pulse">
+                  <td className="p-4 bg-surface-container/30">
+                    <div className="h-4 bg-surface-container-highest rounded-md w-3/4" />
+                  </td>
+                  {displayProducts.map((p) => (
+                    <td key={p.id} className="p-4 text-center border-l border-outline-variant/10">
+                      <div className="h-4 bg-surface-container-highest rounded-md w-1/2 mx-auto" />
+                    </td>
+                  ))}
+                  {displayProducts.length < maxItems && (
+                    <td className="border-l border-outline-variant/10 print:hidden" />
+                  )}
+                </tr>
+              ))
+            ) : groupedDefinitions.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={displayProducts.length + 1 + (displayProducts.length < maxItems ? 1 : 0)}
+                  className="p-8 text-center text-on-surface-variant italic"
+                >
+                  {onlyDifferences ? t.noDiffsFound : t.updatingSpecs}
+                </td>
+              </tr>
+            ) : (
+              groupedDefinitions.map((group) => (
+                <tbody key={group.id} className="divide-y divide-outline-variant/10">
+                  {/* Group Section Header */}
+                  <tr className="bg-surface-container/70">
+                    <td
+                      colSpan={displayProducts.length + 1 + (displayProducts.length < maxItems ? 1 : 0)}
+                      className="p-3.5 text-xs font-bold text-primary uppercase tracking-wider"
+                    >
+                      {group.title}
+                    </td>
+                  </tr>
+
+                  {/* Group Definition Rows */}
+                  {group.definitions.map((def) => {
+                    const diff = hasDifference(def.code)
+                    return (
+                      <tr key={def.code} className={diff ? 'bg-primary/[0.04]' : ''}>
+                        <td className="p-4 font-semibold text-on-surface-variant bg-surface-container/30 flex items-center justify-between gap-2">
+                          <span>{def.name}</span>
+                          {diff && (
+                            <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase tracking-tighter shrink-0">
+                              {t.differenceBadge}
+                            </span>
+                          )}
+                        </td>
+                        {displayProducts.map((p) => {
+                          const val = getProductSpec(p, def.code)
+                          return (
+                            <td
+                              key={p.id}
+                              className={`p-4 text-center border-l border-outline-variant/10 font-medium ${
+                                diff ? 'text-primary font-bold' : 'text-on-surface'
+                              }`}
+                            >
+                              {val}
+                            </td>
+                          )
+                        })}
+                        {displayProducts.length < maxItems && (
+                          <td className="border-l border-outline-variant/10 print:hidden" />
+                        )}
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
 
       {/* Modal: Add More Product to Compare */}
       {showSearchModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-surface-container rounded-2xl border border-outline-variant/30 max-w-lg w-full p-6 shadow-2xl space-y-4">
+          <div className="bg-surface-container rounded-3xl border border-outline-variant/30 max-w-lg w-full p-6 shadow-2xl space-y-4 animate-scale-up">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-on-surface flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary">add_circle</span>
-                Chọn máy thêm vào so sánh
+                <span className="material-symbols-outlined text-primary text-xl">add_circle</span>
+                {t.searchModalTitle}
               </h3>
               <button
+                type="button"
                 onClick={() => setShowSearchModal(false)}
-                className="text-on-surface-variant hover:text-on-surface"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors"
               >
-                <span className="material-symbols-outlined">close</span>
+                <span className="material-symbols-outlined text-base">close</span>
               </button>
             </div>
 
+            {/* Search Input */}
             <div className="relative">
               <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-outline">
                 search
@@ -437,48 +869,57 @@ export default function ProductComparePage() {
               <input
                 type="text"
                 autoFocus
-                placeholder="Nhập tên điện thoại (iPhone 16, Galaxy S24, Xiaomi...)"
+                placeholder={t.searchPlaceholder}
                 value={searchKeyword}
                 onChange={(e) => setSearchKeyword(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-outline-variant/30 bg-surface-container-high text-on-surface placeholder:text-outline focus:outline-none focus:border-primary text-sm"
+                className="w-full pl-10 pr-10 py-2.5 rounded-2xl border border-outline-variant/30 bg-surface-container-high text-on-surface placeholder:text-outline focus:outline-none focus:border-primary text-sm shadow-xs"
               />
+              {searchKeyword && (
+                <button
+                  type="button"
+                  onClick={() => setSearchKeyword('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface"
+                >
+                  <span className="material-symbols-outlined text-sm">cancel</span>
+                </button>
+              )}
             </div>
 
-            <div className="max-h-64 overflow-y-auto space-y-2">
+            {!searchKeyword && (
+              <p className="text-[11px] font-semibold text-on-surface-variant px-1">
+                {t.recommendedPhones}
+              </p>
+            )}
+
+            {/* Results / Suggestions List */}
+            <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
               {searching ? (
-                <div className="py-6 text-center text-xs text-on-surface-variant">Đang tìm kiếm...</div>
+                <div className="py-8 text-center text-xs text-on-surface-variant flex items-center justify-center gap-2">
+                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  <span>{t.searching}</span>
+                </div>
               ) : searchResults.length === 0 ? (
-                <div className="py-6 text-center text-xs text-on-surface-variant">
-                  {searchKeyword ? 'Không tìm thấy sản phẩm phù hợp' : 'Gõ từ khóa để tìm sản phẩm'}
+                <div className="py-8 text-center text-xs text-on-surface-variant">
+                  {searchKeyword ? t.noProductsFound : t.typeKeyword}
                 </div>
               ) : (
                 searchResults.map((p) => {
                   const alreadyIn = compareItems.some((i) => Number(i.id) === Number(p.id))
-                  const primaryImg =
-                    p.primary_image_url ||
-                    p.images?.find((img) => img.is_primary)?.image_url ||
-                    p.images?.[0]?.image_url ||
-                    '/placeholder-phone.png'
+                  const primaryImg = getProductThumbnail(p)
+                  const price = p.base_price || p.min_price || p.price || p.variants?.[0]?.price || 0
 
                   return (
                     <div
                       key={p.id}
-                      className="flex items-center justify-between p-2.5 rounded-xl bg-surface-container-high/60 border border-outline-variant/15 hover:border-primary/40 transition-colors"
+                      className="flex items-center justify-between p-2.5 rounded-2xl bg-surface-container-high/60 border border-outline-variant/15 hover:border-primary/40 transition-all gap-3"
                     >
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={primaryImg}
-                          alt={p.name}
-                          className="w-12 h-12 object-contain rounded-lg bg-surface-container"
-                          onError={(e) => {
-                            e.currentTarget.src = '/placeholder-phone.png'
-                          }}
-                        />
-                        <div>
-                          <p className="text-sm font-semibold text-on-surface line-clamp-1">{p.name}</p>
-                          <p className="text-xs text-primary font-bold">
-                            {formatCurrencyVND(p.base_price || p.variants?.[0]?.price || 0)}
-                          </p>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-12 h-12 rounded-xl bg-surface-container p-1 shrink-0 flex items-center justify-center overflow-hidden border border-outline-variant/20">
+                          <CompareImage src={primaryImg} alt={p.name} className="w-full h-full rounded-lg" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs md:text-sm font-bold text-on-surface truncate">{p.name}</p>
+                          <p className="text-xs text-primary font-extrabold">{formatCurrencyVND(price)}</p>
                         </div>
                       </div>
 
@@ -492,8 +933,9 @@ export default function ProductComparePage() {
                             setShowSearchModal(false)
                           }
                         }}
+                        className="shrink-0 rounded-xl text-xs font-semibold"
                       >
-                        {alreadyIn ? 'Đã thêm' : 'Chọn so sánh'}
+                        {alreadyIn ? t.alreadyAdded : t.selectToCompare}
                       </Button>
                     </div>
                   )

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240" fill="none">
+  <rect width="240" height="240" rx="24" fill="#F1F5F9" />
+  <g transform="translate(68, 30)">
+    <!-- Phone body -->
+    <rect x="0" y="0" width="104" height="180" rx="18" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="3" />
+    <!-- Screen area -->
+    <rect x="6" y="8" width="92" height="164" rx="12" fill="#E2E8F0" />
+    <!-- Dynamic island / notch -->
+    <rect x="36" y="14" width="32" height="7" rx="3.5" fill="#94A3B8" />
+    <!-- Phone icon emblem inside screen -->
+    <circle cx="52" cy="85" r="22" fill="#CBD5E1" />
+    <path d="M44 80C44 76.6863 46.6863 74 50 74H54C57.3137 74 60 76.6863 60 80V90C60 93.3137 57.3137 96 54 96H50C46.6863 96 44 93.3137 44 90V80Z" fill="#94A3B8"/>
+    <circle cx="52" cy="92" r="1.5" fill="#FFFFFF" />
+    <text x="52" y="126" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" font-weight="600" fill="#64748B">MobieX Device</text>
+  </g>
+</svg>

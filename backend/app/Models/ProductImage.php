@@ -35,6 +35,10 @@ class ProductImage extends Model
         ];
     }
 
+    protected $appends = [
+        'image_url',
+    ];
+
     public function getVariantIdAttribute(): ?int
     {
         return $this->attributes['product_variant_id'] ?? null;

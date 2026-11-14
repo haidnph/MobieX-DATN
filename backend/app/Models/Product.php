@@ -27,6 +27,7 @@ class Product extends Model
         'min_price',
         'max_price',
         'thumbnail',
+        'primary_image_url',
     ];
 
     public function getThumbnailAttribute(): ?string
@@ -40,6 +41,11 @@ class Product extends Model
         $primary = $this->images()->where('is_primary', true)->first() ?? $this->images()->first();
 
         return $primary?->image_path ?? $primary?->image_url ?? null;
+    }
+
+    public function getPrimaryImageUrlAttribute(): ?string
+    {
+        return $this->thumbnail;
     }
 
     public function getMinPriceAttribute(): float

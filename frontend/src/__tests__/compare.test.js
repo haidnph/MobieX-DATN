@@ -1,7 +1,16 @@
 import { describe, it, expect } from 'vitest'
+import {
+  getProductThumbnail,
+  FALLBACK_PHONE_SVG,
+  MAX_COMPARE_ITEMS,
+} from '../contexts/CompareContext'
+import {
+  COMPARE_UI,
+  SPEC_GROUPS,
+} from '../features/catalog/ProductComparePage'
 
 // Pure functions mirror the compare logic
-function addCompareItem(currentItems, product, maxLimit = 4) {
+function addCompareItem(currentItems, product, maxLimit = MAX_COMPARE_ITEMS) {
   if (!product || !product.id) return { items: currentItems, added: false, reason: 'invalid' }
   if (currentItems.some((item) => Number(item.id) === Number(product.id))) {
     return { items: currentItems, added: false, reason: 'exists' }
@@ -90,5 +99,65 @@ describe('Product Compare Logic & Limit Safeguards', () => {
     ]
 
     expect(detectSpecDifference(products, 'water_resistance')).toBe(false)
+  })
+
+  it('reliably extracts thumbnails and prevents broken placeholder loops', () => {
+    // 1. primary_image_url
+    expect(getProductThumbnail({ primary_image_url: 'https://example.com/p1.jpg' })).toBe(
+      'https://example.com/p1.jpg'
+    )
+
+    // 2. thumbnail property
+    expect(getProductThumbnail({ thumbnail: 'https://example.com/thumb.jpg' })).toBe(
+      'https://example.com/thumb.jpg'
+    )
+
+    // 3. images array with is_primary
+    expect(
+      getProductThumbnail({
+        images: [
+          { image_path: 'https://example.com/sec.jpg', is_primary: false },
+          { image_path: 'https://example.com/pri.jpg', is_primary: true },
+        ],
+      })
+    ).toBe('https://example.com/pri.jpg')
+
+    // 4. Missing / null / invalid fallback to inline SVG data URI
+    expect(getProductThumbnail(null)).toBe(FALLBACK_PHONE_SVG)
+    expect(getProductThumbnail({})).toBe(FALLBACK_PHONE_SVG)
+    expect(getProductThumbnail({ primary_image_url: '/placeholder-phone.png' })).toBe(
+      FALLBACK_PHONE_SVG
+    )
+    expect(FALLBACK_PHONE_SVG).toContain('data:image/svg+xml')
+  })
+
+  it('defines complete multilingual compare UI dictionaries for vi, en, zh-CN', () => {
+    for (const lang of ['vi', 'en', 'zh-CN']) {
+      const dict = COMPARE_UI[lang]
+      expect(dict).toBeDefined()
+      expect(dict.title).toBeDefined()
+      expect(dict.onlyDiff).toBeDefined()
+      expect(dict.addDevice).toBeDefined()
+      expect(dict.bestPriceBadge).toBeDefined()
+      expect(dict.sections.overview).toBeDefined()
+      expect(dict.sections.display).toBeDefined()
+      expect(dict.sections.performance).toBeDefined()
+      expect(dict.sections.camera).toBeDefined()
+      expect(dict.sections.battery).toBeDefined()
+      expect(dict.sections.durability).toBeDefined()
+    }
+
+    expect(COMPARE_UI['zh-CN'].title).toBe('商品参数对比')
+    expect(COMPARE_UI.en.title).toBe('Product Comparison')
+  })
+
+  it('defines comprehensive specification groups covering major device attributes', () => {
+    expect(SPEC_GROUPS.length).toBeGreaterThanOrEqual(5)
+    const allCodes = SPEC_GROUPS.flatMap((g) => g.codes)
+    expect(allCodes).toContain('display_size')
+    expect(allCodes).toContain('chipset')
+    expect(allCodes).toContain('rear_camera')
+    expect(allCodes).toContain('battery_capacity')
+    expect(allCodes).toContain('operating_system')
   })
 })
