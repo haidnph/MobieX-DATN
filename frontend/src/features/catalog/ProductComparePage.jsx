@@ -16,7 +16,7 @@ export const COMPARE_UI = {
     subtitle: 'Đặt các dòng máy cạnh nhau để dễ dàng đánh giá cấu hình, màn hình, hiệu năng, camera và giá bán.',
     onlyDiff: 'Chỉ xem điểm khác biệt',
     diffCount: 'điểm khác biệt',
-    noDiffsFound: 'Không có điểm khác biệt nào giữa các sản phẩm được chọn.',
+    noDiffsFound: 'Không có điểm khác biệt thực tế nào giữa các sản phẩm được chọn.',
     updatingSpecs: 'Đang cập nhật danh mục thông số kỹ thuật.',
     addDevice: 'Thêm máy khác',
     clearAll: 'Xóa tất cả',
@@ -34,6 +34,7 @@ export const COMPARE_UI = {
     deviceCountSuffix: 'máy',
     standardVariant: 'Phiên bản tiêu chuẩn',
     differenceBadge: 'Khác biệt',
+    notSpecified: 'Chưa cập nhật',
     searchModalTitle: 'Chọn máy thêm vào so sánh',
     searchPlaceholder: 'Nhập tên điện thoại (iPhone 16, Galaxy S24, Xiaomi...)',
     searching: 'Đang tìm kiếm...',
@@ -41,15 +42,16 @@ export const COMPARE_UI = {
     typeKeyword: 'Gõ từ khóa để tìm sản phẩm',
     alreadyAdded: 'Đã thêm',
     selectToCompare: 'Chọn so sánh',
-    recommendedPhones: 'Gợi ý sản phẩm nổi bật:',
+    recommendedPhones: 'Gợi ý các dòng máy flagship nổi bật:',
     sections: {
       overview: '1. Tổng quan & Giá bán',
       display: '2. Màn hình & Hiển thị',
-      performance: '3. Hiệu năng & Vi xử lý',
+      performance: '3. Hiệu năng & Bộ nhớ',
       camera: '4. Hệ thống Camera',
       battery: '5. Pin & Nguồn sạc',
-      durability: '6. Thiết kế & Tính năng',
-      others: '7. Thông số kỹ thuật khác',
+      durability: '6. Thiết kế & Độ bền',
+      connectivity: '7. Kết nối & Cổng giao tiếp',
+      others: '8. Thông số kỹ thuật khác',
     },
     fields: {
       brand: 'Thương hiệu',
@@ -64,7 +66,7 @@ export const COMPARE_UI = {
     subtitle: 'Place devices side by side to compare specifications, display, performance, cameras, and pricing.',
     onlyDiff: 'Show differences only',
     diffCount: 'differences',
-    noDiffsFound: 'No differences found between the selected devices.',
+    noDiffsFound: 'No actual differences found between the selected devices.',
     updatingSpecs: 'Updating specification list.',
     addDevice: 'Add Device',
     clearAll: 'Clear All',
@@ -82,6 +84,7 @@ export const COMPARE_UI = {
     deviceCountSuffix: 'devices',
     standardVariant: 'Standard Edition',
     differenceBadge: 'Difference',
+    notSpecified: 'Not specified',
     searchModalTitle: 'Add Device to Comparison',
     searchPlaceholder: 'Search phone name (iPhone 16, Galaxy S24, Xiaomi...)',
     searching: 'Searching...',
@@ -89,15 +92,16 @@ export const COMPARE_UI = {
     typeKeyword: 'Type a keyword to find devices',
     alreadyAdded: 'Added',
     selectToCompare: 'Select',
-    recommendedPhones: 'Recommended popular devices:',
+    recommendedPhones: 'Recommended flagship devices:',
     sections: {
       overview: '1. Overview & Pricing',
       display: '2. Display & Screen',
-      performance: '3. Performance & Processor',
+      performance: '3. Performance & Memory',
       camera: '4. Camera System',
       battery: '5. Battery & Charging',
-      durability: '6. Design & Features',
-      others: '7. Other Specifications',
+      durability: '6. Design & Durability',
+      connectivity: '7. Connectivity & Ports',
+      others: '8. Other Specifications',
     },
     fields: {
       brand: 'Brand',
@@ -112,7 +116,7 @@ export const COMPARE_UI = {
     subtitle: '并排对比多款手机的屏幕、处理器性能、影像系统、电池续航及价格配置。',
     onlyDiff: '仅看差异项',
     diffCount: '处差异',
-    noDiffsFound: '所选机型之间暂无差异。',
+    noDiffsFound: '所选机型之间暂无实际差异。',
     updatingSpecs: '正在更新参数列表。',
     addDevice: '添加对比机型',
     clearAll: '清空全部',
@@ -130,6 +134,7 @@ export const COMPARE_UI = {
     deviceCountSuffix: '款',
     standardVariant: '标准版',
     differenceBadge: '不同',
+    notSpecified: '未提供',
     searchModalTitle: '选择要加入对比的机型',
     searchPlaceholder: '输入手机名称 (iPhone 16, Galaxy S24, 小米...)',
     searching: '正在搜索...',
@@ -137,15 +142,16 @@ export const COMPARE_UI = {
     typeKeyword: '输入关键词搜索商品',
     alreadyAdded: '已加入',
     selectToCompare: '选择对比',
-    recommendedPhones: '热门对比推荐：',
+    recommendedPhones: '热门旗舰机型推荐：',
     sections: {
       overview: '1. 概览与价格',
       display: '2. 屏幕与显示',
-      performance: '3. 性能与处理器',
+      performance: '3. 性能与存储',
       camera: '4. 影像与摄像',
-      battery: '5. 电池与续航',
-      durability: '6. 外观与特性',
-      others: '7. 其它参数',
+      battery: '5. 电池与充电',
+      durability: '6. 外观与防护',
+      connectivity: '7. 连接与接口',
+      others: '8. 其它参数',
     },
     fields: {
       brand: '品牌',
@@ -154,6 +160,177 @@ export const COMPARE_UI = {
       price: '参考售价',
     },
   },
+}
+
+/**
+ * Normalizes Vietnamese/English strings by removing accents, spaces, and punctuation
+ * to ensure 100% accurate key-matching regardless of naming variations.
+ */
+export function normalizeSpecKey(str) {
+  if (!str || typeof str !== 'string') return ''
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/đ/g, 'd')
+    .replace(/[^a-z0-9]/g, '')
+}
+
+/**
+ * Aliases mapping for common specification keys.
+ * Ensures that whether a product spec is stored under `screen_size`, `display_size`, or `kich-thuoc-man-hinh`,
+ * they all align seamlessly into the identical comparison row.
+ */
+export const SPEC_ALIASES = {
+  display_size: [
+    'display_size',
+    'screen_size',
+    'kich_thuoc_man_hinh',
+    'kich-thuoc-man-hinh',
+    'man_hinh',
+    'man-hinh',
+    'screen',
+  ],
+  display_resolution: [
+    'display_resolution',
+    'screen_resolution',
+    'do_phan_giai_man_hinh',
+    'do-phan-giai-man-hinh',
+    'do_phan_giai',
+    'do-phan-giai',
+    'resolution',
+  ],
+  screen_technology: [
+    'screen_technology',
+    'screen_type',
+    'display_type',
+    'cong_nghe_man_hinh',
+    'cong-nghe-man-hinh',
+    'panel_type',
+    'loai_man_hinh',
+  ],
+  refresh_rate: [
+    'refresh_rate',
+    'tan_so_quet',
+    'tan-so-quet',
+    'scan_rate',
+    'hz',
+  ],
+  chipset: [
+    'chipset',
+    'cpu',
+    'processor',
+    'vi_xu_ly',
+    'vi-xu-ly',
+    'chip',
+    'soc',
+  ],
+  ram: [
+    'ram',
+    'memory',
+    'bo_nho_ram',
+    'bo-nho-ram',
+    'dung_luong_ram',
+    'dung-luong-ram',
+  ],
+  internal_storage: [
+    'internal_storage',
+    'storage',
+    'rom',
+    'bo_nho_trong',
+    'bo-nho-trong',
+    'dung_luong_bo_nho',
+    'dung-luong-bo-nho',
+    'capacity',
+  ],
+  rear_camera: [
+    'rear_camera',
+    'main_camera',
+    'camera_sau',
+    'camera-sau',
+    'back_camera',
+    'camera_chinh',
+  ],
+  front_camera: [
+    'front_camera',
+    'selfie_camera',
+    'camera_truoc',
+    'camera-truoc',
+    'camera_selfie',
+    'selfie',
+  ],
+  battery_capacity: [
+    'battery_capacity',
+    'battery',
+    'dung_luong_pin',
+    'dung-luong-pin',
+    'pin',
+  ],
+  charging_power: [
+    'charging_power',
+    'charging_speed',
+    'fast_charging',
+    'cong_suat_sac',
+    'cong-suat-sac',
+    'sac_nhanh',
+    'sac-nhanh',
+  ],
+  operating_system: [
+    'operating_system',
+    'os',
+    'he_dieu_hanh',
+    'he-dieu-hanh',
+  ],
+  water_resistance: [
+    'water_resistance',
+    'waterproof',
+    'khang_nuoc_bui',
+    'khang-nuoc-bui',
+    'chong_nuoc',
+    'ip_rating',
+  ],
+  weight: [
+    'weight',
+    'trong_luong',
+    'trong-luong',
+    'khoi_luong',
+    'khoi-luong',
+  ],
+  connector_type: [
+    'connector_type',
+    'port',
+    'chuan_ket_noi',
+    'chuan-ket-noi',
+    'cong_ket_noi',
+    'cong-ket-noi',
+    'charging_port',
+  ],
+  material: [
+    'material',
+    'chat_lieu',
+    'chat-lieu',
+    'khung_vien',
+    'khung-vien',
+  ],
+}
+
+export const CANONICAL_NAMES = {
+  display_size: ['kichthuocmanhinh', 'manhinh', 'screensize', 'displaysize'],
+  display_resolution: ['dophangiaimanhinh', 'dophangiai', 'screenresolution', 'displayresolution', 'resolution'],
+  screen_technology: ['congnghemanhinh', 'loaimanhinh', 'screentechnology', 'screentype'],
+  refresh_rate: ['tansoquet', 'refreshrate', 'tanso'],
+  chipset: ['vixuly', 'chipset', 'cpu', 'processor', 'chip'],
+  ram: ['ram', 'bonhoram', 'dungluongram', 'memory'],
+  internal_storage: ['bonhotrong', 'dungluongbonho', 'storage', 'rom', 'internalstorage'],
+  rear_camera: ['camerasau', 'camerachinh', 'rearcamera', 'maincamera'],
+  front_camera: ['cameratruoc', 'cameraselfie', 'frontcamera', 'selfiecamera'],
+  battery_capacity: ['dungluongpin', 'pin', 'batterycapacity', 'battery'],
+  charging_power: ['congsuatsac', 'sacnhanh', 'chargingpower', 'chargingspeed', 'fastcharging'],
+  operating_system: ['hedieuhanh', 'operatingsystem', 'os'],
+  water_resistance: ['khangnuocbui', 'chongnuoc', 'waterresistance', 'waterproof'],
+  weight: ['trongluong', 'khoiluong', 'weight'],
+  connector_type: ['chuanketnoi', 'congketnoi', 'connectortype', 'port'],
+  material: ['chatlieu', 'khungvien', 'material'],
 }
 
 export const SPEC_GROUPS = [
@@ -165,22 +342,27 @@ export const SPEC_GROUPS = [
   {
     id: 'performance',
     titleKey: 'performance',
-    codes: ['chipset', 'cpu_speed', 'gpu', 'ram', 'internal_storage'],
+    codes: ['chipset', 'ram', 'internal_storage'],
   },
   {
     id: 'camera',
     titleKey: 'camera',
-    codes: ['rear_camera', 'front_camera', 'video_recording'],
+    codes: ['rear_camera', 'front_camera'],
   },
   {
     id: 'battery',
     titleKey: 'battery',
-    codes: ['battery_capacity', 'fast_charging', 'charging_port'],
+    codes: ['battery_capacity', 'charging_power'],
   },
   {
     id: 'durability',
     titleKey: 'durability',
-    codes: ['operating_system', 'water_resistance', 'weight', 'dimensions', 'material'],
+    codes: ['operating_system', 'water_resistance', 'weight', 'material'],
+  },
+  {
+    id: 'connectivity',
+    titleKey: 'connectivity',
+    codes: ['connector_type'],
   },
 ]
 
@@ -334,15 +516,21 @@ export default function ProductComparePage() {
     if (!showSearchModal) return
 
     if (!searchKeyword.trim()) {
-      // Load top flagship recommendations when search is blank
+      // Suggest top 4 flagship models (iPhone 16 Pro Max, Samsung S24 Ultra, Xiaomi 14 Pro, iPhone 15)
       setSearching(true)
       axiosClient
-        .get(EP.PRODUCTS, { params: { per_page: 5, sort: 'popular' } })
+        .get(EP.PRODUCT_COMPARE, { params: { ids: '1,2,3,4' } })
         .then((res) => {
-          const list = res.data?.data?.data || res.data?.data || []
-          setSearchResults(list.slice(0, 5))
+          const list = res.data?.data?.products || []
+          setSearchResults(list)
         })
-        .catch(() => setSearchResults([]))
+        .catch(() => {
+          // Fallback to general popular products if compare endpoint fails
+          axiosClient
+            .get(EP.PRODUCTS, { params: { per_page: 5, sort: 'popular' } })
+            .then((r) => setSearchResults(r.data?.data?.data || []))
+            .catch(() => setSearchResults([]))
+        })
         .finally(() => setSearching(false))
       return
     }
@@ -395,42 +583,217 @@ export default function ProductComparePage() {
     window.print()
   }
 
-  // Helper to extract a spec value by definition code
-  const getProductSpec = useCallback((product, defCode) => {
-    if (!product || !product.specifications) return '—'
-    const spec = product.specifications.find((s) => s.definition?.code === defCode)
-    if (!spec) return '—'
+  // Optimistic merged products: use productsData if available, otherwise fallback to compareItems
+  const displayProducts = useMemo(() => {
+    return compareItems.map((item) => {
+      const fullData = productsData.find((p) => Number(p.id) === Number(item.id))
+      return fullData || item
+    })
+  }, [compareItems, productsData])
 
-    if (spec.numeric_value !== null && spec.numeric_value !== undefined) {
-      const unit = spec.definition?.unit ? ` ${spec.definition.unit}` : ''
-      return `${Number(spec.numeric_value)}${unit}`
-    }
-    if (spec.value_boolean !== null && spec.value_boolean !== undefined) {
-      return spec.value_boolean ? (lang === 'en' ? 'Yes' : lang === 'zh-CN' ? '支持' : 'Có') : (lang === 'en' ? 'No' : lang === 'zh-CN' ? '不支持' : 'Không')
-    }
-    return spec.value_text || spec.value || '—'
-  }, [lang])
+  /**
+   * Complete, robust specification extractor supporting:
+   * 1. Direct code match (e.g. display_size)
+   * 2. Alias codes match (e.g. screen_size, kich-thuoc-man-hinh)
+   * 3. Vietnamese name normalization (e.g. "Kích thước màn hình" -> "kichthuocmanhinh")
+   * 4. Variant fallback for RAM and Internal Storage (extracted from option_signature)
+   * 5. Clean decimal formatting (6.9000 -> 6.9, 4685.0000 -> 4685)
+   */
+  const getProductSpec = useCallback(
+    (product, defCode) => {
+      if (!product) {
+        return { raw: null, display: t.notSpecified, isValid: false, isMissing: true }
+      }
 
-  // Determine if a spec has differences among products
-  const hasDifference = useCallback(
-    (defCode) => {
-      if (productsData.length < 2) return false
-      const values = productsData.map((p) => getProductSpec(p, defCode))
-      return values.some((val) => val !== values[0])
+      // Check product.specifications if available
+      if (Array.isArray(product.specifications) && product.specifications.length > 0) {
+        const aliases = SPEC_ALIASES[defCode] || [defCode]
+        const canonicalNormNames = CANONICAL_NAMES[defCode] || [normalizeSpecKey(defCode)]
+
+        const matchedSpec = product.specifications.find((s) => {
+          const specCode = s.definition?.code || s.code
+          if (specCode && aliases.includes(specCode)) return true
+
+          const normDefName = normalizeSpecKey(s.definition?.name)
+          if (normDefName && canonicalNormNames.includes(normDefName)) return true
+
+          const normSpecName = normalizeSpecKey(s.specification_name)
+          if (normSpecName && canonicalNormNames.includes(normSpecName)) return true
+
+          return false
+        })
+
+        if (matchedSpec) {
+          // A. Numeric value with unit
+          if (matchedSpec.numeric_value !== null && matchedSpec.numeric_value !== undefined) {
+            const num = Number(matchedSpec.numeric_value)
+            if (!isNaN(num)) {
+              const unit = matchedSpec.definition?.unit ? ` ${matchedSpec.definition.unit}` : ''
+              return {
+                raw: num,
+                display: `${num}${unit}`,
+                isValid: true,
+                isMissing: false,
+              }
+            }
+          }
+
+          // B. Boolean value
+          if (matchedSpec.value_boolean !== null && matchedSpec.value_boolean !== undefined) {
+            const bVal = Boolean(matchedSpec.value_boolean)
+            const bDisplay = bVal
+              ? lang === 'en'
+                ? 'Yes'
+                : lang === 'zh-CN'
+                  ? '支持'
+                  : 'Có'
+              : lang === 'en'
+                ? 'No'
+                : lang === 'zh-CN'
+                  ? '不支持'
+                  : 'Không'
+            return {
+              raw: bVal,
+              display: bDisplay,
+              isValid: true,
+              isMissing: false,
+            }
+          }
+
+          // C. Text value
+          const textVal = (
+            matchedSpec.value_text ||
+            matchedSpec.value ||
+            matchedSpec.specification_value ||
+            ''
+          ).trim()
+
+          if (textVal && textVal !== '—') {
+            return {
+              raw: textVal,
+              display: textVal,
+              isValid: true,
+              isMissing: false,
+            }
+          }
+        }
+      }
+
+      // Fallback: If requested spec is RAM or Storage, check product variants
+      if (Array.isArray(product.variants) && product.variants.length > 0) {
+        if (defCode === 'internal_storage' || defCode === 'storage') {
+          const storages = new Set()
+          product.variants.forEach((v) => {
+            const sig = v.option_signature || v.name || v.sku || ''
+            const match = sig.match(/storage:([0-9]+[gt]b)/i) || sig.match(/([0-9]+)\s*(gb|tb)/i)
+            if (match) {
+              storages.add(match[1].toUpperCase())
+            }
+          })
+          if (storages.size > 0) {
+            const listStr = Array.from(storages).join(', ')
+            return {
+              raw: listStr,
+              display: listStr,
+              isValid: true,
+              isMissing: false,
+            }
+          }
+        }
+
+        if (defCode === 'ram') {
+          const rams = new Set()
+          product.variants.forEach((v) => {
+            const sig = v.option_signature || v.name || v.sku || ''
+            const match = sig.match(/ram:([0-9]+gb)/i) || sig.match(/([0-9]+)\s*gb\s*ram/i)
+            if (match) {
+              rams.add(match[1].toUpperCase())
+            }
+          })
+          if (rams.size > 0) {
+            const listStr = Array.from(rams).join(', ')
+            return {
+              raw: listStr,
+              display: listStr,
+              isValid: true,
+              isMissing: false,
+            }
+          }
+        }
+      }
+
+      // No data found in database
+      return {
+        raw: null,
+        display: t.notSpecified,
+        isValid: false,
+        isMissing: true,
+      }
     },
-    [productsData, getProductSpec]
+    [lang, t.notSpecified]
   )
 
-  // Filter definitions based on differences toggle
+  /**
+   * Determine if a specification has REAL differences among products.
+   * STRICT RULE: Empty, null, or missing ("Chưa cập nhật") values are NOT counted as differences.
+   * Only rows where at least two devices have actual valid data AND those values differ will return true.
+   */
+  const hasDifference = useCallback(
+    (defCode) => {
+      if (displayProducts.length < 2) return false
+      const specs = displayProducts.map((p) => getProductSpec(p, defCode))
+      // Filter out missing or empty values
+      const validSpecs = specs.filter((s) => s.isValid && s.raw !== null && s.raw !== '')
+
+      // Need at least 2 real values to contrast against each other
+      if (validSpecs.length < 2) return false
+
+      const firstVal = String(validSpecs[0].raw).trim().toLowerCase()
+      return validSpecs.some((s) => String(s.raw).trim().toLowerCase() !== firstVal)
+    },
+    [displayProducts, getProductSpec]
+  )
+
+  // Enrich definitions list with RAM and Storage if not already in definitions
+  const allDefinitions = useMemo(() => {
+    const list = [...definitions]
+    const existingCodes = new Set(list.map((d) => d.code))
+
+    if (!existingCodes.has('ram')) {
+      list.push({
+        id: 'canonical_ram',
+        code: 'ram',
+        name: lang === 'zh-CN' ? '运行内存 (RAM)' : lang === 'en' ? 'RAM' : 'Bộ nhớ RAM',
+        value_type: 'text',
+        is_comparable: true,
+        sort_order: 1.5,
+      })
+    }
+
+    if (!existingCodes.has('internal_storage') && !existingCodes.has('storage')) {
+      list.push({
+        id: 'canonical_internal_storage',
+        code: 'internal_storage',
+        name: lang === 'zh-CN' ? '机身存储 (ROM)' : lang === 'en' ? 'Internal Storage' : 'Bộ nhớ trong',
+        value_type: 'text',
+        is_comparable: true,
+        sort_order: 1.6,
+      })
+    }
+
+    return list.sort((a, b) => (a.sort_order || 99) - (b.sort_order || 99))
+  }, [definitions, lang])
+
+  // Filter definitions based on Only Differences toggle
   const visibleDefinitions = useMemo(() => {
-    if (!onlyDifferences) return definitions
-    return definitions.filter((def) => hasDifference(def.code))
-  }, [definitions, onlyDifferences, hasDifference])
+    if (!onlyDifferences) return allDefinitions
+    return allDefinitions.filter((def) => hasDifference(def.code))
+  }, [allDefinitions, onlyDifferences, hasDifference])
 
   // Count total differences across all definitions
   const totalDifferencesCount = useMemo(() => {
-    return definitions.filter((def) => hasDifference(def.code)).length
-  }, [definitions, hasDifference])
+    return allDefinitions.filter((def) => hasDifference(def.code)).length
+  }, [allDefinitions, hasDifference])
 
   // Determine best (minimum) price among compared products
   const minComparedPrice = useMemo(() => {
@@ -441,21 +804,17 @@ export default function ProductComparePage() {
     return validPrices.length > 0 ? Math.min(...validPrices) : 0
   }, [productsData, compareItems])
 
-  // Optimistic merged products: use productsData if available, otherwise fallback to compareItems
-  const displayProducts = useMemo(() => {
-    return compareItems.map((item) => {
-      const fullData = productsData.find((p) => Number(p.id) === Number(item.id))
-      return fullData || item
-    })
-  }, [compareItems, productsData])
-
   // Group definitions into categorized sections
   const groupedDefinitions = useMemo(() => {
     const assignedCodes = new Set()
     const groups = []
 
     SPEC_GROUPS.forEach((grp) => {
-      const matched = visibleDefinitions.filter((def) => grp.codes.includes(def.code))
+      const matched = visibleDefinitions.filter((def) => {
+        const aliases = SPEC_ALIASES[def.code] || [def.code]
+        return grp.codes.some((c) => aliases.includes(c) || c === def.code)
+      })
+
       if (matched.length > 0) {
         matched.forEach((d) => assignedCodes.add(d.code))
         groups.push({
@@ -701,7 +1060,9 @@ export default function ProductComparePage() {
               </td>
               {displayProducts.map((p) => (
                 <td key={p.id} className="p-4 text-center border-l border-outline-variant/10 font-medium">
-                  {p.brand?.name || p.brand_name || '—'}
+                  {p.brand?.name || p.brand_name || (
+                    <span className="text-on-surface-variant/40 italic">{t.notSpecified}</span>
+                  )}
                 </td>
               ))}
               {displayProducts.length < maxItems && <td className="border-l border-outline-variant/10 print:hidden" />}
@@ -818,7 +1179,7 @@ export default function ProductComparePage() {
                           )}
                         </td>
                         {displayProducts.map((p) => {
-                          const val = getProductSpec(p, def.code)
+                          const specResult = getProductSpec(p, def.code)
                           return (
                             <td
                               key={p.id}
@@ -826,7 +1187,14 @@ export default function ProductComparePage() {
                                 diff ? 'text-primary font-bold' : 'text-on-surface'
                               }`}
                             >
-                              {val}
+                              {specResult.isMissing ? (
+                                <span className="inline-flex items-center gap-1.5 text-xs text-on-surface-variant/40 italic">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-outline-variant/60" />
+                                  {t.notSpecified}
+                                </span>
+                              ) : (
+                                <span>{specResult.display}</span>
+                              )}
                             </td>
                           )
                         })}

@@ -312,9 +312,25 @@ class ProductController extends Controller
             'variants.attributeValues.attribute',
         ])->whereIn('id', $ids)->get();
 
+        // Bảo toàn thứ tự ID sản phẩm người dùng chọn
+        $products = $products->sortBy(function ($p) use ($ids) {
+            $idx = array_search($p->id, $ids);
+            return $idx !== false ? $idx : 999;
+        })->values();
+
+        // Thu thập các định nghĩa thông số có thể so sánh hoặc đang gắn vào các sản phẩm được chọn
+        $defIdsFromProducts = $products->flatMap(function ($p) {
+            return $p->specifications->pluck('specification_definition_id');
+        })->filter()->unique()->toArray();
+
         $comparableDefinitions = \App\Models\ProductSpecificationDefinition::query()
-            ->where('is_comparable', true)
             ->where('is_active', true)
+            ->where(function ($query) use ($defIdsFromProducts) {
+                $query->where('is_comparable', true);
+                if (! empty($defIdsFromProducts)) {
+                    $query->orWhereIn('id', $defIdsFromProducts);
+                }
+            })
             ->orderBy('sort_order')
             ->get();
 

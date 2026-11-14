@@ -7,6 +7,9 @@ import {
 import {
   COMPARE_UI,
   SPEC_GROUPS,
+  SPEC_ALIASES,
+  CANONICAL_NAMES,
+  normalizeSpecKey,
 } from '../features/catalog/ProductComparePage'
 
 // Pure functions mirror the compare logic
@@ -24,13 +27,34 @@ function addCompareItem(currentItems, product, maxLimit = MAX_COMPARE_ITEMS) {
   }
 }
 
-function detectSpecDifference(products, specCode) {
-  if (products.length < 2) return false
-  const values = products.map((p) => {
-    const spec = p.specifications?.find((s) => s.definition?.code === specCode)
-    return spec?.value_text ?? spec?.numeric_value ?? '—'
+/**
+ * Strict difference detector mirroring the upgraded ProductComparePage logic:
+ * - Empty / null / missing values are NOT treated as differences
+ * - At least 2 real valid values required to be contrasted
+ */
+function detectRealSpecDifference(products, specCode) {
+  if (!products || products.length < 2) return false
+
+  const rawValues = products.map((p) => {
+    const spec = p.specifications?.find((s) => {
+      const code = s.definition?.code || s.code
+      const aliases = SPEC_ALIASES[specCode] || [specCode]
+      return code && aliases.includes(code)
+    })
+    if (!spec) return null
+    if (spec.numeric_value !== null && spec.numeric_value !== undefined) {
+      return Number(spec.numeric_value)
+    }
+    const txt = (spec.value_text || spec.value || '').trim()
+    return txt && txt !== '—' ? txt : null
   })
-  return values.some((val) => val !== values[0])
+
+  // Filter only valid real values
+  const validValues = rawValues.filter((v) => v !== null && v !== '')
+  if (validValues.length < 2) return false
+
+  const firstVal = String(validValues[0]).trim().toLowerCase()
+  return validValues.some((v) => String(v).trim().toLowerCase() !== firstVal)
 }
 
 describe('Product Compare Logic & Limit Safeguards', () => {
@@ -63,12 +87,12 @@ describe('Product Compare Logic & Limit Safeguards', () => {
     expect(res.items).toHaveLength(4)
   })
 
-  it('correctly detects differences between products specifications', () => {
+  it('correctly detects real differences between products specifications', () => {
     const products = [
       {
         id: 1,
         specifications: [
-          { definition: { code: 'chipset' }, value_text: 'Apple A18' },
+          { definition: { code: 'chipset' }, value_text: 'Apple A18 Pro' },
         ],
       },
       {
@@ -79,7 +103,7 @@ describe('Product Compare Logic & Limit Safeguards', () => {
       },
     ]
 
-    expect(detectSpecDifference(products, 'chipset')).toBe(true)
+    expect(detectRealSpecDifference(products, 'chipset')).toBe(true)
   })
 
   it('returns false when all compared devices share identical specification', () => {
@@ -87,32 +111,81 @@ describe('Product Compare Logic & Limit Safeguards', () => {
       {
         id: 1,
         specifications: [
-          { definition: { code: 'water_resistance' }, value_text: 'IP68' },
+          { definition: { code: 'front_camera' }, value_text: '12MP TrueDepth' },
         ],
       },
       {
-        id: 2,
+        id: 4,
         specifications: [
-          { definition: { code: 'water_resistance' }, value_text: 'IP68' },
+          { definition: { code: 'front_camera' }, value_text: '12MP TrueDepth' },
         ],
       },
     ]
 
-    expect(detectSpecDifference(products, 'water_resistance')).toBe(false)
+    expect(detectRealSpecDifference(products, 'front_camera')).toBe(false)
+  })
+
+  it('does NOT count missing/null/empty specs as a difference', () => {
+    // Phone 1 has spec, Phone 2 is missing spec
+    const productsOneMissing = [
+      {
+        id: 1,
+        specifications: [
+          { definition: { code: 'chipset' }, value_text: 'Apple A18 Pro' },
+        ],
+      },
+      {
+        id: 11,
+        specifications: [], // Missing spec in DB
+      },
+    ]
+    expect(detectRealSpecDifference(productsOneMissing, 'chipset')).toBe(false)
+
+    // Both phones missing spec
+    const productsBothMissing = [
+      { id: 11, specifications: [] },
+      { id: 74, specifications: [] },
+    ]
+    expect(detectRealSpecDifference(productsBothMissing, 'display_size')).toBe(false)
+  })
+
+  it('normalizes Vietnamese spec keys accurately across diacritics', () => {
+    expect(normalizeSpecKey('Kích thước màn hình')).toBe('kichthuocmanhinh')
+    expect(normalizeSpecKey('Vi xử lý')).toBe('vixuly')
+    expect(normalizeSpecKey('Độ phân giải màn hình')).toBe('dophangiaimanhinh')
+    expect(normalizeSpecKey('Dung lượng pin')).toBe('dungluongpin')
+    expect(normalizeSpecKey('Camera sau')).toBe('camerasau')
+    expect(normalizeSpecKey('Kháng nước/bụi')).toBe('khangnuocbui')
+    expect(normalizeSpecKey('Trọng lượng')).toBe('trongluong')
+  })
+
+  it('resolves specification aliases into canonical keys', () => {
+    // Screen size aliases
+    expect(SPEC_ALIASES.display_size).toContain('screen_size')
+    expect(SPEC_ALIASES.display_size).toContain('kich-thuoc-man-hinh')
+    expect(SPEC_ALIASES.display_size).toContain('display_size')
+
+    // Processor aliases
+    expect(SPEC_ALIASES.chipset).toContain('cpu')
+    expect(SPEC_ALIASES.chipset).toContain('vi-xu-ly')
+    expect(SPEC_ALIASES.chipset).toContain('chipset')
+
+    // Battery aliases
+    expect(SPEC_ALIASES.battery_capacity).toContain('dung-luong-pin')
+    expect(SPEC_ALIASES.battery_capacity).toContain('battery')
+
+    // Canonical names mapping
+    expect(CANONICAL_NAMES.display_size).toContain('kichthuocmanhinh')
+    expect(CANONICAL_NAMES.chipset).toContain('vixuly')
   })
 
   it('reliably extracts thumbnails and prevents broken placeholder loops', () => {
-    // 1. primary_image_url
     expect(getProductThumbnail({ primary_image_url: 'https://example.com/p1.jpg' })).toBe(
       'https://example.com/p1.jpg'
     )
-
-    // 2. thumbnail property
     expect(getProductThumbnail({ thumbnail: 'https://example.com/thumb.jpg' })).toBe(
       'https://example.com/thumb.jpg'
     )
-
-    // 3. images array with is_primary
     expect(
       getProductThumbnail({
         images: [
@@ -122,7 +195,6 @@ describe('Product Compare Logic & Limit Safeguards', () => {
       })
     ).toBe('https://example.com/pri.jpg')
 
-    // 4. Missing / null / invalid fallback to inline SVG data URI
     expect(getProductThumbnail(null)).toBe(FALLBACK_PHONE_SVG)
     expect(getProductThumbnail({})).toBe(FALLBACK_PHONE_SVG)
     expect(getProductThumbnail({ primary_image_url: '/placeholder-phone.png' })).toBe(
@@ -139,6 +211,7 @@ describe('Product Compare Logic & Limit Safeguards', () => {
       expect(dict.onlyDiff).toBeDefined()
       expect(dict.addDevice).toBeDefined()
       expect(dict.bestPriceBadge).toBeDefined()
+      expect(dict.notSpecified).toBeDefined()
       expect(dict.sections.overview).toBeDefined()
       expect(dict.sections.display).toBeDefined()
       expect(dict.sections.performance).toBeDefined()
@@ -147,6 +220,9 @@ describe('Product Compare Logic & Limit Safeguards', () => {
       expect(dict.sections.durability).toBeDefined()
     }
 
+    expect(COMPARE_UI.vi.notSpecified).toBe('Chưa cập nhật')
+    expect(COMPARE_UI.en.notSpecified).toBe('Not specified')
+    expect(COMPARE_UI['zh-CN'].notSpecified).toBe('未提供')
     expect(COMPARE_UI['zh-CN'].title).toBe('商品参数对比')
     expect(COMPARE_UI.en.title).toBe('Product Comparison')
   })
