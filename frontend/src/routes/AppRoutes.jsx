@@ -56,6 +56,8 @@ const AdminBrandPage       = lazy(() => import('../features/admin/AdminBrandPage
 const AdminInventoryPage   = lazy(() => import('../features/admin/AdminInventoryPage'))
 const AdminUserPage        = lazy(() => import('../features/admin/AdminUserPage'))
 const AdminCouponPage      = lazy(() => import('../features/admin/AdminCouponPage'))
+const AdminCouponCreatePage = lazy(() => import('../features/admin/AdminCouponCreatePage'))
+const AdminCouponEditPage   = lazy(() => import('../features/admin/AdminCouponEditPage'))
 const AdminReviewPage      = lazy(() => import('../features/admin/AdminReviewPage'))
 const AdminBannerPage      = lazy(() => import('../features/admin/AdminBannerPage'))
 const AdminSpecPage        = lazy(() => import('../features/admin/AdminSpecPage'))
@@ -232,7 +234,10 @@ export default function AppRoutes() {
           <Route path="brands"         element={<AdminBrandPage />} />
           <Route path="inventories"    element={<AdminInventoryPage />} />
           <Route path="users"          element={<AdminUserPage />} />
-          <Route path="coupons"        element={<AdminCouponPage />} />
+          <Route path="coupons"            element={<AdminCouponPage />} />
+          <Route path="coupons/create"     element={<AdminCouponCreatePage />} />
+          <Route path="coupons/new"        element={<AdminCouponCreatePage />} />
+          <Route path="coupons/:id/edit"   element={<AdminCouponEditPage />} />
           <Route path="reviews"        element={<AdminReviewPage />} />
           <Route path="banners"        element={<AdminBannerPage />} />
           <Route path="specs"          element={<AdminSpecPage />} />

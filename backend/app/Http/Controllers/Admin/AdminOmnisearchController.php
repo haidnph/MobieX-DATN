@@ -254,7 +254,7 @@ class AdminOmnisearchController extends Controller
                     'subtitle'    => $discountStr,
                     'badge'       => $cp->is_active ? 'active' : 'inactive',
                     'badge_label' => $cp->is_active ? 'Khả dụng' : 'Hết hạn',
-                    'url'         => "/admin/coupons?q=" . urlencode($cp->code),
+                    'url'         => "/admin/coupons/{$cp->id}/edit",
                     'type'        => 'coupon',
                     'icon'        => 'local_offer',
                 ];

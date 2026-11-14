@@ -44,6 +44,19 @@ class AdminCouponController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        if ($request->has('type') && ! $request->has('discount_type')) {
+            $request->merge(['discount_type' => $request->input('type')]);
+        }
+        if ($request->has('value') && ! $request->has('discount_value')) {
+            $request->merge(['discount_value' => $request->input('value')]);
+        }
+        if ($request->has('expires_at') && ! $request->has('end_at')) {
+            $request->merge(['end_at' => $request->input('expires_at')]);
+        }
+        if ($request->has('max_discount_amount') && ! $request->has('max_discount')) {
+            $request->merge(['max_discount' => $request->input('max_discount_amount')]);
+        }
+
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', 'unique:coupons,code'],
             'discount_type' => ['required', Rule::in(['fixed', 'percent'])],
@@ -71,6 +84,19 @@ class AdminCouponController extends Controller
     public function update(Request $request, int|string $id): JsonResponse
     {
         $coupon = Coupon::findOrFail($id);
+
+        if ($request->has('type') && ! $request->has('discount_type')) {
+            $request->merge(['discount_type' => $request->input('type')]);
+        }
+        if ($request->has('value') && ! $request->has('discount_value')) {
+            $request->merge(['discount_value' => $request->input('value')]);
+        }
+        if ($request->has('expires_at') && ! $request->has('end_at')) {
+            $request->merge(['end_at' => $request->input('expires_at')]);
+        }
+        if ($request->has('max_discount_amount') && ! $request->has('max_discount')) {
+            $request->merge(['max_discount' => $request->input('max_discount_amount')]);
+        }
 
         $validated = $request->validate([
             'code' => ['sometimes', 'required', 'string', 'max:50', Rule::unique('coupons', 'code')->ignore($coupon->id)],
