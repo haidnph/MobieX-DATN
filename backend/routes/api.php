@@ -150,6 +150,11 @@ Route::get(
     '/product-images',
     [ProductImageController::class, 'index'],
 )->name('api.product-images.index');
+
+Route::get(
+    '/admin/product-images',
+    [ProductImageController::class, 'index'],
+)->name('api.admin.product-images.index');
 /*
  * Public Category Attribute assignments.
  *
@@ -460,12 +465,14 @@ Route::middleware([
         [ProductImageController::class, 'store'],
     )->name('api.product-images.store');
 
-    Route::patch(
+    Route::match(
+        ['post', 'patch', 'put'],
         '/product-images/reorder',
         [ProductImageController::class, 'reorder'],
     )->name('api.product-images.reorder');
 
-    Route::patch(
+    Route::match(
+        ['post', 'patch', 'put'],
         '/product-images/{id}/primary',
         [ProductImageController::class, 'setPrimary'],
     )->whereNumber('id')->name('api.product-images.primary');
@@ -482,6 +489,35 @@ Route::middleware([
         [ProductImageController::class, 'destroy'],
     )->whereNumber('id')
         ->name('api.product-images.destroy');
+
+    // Admin product image aliases
+    Route::post(
+        '/admin/product-images',
+        [ProductImageController::class, 'store'],
+    )->name('api.admin.product-images.store');
+
+    Route::match(
+        ['post', 'patch', 'put'],
+        '/admin/product-images/reorder',
+        [ProductImageController::class, 'reorder'],
+    )->name('api.admin.product-images.reorder');
+
+    Route::match(
+        ['post', 'patch', 'put'],
+        '/admin/product-images/{id}/primary',
+        [ProductImageController::class, 'setPrimary'],
+    )->whereNumber('id')->name('api.admin.product-images.primary');
+
+    Route::match(
+        ['put', 'patch'],
+        '/admin/product-images/{id}',
+        [ProductImageController::class, 'update'],
+    )->whereNumber('id')->name('api.admin.product-images.update');
+
+    Route::delete(
+        '/admin/product-images/{id}',
+        [ProductImageController::class, 'destroy'],
+    )->whereNumber('id')->name('api.admin.product-images.destroy');
 
     // Product specifications
     Route::get(

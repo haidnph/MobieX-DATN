@@ -416,4 +416,87 @@ class ProductImageApiTest extends TestCase
             ->assertJsonPath('status', true)
             ->assertJsonCount(0, 'data');
     }
+
+    // IMG-19: Upload nhiều ảnh với primary_index được chỉ định
+    public function test_img19_upload_multiple_images_with_primary_index(): void
+    {
+        Sanctum::actingAs($this->admin);
+
+        $response = $this->postJson('/api/product-images', [
+            'product_id' => $this->product->id,
+            'primary_index' => 1,
+            'images' => [
+                $this->makeImage('img0.jpg'),
+                $this->makeImage('img1.jpg'),
+                $this->makeImage('img2.jpg'),
+            ],
+        ]);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('status', true);
+
+        $images = ProductImage::where('product_id', $this->product->id)
+            ->orderBy('sort_order')
+            ->get();
+
+        $this->assertCount(3, $images);
+        $this->assertFalse((bool) $images[0]->is_primary);
+        $this->assertTrue((bool) $images[1]->is_primary);
+        $this->assertFalse((bool) $images[2]->is_primary);
+    }
+
+    // IMG-20: Tự động gán ảnh đầu tiên làm ảnh chính khi sản phẩm chưa có ảnh
+    public function test_img20_auto_primary_when_no_existing_images(): void
+    {
+        Sanctum::actingAs($this->admin);
+
+        $response = $this->postJson('/api/product-images', [
+            'product_id' => $this->product->id,
+            'images' => [
+                $this->makeImage('photo1.jpg'),
+                $this->makeImage('photo2.jpg'),
+            ],
+        ]);
+
+        $response->assertStatus(201);
+        $images = ProductImage::where('product_id', $this->product->id)
+            ->orderBy('sort_order')
+            ->get();
+
+        $this->assertCount(2, $images);
+        $this->assertTrue((bool) $images[0]->is_primary);
+        $this->assertFalse((bool) $images[1]->is_primary);
+    }
+
+    // IMG-21: Tạo sản phẩm mới kèm danh sách ảnh multipart
+    public function test_img21_create_product_with_multipart_images(): void
+    {
+        Sanctum::actingAs($this->admin);
+
+        $response = $this->postJson('/api/products', [
+            'name' => 'Xiaomi 14 Ultra',
+            'slug' => 'xiaomi-14-ultra-test',
+            'brand_id' => $this->product->brand_id,
+            'category_id' => $this->product->category_id,
+            'price' => 24000000,
+            'stock_quantity' => 20,
+            'primary_index' => 1,
+            'images' => [
+                $this->makeImage('mi14_front.jpg'),
+                $this->makeImage('mi14_back.jpg'),
+            ],
+        ]);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('status', true);
+
+        $newProductId = $response->json('data.id');
+        $images = ProductImage::where('product_id', $newProductId)
+            ->orderBy('sort_order')
+            ->get();
+
+        $this->assertCount(2, $images);
+        $this->assertFalse((bool) $images[0]->is_primary);
+        $this->assertTrue((bool) $images[1]->is_primary);
+    }
 }

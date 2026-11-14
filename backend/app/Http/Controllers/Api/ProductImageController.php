@@ -96,6 +96,7 @@ class ProductImageController extends Controller
             'alt_text' => 'nullable|string|max:255',
             'sort_order' => 'nullable|integer|min:0',
             'is_primary' => 'nullable|boolean',
+            'primary_index' => 'nullable|integer|min:0|max:10',
         ]);
 
         $variantError = $this->checkVariant(
@@ -121,20 +122,51 @@ class ProductImageController extends Controller
                 $variantId = $validated['variant_id'] ?? null;
                 $files = $request->file('images');
 
+                $hasExistingPrimaryQuery = ProductImage::where('product_id', $productId);
+                if ($variantId === null) {
+                    $hasExistingPrimaryQuery->whereNull('product_variant_id');
+                } else {
+                    $hasExistingPrimaryQuery->where('product_variant_id', $variantId);
+                }
+                $hasExistingPrimary = $hasExistingPrimaryQuery->where('is_primary', true)->exists();
+
+                $primaryIndex = $request->has('primary_index')
+                    ? (int) $request->input('primary_index')
+                    : null;
+
+                $maxOrderQuery = ProductImage::where('product_id', $productId);
+                if ($variantId === null) {
+                    $maxOrderQuery->whereNull('product_variant_id');
+                } else {
+                    $maxOrderQuery->where('product_variant_id', $variantId);
+                }
+                $currentMaxOrder = $maxOrderQuery->exists() ? (int) $maxOrderQuery->max('sort_order') : -1;
+                $baseOrder = isset($validated['sort_order'])
+                    ? (int) $validated['sort_order']
+                    : ($currentMaxOrder + 1);
+
                 foreach ($files as $index => $file) {
                     $path = $file->store('products', 'public');
                     $storedPaths[] = $path;
 
                     $imageUrl = asset('storage/' . $path);
 
-                    $isPrimary = ! empty($validated['is_primary'])
-                        && $index === 0;
+                    if ($primaryIndex !== null) {
+                        $isPrimary = ($index === $primaryIndex);
+                    } elseif (! empty($validated['is_primary'])) {
+                        $isPrimary = ($index === 0);
+                    } elseif (! $hasExistingPrimary && $index === 0) {
+                        $isPrimary = true;
+                    } else {
+                        $isPrimary = false;
+                    }
 
                     if ($isPrimary) {
                         $this->clearPrimaryImage(
                             $productId,
                             $variantId
                         );
+                        $hasExistingPrimary = true;
                     }
 
                     $image = ProductImage::create([
@@ -142,7 +174,7 @@ class ProductImageController extends Controller
                         'variant_id' => $variantId,
                         'image_url' => $imageUrl,
                         'alt_text' => $validated['alt_text'] ?? null,
-                        'sort_order' => ($validated['sort_order'] ?? 0) + $index,
+                        'sort_order' => $baseOrder + $index,
                         'is_primary' => $isPrimary,
                     ]);
 
@@ -252,25 +284,26 @@ class ProductImageController extends Controller
             return;
         }
 
-        $path = parse_url($imageUrl, PHP_URL_PATH);
+        $parsed = parse_url($imageUrl, PHP_URL_PATH);
+        $path = $parsed !== false && $parsed !== null ? $parsed : $imageUrl;
+        $path = ltrim($path, '/');
 
-        if (! $path) {
-            return;
+        $storagePosition = strpos($path, 'storage/');
+
+        if ($storagePosition !== false) {
+            $storagePath = substr(
+                $path,
+                $storagePosition + strlen('storage/')
+            );
+
+            if (! empty($storagePath) && Storage::disk('public')->exists($storagePath)) {
+                Storage::disk('public')->delete($storagePath);
+                return;
+            }
         }
 
-        $storagePosition = strpos($path, '/storage/');
-
-        if ($storagePosition === false) {
-            return;
-        }
-
-        $storagePath = substr(
-            $path,
-            $storagePosition + strlen('/storage/')
-        );
-
-        if (! empty($storagePath)) {
-            Storage::disk('public')->delete($storagePath);
+        if (Storage::disk('public')->exists($path)) {
+            Storage::disk('public')->delete($path);
         }
     }
 

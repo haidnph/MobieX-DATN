@@ -115,6 +115,7 @@ class ProductController extends Controller
             'quantity' => $quantity,
             'reference_type' => 'product_update',
             'reference_id' => $productId,
+            'idempotency_key' => 'tx_' . (string) Str::uuid(),
             'note' => $note,
         ]);
     }
@@ -448,6 +449,7 @@ class ProductController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'slug' => 'required|string|max:255|unique:products,slug',
+            'product_type' => 'nullable|string|in:phone,accessory,tablet,laptop',
             'description' => 'nullable|string',
             'brand_id' => 'nullable|exists:brands,id',
             'category_id' => 'nullable|exists:categories,id',
@@ -464,17 +466,25 @@ class ProductController extends Controller
                 Rule::unique('product_variants', 'sku'),
             ],
             'image_url' => 'nullable|string|max:1000',
+            'images' => 'nullable|array|max:10',
+            'images.*' => 'image|mimes:jpg,jpeg,png,webp|max:5120',
+            'primary_index' => 'nullable|integer|min:0|max:10',
         ]);
 
-        $product = DB::transaction(function () use ($validated, $isAccessory) {
+        $product = DB::transaction(function () use ($request, $validated, $isAccessory) {
             $productData = collect($validated)->only([
                 'name',
                 'slug',
+                'product_type',
                 'description',
                 'brand_id',
                 'category_id',
                 'status',
             ])->toArray();
+
+            if (empty($productData['product_type'])) {
+                $productData['product_type'] = $isAccessory ? 'accessory' : 'phone';
+            }
 
             $product = Product::create($productData);
 
@@ -515,18 +525,32 @@ class ProductController extends Controller
                 );
             }
 
-            if (! empty($validated['image_url'])) {
-                $imageUrl = $validated['image_url'];
-            } elseif (! $isAccessory) {
-                $imageUrl = 'https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?w=800&auto=format&fit=crop&q=80';
-            } else {
-                $imageUrl = null;
-            }
-
-            if ($imageUrl !== null) {
+            if ($request->hasFile('images')) {
+                $files = $request->file('images');
+                $primaryIdx = $request->has('primary_index') ? (int) $request->input('primary_index') : 0;
+                foreach ($files as $idx => $file) {
+                    $path = $file->store('products', 'public');
+                    $imageUrl = asset('storage/' . $path);
+                    $product->images()->create([
+                        'variant_id' => $variant->id,
+                        'image_url' => $imageUrl,
+                        'alt_text' => $product->name,
+                        'is_primary' => ($idx === $primaryIdx),
+                        'sort_order' => $idx,
+                    ]);
+                }
+            } elseif (! empty($validated['image_url'])) {
                 $product->images()->create([
                     'variant_id' => $variant->id,
-                    'image_url' => $imageUrl,
+                    'image_url' => $validated['image_url'],
+                    'alt_text' => $product->name,
+                    'is_primary' => true,
+                    'sort_order' => 0,
+                ]);
+            } elseif (! $isAccessory) {
+                $product->images()->create([
+                    'variant_id' => $variant->id,
+                    'image_url' => 'https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?w=800&auto=format&fit=crop&q=80',
                     'alt_text' => $product->name,
                     'is_primary' => true,
                     'sort_order' => 0,
