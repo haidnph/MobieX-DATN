@@ -744,11 +744,11 @@ export default function AdminProductPage() {
       >
         {/* Modal Tab Navigation for editing product */}
         {editingProduct && (
-          <div className="flex border-b border-outline-variant/30 mb-5 gap-2">
+          <div className="sticky top-0 -mt-6 -mx-6 px-6 pt-4 pb-0 bg-surface-container-high/95 backdrop-blur-md border-b border-outline-variant/30 mb-5 flex gap-2 z-20">
             <button
               type="button"
               onClick={() => setActiveTab('info')}
-              className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 ${
+              className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'info'
                   ? 'border-primary text-primary'
                   : 'border-transparent text-on-surface-variant hover:text-on-surface'
@@ -760,7 +760,7 @@ export default function AdminProductPage() {
             <button
               type="button"
               onClick={() => setActiveTab('specs')}
-              className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 ${
+              className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'specs'
                   ? 'border-primary text-primary'
                   : 'border-transparent text-on-surface-variant hover:text-on-surface'
@@ -777,7 +777,7 @@ export default function AdminProductPage() {
             <button
               type="button"
               onClick={() => setActiveTab('images')}
-              className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 ${
+              className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'images'
                   ? 'border-primary text-primary'
                   : 'border-transparent text-on-surface-variant hover:text-on-surface'
@@ -969,7 +969,8 @@ export default function AdminProductPage() {
               />
             </div>
 
-            <div className="flex justify-end gap-3 pt-3 border-t border-outline-variant/10">
+            {/* Sticky Action Footer */}
+            <div className="sticky bottom-0 -mx-6 -mb-6 px-6 py-3.5 bg-surface-container-high/95 backdrop-blur-md border-t border-outline-variant/20 flex items-center justify-end gap-3 z-30 shadow-xs">
               <Button type="button" variant="ghost" onClick={() => setModalOpen(false)} disabled={submitting}>
                 Hủy
               </Button>
@@ -1106,7 +1107,8 @@ export default function AdminProductPage() {
               </div>
             )}
 
-            <div className="flex justify-end gap-3 pt-3 border-t border-outline-variant/10">
+            {/* Sticky Specs Footer */}
+            <div className="sticky bottom-0 -mx-6 -mb-6 px-6 py-3.5 bg-surface-container-high/95 backdrop-blur-md border-t border-outline-variant/20 flex items-center justify-end gap-3 z-30 shadow-xs">
               <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>
                 Đóng
               </Button>
@@ -1129,7 +1131,8 @@ export default function AdminProductPage() {
               productId={editingProduct.id}
               variants={editingProduct.variants ?? []}
             />
-            <div className="flex justify-end pt-3 border-t border-outline-variant/10">
+            {/* Sticky Images Footer */}
+            <div className="sticky bottom-0 -mx-6 -mb-6 px-6 py-3.5 bg-surface-container-high/95 backdrop-blur-md border-t border-outline-variant/20 flex items-center justify-end gap-3 z-30 shadow-xs">
               <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>
                 Đóng
               </Button>

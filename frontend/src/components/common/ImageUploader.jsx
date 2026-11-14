@@ -74,8 +74,11 @@ export default function ImageUploader({ onUpload, disabled = false, maxFiles = M
           {' '}hoặc{' '}
           <span className="font-semibold text-primary">nhấn để chọn</span>
         </p>
-        <p className="text-xs text-outline">
+        <p className="text-xs text-outline text-center">
           Tối đa {maxFiles} ảnh · JPG, PNG, WEBP · Mỗi ảnh tối đa {MAX_SIZE_MB}MB
+        </p>
+        <p className="text-[11px] text-outline text-center">
+          Ảnh đầu tiên sẽ tự động làm ảnh đại diện chính (bấm biểu tượng sao để đổi)
         </p>
         <input
           ref={inputRef}

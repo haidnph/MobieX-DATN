@@ -2,9 +2,9 @@
 // Enterprise Product Image Gallery Manager for Admin
 // Features:
 // - Dual Mode: Live API Sync (when productId provided) & Draft Mode (when creating new product)
+// - Unified Gallery Area: When 0 images -> single clean dropzone; when >= 1 images -> grid with "+ Thêm ảnh" slot
 // - Drag-and-drop reorder (native HTML5 DnD) + Move Left / Move Right buttons
 // - One-click Primary image toggle with visual badge and icon
-// - Multi-file Drag & Drop upload zone with progress bar
 // - Instant client-side preview for draft uploads
 // - Safe deletion with confirmation modal
 // - File type & size validation with friendly error feedback
@@ -14,7 +14,8 @@ import axiosClient from '../../api/axiosClient'
 import EP from '../../api/endpoints'
 import ImageUploader from '../common/ImageUploader'
 
-const PLACEHOLDER = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2UyZThmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1NSIgZm9udC1zaXplPSIxMiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzk0YTNiOCI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+'
+const PLACEHOLDER =
+  'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2UyZThmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1NSIgZm9udC1zaXplPSIxMiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzk0YTNiOCI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+'
 
 /**
  * @param {Object} props
@@ -45,9 +46,11 @@ export default function ProductImageGallery({
   // Common UI state
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [toast, setToast] = useState(null)
+  const [slotDragOver, setSlotDragOver] = useState(false)
 
   const dragItem = useRef(null)
   const dragOverItem = useRef(null)
+  const addMoreInputRef = useRef(null)
 
   // ── Helpers ──────────────────────────────────────────────────────────────
   const showToast = (msg, type = 'success') => {
@@ -162,6 +165,26 @@ export default function ProductImageGallery({
       setUploadProgress({})
     }
   }, [isDraftMode, productId, variantId, fetchImages, notifyDraftChange])
+
+  // Handle Add More File Input Change
+  const handleAddMoreChange = (e) => {
+    const rawFiles = Array.from(e.target.files || [])
+    if (rawFiles.length > 0) {
+      handleUpload(rawFiles)
+    }
+    e.target.value = ''
+  }
+
+  // Handle Drop on "+ Thêm ảnh" slot
+  const handleSlotDrop = (e) => {
+    e.preventDefault()
+    setSlotDragOver(false)
+    if (uploading) return
+    const rawFiles = Array.from(e.dataTransfer.files || [])
+    if (rawFiles.length > 0) {
+      handleUpload(rawFiles)
+    }
+  }
 
   // ── Set Primary ───────────────────────────────────────────────────────────
   const handleSetPrimary = async (targetItem, index) => {
@@ -287,7 +310,18 @@ export default function ProductImageGallery({
   const totalCount = currentImages.length
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
+      {/* Hidden file input for adding more images */}
+      <input
+        ref={addMoreInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        multiple
+        className="hidden"
+        onChange={handleAddMoreChange}
+      />
+
+      {/* Header bar */}
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-on-surface flex items-center gap-2">
@@ -296,25 +330,31 @@ export default function ProductImageGallery({
           </h3>
           <p className="text-xs text-outline mt-0.5">
             {isDraftMode
-              ? 'Tải lên các góc chụp của sản phẩm (ảnh đầu tiên hoặc được đánh dấu sao sẽ là ảnh đại diện)'
+              ? 'Ảnh đầu tiên hoặc ảnh được đánh dấu sao sẽ là ảnh đại diện chính'
               : 'Kéo thả hoặc dùng mũi tên để sắp xếp thứ tự ảnh. Ảnh chính có huy hiệu sao vàng.'}
           </p>
         </div>
-        <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-surface-container-high text-on-surface-variant border border-outline-variant/30">
-          {totalCount}/10 ảnh
-        </span>
+        <div className="flex items-center gap-2">
+          {totalCount > 0 && totalCount < 10 && (
+            <button
+              type="button"
+              onClick={() => addMoreInputRef.current?.click()}
+              disabled={uploading}
+              className="text-xs font-semibold px-2.5 py-1 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors flex items-center gap-1 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-sm">add_photo_alternate</span>
+              Thêm ảnh
+            </button>
+          )}
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-surface-container-high text-on-surface-variant border border-outline-variant/30">
+            {totalCount}/10 ảnh
+          </span>
+        </div>
       </div>
-
-      {/* Upload Dropzone */}
-      <ImageUploader
-        onUpload={handleUpload}
-        disabled={uploading || totalCount >= 10}
-        maxFiles={Math.max(0, 10 - totalCount)}
-      />
 
       {/* Upload Progress (Live Mode) */}
       {uploading && Object.keys(uploadProgress).length > 0 && (
-        <div className="space-y-2 p-3.5 rounded-xl bg-surface-container-low border border-primary/20 animate-pulse">
+        <div className="space-y-2 p-3 rounded-xl bg-surface-container-low border border-primary/20 animate-pulse">
           <div className="flex items-center gap-2 text-xs font-medium text-primary mb-1">
             <span className="material-symbols-outlined text-sm animate-spin">sync</span>
             Đang tải lên máy chủ...
@@ -344,17 +384,17 @@ export default function ProductImageGallery({
         </div>
       )}
 
-      {/* Empty State */}
+      {/* 
+        Unified Area:
+        - When totalCount === 0: Render ONLY the full dropzone. NO duplicate empty box!
+        - When totalCount > 0: Render the Gallery Grid with a "+ Thêm ảnh" slot tile.
+      */}
       {!loading && totalCount === 0 && (
-        <div className="flex flex-col items-center justify-center py-8 px-4 gap-2 text-outline-variant rounded-2xl border-2 border-dashed border-outline-variant/30 bg-surface-container-lowest text-center">
-          <span className="material-symbols-outlined text-5xl text-outline/60">add_photo_alternate</span>
-          <p className="text-sm font-medium text-on-surface-variant">
-            Chưa có hình ảnh nào được tải lên
-          </p>
-          <p className="text-xs text-outline max-w-sm">
-            Kéo thả nhiều ảnh cùng lúc hoặc bấm vào khung phía trên để chọn file (JPG, PNG, WEBP tối đa 5MB).
-          </p>
-        </div>
+        <ImageUploader
+          onUpload={handleUpload}
+          disabled={uploading}
+          maxFiles={10}
+        />
       )}
 
       {/* Images Grid */}
@@ -424,7 +464,7 @@ export default function ProductImageGallery({
                           requestDelete(img, index)
                         }}
                         title="Xóa ảnh này"
-                        className="p-1.5 rounded-full bg-error/90 text-white hover:bg-error hover:scale-110 transition-all shadow"
+                        className="p-1.5 rounded-full bg-error/90 text-white hover:bg-error hover:scale-110 transition-all shadow cursor-pointer"
                       >
                         <span className="material-symbols-outlined text-xs leading-none">delete</span>
                       </button>
@@ -440,7 +480,7 @@ export default function ProductImageGallery({
                             handleSetPrimary(img, index)
                           }}
                           title="Đặt ảnh này làm ảnh đại diện chính"
-                          className="px-2.5 py-1 rounded-full bg-amber-500 hover:bg-amber-400 text-white text-[11px] font-semibold flex items-center gap-1 shadow-md hover:scale-105 transition-all"
+                          className="px-2.5 py-1 rounded-full bg-amber-500 hover:bg-amber-400 text-white text-[11px] font-semibold flex items-center gap-1 shadow-md hover:scale-105 transition-all cursor-pointer"
                         >
                           <span className="material-symbols-outlined text-xs leading-none">star</span>
                           Đặt làm ảnh chính
@@ -463,7 +503,7 @@ export default function ProductImageGallery({
                           moveItem(index, index - 1)
                         }}
                         title="Di chuyển sang trái"
-                        className="p-1 rounded-full bg-white/20 hover:bg-white/40 disabled:opacity-30 disabled:hover:bg-white/20 text-white transition-all"
+                        className="p-1 rounded-full bg-white/20 hover:bg-white/40 disabled:opacity-30 disabled:hover:bg-white/20 text-white transition-all cursor-pointer disabled:cursor-not-allowed"
                       >
                         <span className="material-symbols-outlined text-xs leading-none">arrow_back</span>
                       </button>
@@ -480,7 +520,7 @@ export default function ProductImageGallery({
                           moveItem(index, index + 1)
                         }}
                         title="Di chuyển sang phải"
-                        className="p-1 rounded-full bg-white/20 hover:bg-white/40 disabled:opacity-30 disabled:hover:bg-white/20 text-white transition-all"
+                        className="p-1 rounded-full bg-white/20 hover:bg-white/40 disabled:opacity-30 disabled:hover:bg-white/20 text-white transition-all cursor-pointer disabled:cursor-not-allowed"
                       >
                         <span className="material-symbols-outlined text-xs leading-none">arrow_forward</span>
                       </button>
@@ -489,6 +529,32 @@ export default function ProductImageGallery({
                 </div>
               )
             })}
+
+            {/* "+ Thêm ảnh" slot tile in the grid when totalCount < 10 */}
+            {totalCount < 10 && (
+              <div
+                onClick={() => !uploading && addMoreInputRef.current?.click()}
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  if (!uploading) setSlotDragOver(true)
+                }}
+                onDragLeave={() => setSlotDragOver(false)}
+                onDrop={handleSlotDrop}
+                className={[
+                  'relative aspect-square rounded-2xl border-2 border-dashed flex flex-col items-center justify-center p-3 text-center cursor-pointer transition-all duration-200 select-none group',
+                  slotDragOver
+                    ? 'border-primary bg-primary/10 scale-[1.02]'
+                    : 'border-outline-variant/60 hover:border-primary hover:bg-surface-container-high/60 bg-surface-container-lowest/50',
+                  uploading ? 'opacity-50 cursor-not-allowed' : '',
+                ].join(' ')}
+              >
+                <span className="material-symbols-outlined text-3xl text-primary group-hover:scale-110 transition-transform mb-1">
+                  add_photo_alternate
+                </span>
+                <span className="text-xs font-bold text-primary">Thêm ảnh</span>
+                <span className="text-[10px] text-outline mt-0.5">Còn {10 - totalCount} ảnh</span>
+              </div>
+            )}
           </div>
         </div>
       )}
