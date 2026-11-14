@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import ProductForm from '../features/admin/product/ProductForm'
 
 // Helper function mirroring slugify from ProductForm
 function slugify(text) {
@@ -131,5 +132,11 @@ describe('Admin Product Dedicated Form & UX Logic', () => {
     expect(routes.create).toBe('/admin/products/create')
     expect(routes.edit(488)).toBe('/admin/products/488/edit')
     expect(routes.edit('791')).toBe('/admin/products/791/edit')
+    expect(routes.edit('1280')).toBe('/admin/products/1280/edit')
+  })
+
+  it('successfully loads ProductForm component without syntax or reference errors', () => {
+    expect(ProductForm).toBeDefined()
+    expect(typeof ProductForm).toBe('function')
   })
 })

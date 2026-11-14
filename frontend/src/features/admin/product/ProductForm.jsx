@@ -3,7 +3,7 @@
 // Features: 2-column responsive layout, dirty state tracking, slug generation,
 // integrated ProductImageGallery (draft & live), specification editor, and sticky action bar.
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Button from '../../../components/common/Button'
 import Input from '../../../components/common/Input'
