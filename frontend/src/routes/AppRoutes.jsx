@@ -49,6 +49,8 @@ const AdminDashboard       = lazy(() => import('../features/admin/AdminDashboard
 const AdminOrderListPage   = lazy(() => import('../features/admin/AdminOrderListPage'))
 const AdminOrderDetailPage = lazy(() => import('../features/admin/AdminOrderDetailPage'))
 const AdminProductPage     = lazy(() => import('../features/admin/AdminProductPage'))
+const AdminProductCreatePage = lazy(() => import('../features/admin/AdminProductCreatePage'))
+const AdminProductEditPage   = lazy(() => import('../features/admin/AdminProductEditPage'))
 const AdminCategoryPage    = lazy(() => import('../features/admin/AdminCategoryPage'))
 const AdminBrandPage       = lazy(() => import('../features/admin/AdminBrandPage'))
 const AdminInventoryPage   = lazy(() => import('../features/admin/AdminInventoryPage'))
@@ -223,7 +225,9 @@ export default function AppRoutes() {
           <Route index                 element={<AdminDashboard />} />
           <Route path="orders"         element={<AdminOrderListPage />} />
           <Route path="orders/:id"     element={<AdminOrderDetailPage />} />
-          <Route path="products"       element={<AdminProductPage />} />
+          <Route path="products"           element={<AdminProductPage />} />
+          <Route path="products/create"    element={<AdminProductCreatePage />} />
+          <Route path="products/:id/edit"  element={<AdminProductEditPage />} />
           <Route path="categories"     element={<AdminCategoryPage />} />
           <Route path="brands"         element={<AdminBrandPage />} />
           <Route path="inventories"    element={<AdminInventoryPage />} />
