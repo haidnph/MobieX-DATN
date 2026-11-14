@@ -77,6 +77,9 @@ export default function AdminProductPage() {
   const [loadingSpecs, setLoadingSpecs] = useState(false)
   const [savingSpecs, setSavingSpecs] = useState(false)
 
+  // Draft gallery state for Create Product modal
+  const [draftGallery, setDraftGallery] = useState({ files: [], primaryIndex: 0 })
+
   const [form, setForm] = useState({
     name: '',
     slug: '',
@@ -191,6 +194,7 @@ export default function AdminProductPage() {
     setEditingProduct(null)
     setActiveTab('info')
     setProductSpecs({})
+    setDraftGallery({ files: [], primaryIndex: 0 })
     setForm({
       name: '',
       slug: '',
@@ -217,6 +221,7 @@ export default function AdminProductPage() {
     setEditingProduct(p)
     setActiveTab('info')
     setProductSpecs({})
+    setDraftGallery({ files: [], primaryIndex: 0 })
     const firstVar = p.variants?.[0]
     const primaryImg = p.images?.find((img) => img.is_primary) || p.images?.[0]
     setForm({
@@ -332,7 +337,25 @@ export default function AdminProductPage() {
 
         showToast('Cập nhật sản phẩm thành công!', 'success')
       } else {
-        await axiosClient.post(EP.ADMIN_PRODUCTS, payload)
+        const createRes = await axiosClient.post(EP.ADMIN_PRODUCTS, payload)
+        const createdProduct = createRes.data?.data ?? createRes.data
+
+        // Upload any draft gallery images
+        if (createdProduct?.id && draftGallery.files && draftGallery.files.length > 0) {
+          const imgFormData = new FormData()
+          imgFormData.append('product_id', createdProduct.id)
+          imgFormData.append('primary_index', draftGallery.primaryIndex ?? 0)
+          draftGallery.files.forEach((file) => imgFormData.append('images[]', file))
+
+          try {
+            await axiosClient.post(EP.PRODUCT_IMAGES, imgFormData, {
+              headers: { 'Content-Type': 'multipart/form-data' },
+            })
+          } catch (imgErr) {
+            console.warn('Lỗi khi tải ảnh gallery sau khi tạo sản phẩm:', imgErr)
+          }
+        }
+
         showToast('Thêm sản phẩm mới thành công!', 'success')
       }
       setModalOpen(false)
@@ -639,7 +662,15 @@ export default function AdminProductPage() {
                       <td className="px-5 py-3">
                         <div className="w-12 h-12 bg-surface-container-high rounded-xl overflow-hidden flex items-center justify-center border border-outline-variant/20 p-1">
                           {p.thumbnail ? (
-                            <img src={p.thumbnail} alt={p.name} className="w-full h-full object-contain" />
+                            <img
+                              src={p.thumbnail}
+                              alt={p.name}
+                              className="w-full h-full object-contain"
+                              onError={(e) => {
+                                e.target.onerror = null
+                                e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2UyZThmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1NSIgZm9udC1zaXplPSIxMiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzk0YTNiOCI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+'
+                              }}
+                            />
                           ) : (
                             <span className="material-symbols-outlined text-outline text-xl">smartphone</span>
                           )}
@@ -862,13 +893,70 @@ export default function AdminProductPage() {
               />
             </div>
 
-            <Input
-              label="Đường dẫn ảnh đại diện (URL)"
-              value={form.image_url}
-              onChange={(e) => setForm({ ...form, image_url: e.target.value })}
-              placeholder="https://example.com/image.jpg hoặc để trống dùng ảnh mẫu"
-              error={errors.image_url?.[0]}
-            />
+            {/* Khu vực quản lý hình ảnh sản phẩm (Product Image Gallery) */}
+            <div className="p-4 rounded-2xl bg-surface-container-low border border-outline-variant/30 space-y-3">
+              {!editingProduct ? (
+                <>
+                  <ProductImageGallery
+                    productId={null}
+                    title="Hình ảnh sản phẩm (Gallery)"
+                    onDraftChange={setDraftGallery}
+                  />
+                  <div className="pt-2 border-t border-outline-variant/20">
+                    <details className="text-xs text-outline cursor-pointer group">
+                      <summary className="font-semibold text-on-surface-variant hover:text-primary transition-colors select-none flex items-center gap-1.5 py-1">
+                        <span className="material-symbols-outlined text-sm transition-transform group-open:rotate-90">chevron_right</span>
+                        Tùy chọn nâng cao: Nhập URL ảnh đại diện trực tiếp
+                      </summary>
+                      <div className="mt-2 pl-4">
+                        <Input
+                          label="Đường dẫn ảnh đại diện (URL)"
+                          value={form.image_url}
+                          onChange={(e) => setForm({ ...form, image_url: e.target.value })}
+                          placeholder="https://example.com/image.jpg hoặc để trống dùng ảnh tải lên"
+                          error={errors.image_url?.[0]}
+                        />
+                      </div>
+                    </details>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-1">
+                    <div>
+                      <h4 className="text-sm font-bold text-on-surface flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-primary text-base">photo_library</span>
+                        Quản lý hình ảnh chung
+                      </h4>
+                      <p className="text-xs text-outline">Kéo thả để sắp xếp, chọn sao để đổi ảnh đại diện</p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setActiveTab('images')}
+                      className="flex items-center gap-1 text-xs"
+                    >
+                      <span className="material-symbols-outlined text-sm">palette</span>
+                      Ảnh theo phiên bản màu
+                    </Button>
+                  </div>
+                  <ProductImageGallery
+                    productId={editingProduct.id}
+                    title="Ảnh chung của sản phẩm"
+                    onImagesChange={(imgs) => {
+                      const primary = imgs.find((img) => img.is_primary) || imgs[0]
+                      if (primary) {
+                        setForm((prev) => ({
+                          ...prev,
+                          image_url: primary.image_url || primary.image_path || prev.image_url,
+                        }))
+                      }
+                    }}
+                  />
+                </>
+              )}
+            </div>
 
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-on-surface-variant">Mô tả sản phẩm (HTML hoặc Text)</label>
