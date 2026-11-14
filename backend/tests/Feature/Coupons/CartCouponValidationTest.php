@@ -209,4 +209,63 @@ class CartCouponValidationTest extends TestCase
 
         $response->assertStatus(422);
     }
+
+    public function test_get_cart_with_valid_coupon_calculates_discount_and_total(): void
+    {
+        $this->createCartWithSubtotal(1); // subtotal = 20,000,000
+
+        Coupon::create([
+            'code' => 'GETCART100K',
+            'discount_type' => 'fixed',
+            'discount_value' => 100000,
+            'min_order_amount' => 500000,
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->getJson('/api/cart?coupon_code=GETCART100K');
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'status' => true,
+                'data' => [
+                    'subtotal' => 20000000,
+                    'discount' => 100000,
+                    'total' => 19900000,
+                    'coupon_code' => 'GETCART100K',
+                    'coupon_invalid_reason' => null,
+                ],
+            ]);
+    }
+
+    public function test_get_cart_with_invalid_coupon_returns_reason_and_zero_discount(): void
+    {
+        $this->createCartWithSubtotal(1); // subtotal = 20,000,000
+
+        Coupon::create([
+            'code' => 'TOOHIGH',
+            'discount_type' => 'fixed',
+            'discount_value' => 100000,
+            'min_order_amount' => 50000000, // min 50M > 20M
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->getJson('/api/cart?coupon_code=TOOHIGH');
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'status' => true,
+                'data' => [
+                    'subtotal' => 20000000,
+                    'discount' => 0,
+                    'total' => 20000000,
+                    'coupon_code' => null,
+                ],
+            ]);
+
+        $data = $response->json('data');
+        $this->assertNotNull($data['coupon_invalid_reason']);
+        $this->assertStringContainsString('tối thiểu', $data['coupon_invalid_reason']);
+    }
 }

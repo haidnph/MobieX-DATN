@@ -6,8 +6,10 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import axiosClient from '../api/axiosClient'
 import EP from '../api/endpoints'
 import { useAuth } from './AuthContext'
+import storage from '../utils/storage'
 
 const CartContext = createContext(null)
+const COUPON_STORAGE_KEY = 'applied_coupon'
 
 export function CartProvider({ children }) {
   const { user } = useAuth()
@@ -17,28 +19,51 @@ export function CartProvider({ children }) {
     subtotal: 0,
     discount: 0,
     total: 0,
-    couponCode: null,
+    couponCode: storage.get(COUPON_STORAGE_KEY) || null,
+    couponInvalidReason: null,
   })
   const [loading, setLoading] = useState(false)
 
   // ── Fetch cart from backend ────────────────────────────────────────────
-  const fetchCart = useCallback(async () => {
+  const fetchCart = useCallback(async (forcedCouponCode) => {
     if (!user) {
       setCartItems([])
-      setCartSummary({ subtotal: 0, discount: 0, total: 0, couponCode: null })
+      setCartSummary({ subtotal: 0, discount: 0, total: 0, couponCode: null, couponInvalidReason: null })
       return
     }
     setLoading(true)
     try {
-      const { data } = await axiosClient.get(EP.CART)
+      const activeCoupon =
+        forcedCouponCode !== undefined
+          ? (forcedCouponCode || null)
+          : (storage.get(COUPON_STORAGE_KEY) || null)
+
+      const params = activeCoupon ? { coupon_code: activeCoupon } : {}
+      const { data } = await axiosClient.get(EP.CART, { params })
       const payload = data.data ?? data
       setCartItems(payload.items ?? [])
-      setCartSummary({
-        subtotal: payload.subtotal ?? 0,
-        discount: payload.discount ?? 0,
-        total: payload.total ?? 0,
-        couponCode: payload.coupon_code ?? null,
-      })
+
+      if (payload.coupon_code) {
+        storage.set(COUPON_STORAGE_KEY, payload.coupon_code)
+        setCartSummary({
+          subtotal: payload.subtotal ?? 0,
+          discount: payload.discount ?? 0,
+          total: payload.total ?? (payload.subtotal ?? 0),
+          couponCode: payload.coupon_code,
+          couponInvalidReason: null,
+        })
+      } else {
+        if (payload.coupon_invalid_reason) {
+          storage.remove(COUPON_STORAGE_KEY)
+        }
+        setCartSummary({
+          subtotal: payload.subtotal ?? 0,
+          discount: 0,
+          total: payload.total ?? (payload.subtotal ?? 0),
+          couponCode: null,
+          couponInvalidReason: payload.coupon_invalid_reason ?? null,
+        })
+      }
     } catch {
       // Non-critical — keep existing state
     } finally {
@@ -75,20 +100,39 @@ export function CartProvider({ children }) {
 
   // ── Apply coupon ───────────────────────────────────────────────────────
   const applyCoupon = useCallback(async (couponCode) => {
-    const { data } = await axiosClient.post(EP.CART_APPLY_COUPON, { coupon_code: couponCode })
-    await fetchCart()
-    return data?.data ?? data
+    const code = (couponCode || '').trim().toUpperCase()
+    if (!code) {
+      throw new Error('Vui lòng nhập mã giảm giá')
+    }
+    const { data } = await axiosClient.post(EP.CART_APPLY_COUPON, { coupon_code: code })
+    const resPayload = data.data ?? data
+    storage.set(COUPON_STORAGE_KEY, code)
+    await fetchCart(code)
+    return {
+      status: true,
+      message: data.message || 'Áp dụng mã giảm giá thành công!',
+      ...resPayload,
+    }
   }, [fetchCart])
 
   // ── Clear coupon ───────────────────────────────────────────────────────
-  const clearCoupon = useCallback(() => {
-    setCartSummary((prev) => ({ ...prev, discount: 0, couponCode: null }))
-  }, [])
+  const clearCoupon = useCallback(async () => {
+    storage.remove(COUPON_STORAGE_KEY)
+    setCartSummary((prev) => ({
+      ...prev,
+      discount: 0,
+      total: prev.subtotal,
+      couponCode: null,
+      couponInvalidReason: null,
+    }))
+    await fetchCart('')
+  }, [fetchCart])
 
   // ── Clear entire cart ───────────────────────────────────────────────────
   const clearCart = useCallback(async () => {
+    storage.remove(COUPON_STORAGE_KEY)
     await axiosClient.delete(EP.CART_CLEAR)
-    await fetchCart()
+    await fetchCart('')
   }, [fetchCart])
 
   // ── Computed ───────────────────────────────────────────────────────────

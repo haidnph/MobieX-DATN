@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Coupon;
+use App\Models\CouponRedemption;
 use App\Models\Order;
 use App\Models\OrderStatusHistory;
 use App\Models\Payment;
@@ -137,6 +139,8 @@ class PaymentController extends Controller
                     'status' => $newStatus,
                 ]);
 
+                $this->markCouponAsConsumed($order);
+
                 OrderStatusHistory::create([
                     'order_id' => $order->id,
                     'user_id' => null,
@@ -264,6 +268,8 @@ class PaymentController extends Controller
                     'payment_status' => 'paid',
                     'status' => $newStatus,
                 ]);
+
+                $this->markCouponAsConsumed($order);
 
                 OrderStatusHistory::create([
                     'order_id' => $order->id,
@@ -450,6 +456,8 @@ class PaymentController extends Controller
                     'status' => $newStatus,
                 ]);
 
+                $this->markCouponAsConsumed($order);
+
                 OrderStatusHistory::create([
                     'order_id' => $order->id,
                     'user_id' => null,
@@ -567,6 +575,8 @@ class PaymentController extends Controller
                 'payment_status' => 'paid',
                 'status' => $newStatus,
             ]);
+
+            $this->markCouponAsConsumed($order);
 
             OrderStatusHistory::create([
                 'order_id' => $order->id,
@@ -730,6 +740,8 @@ class PaymentController extends Controller
                     'status' => $newStatus,
                 ]);
 
+                $this->markCouponAsConsumed($order);
+
                 OrderStatusHistory::create([
                     'order_id' => $order->id,
                     'user_id' => null,
@@ -839,6 +851,8 @@ class PaymentController extends Controller
                     'status' => $newStatus,
                 ]);
 
+                $this->markCouponAsConsumed($order);
+
                 OrderStatusHistory::create([
                     'order_id' => $order->id,
                     'user_id' => null,
@@ -854,5 +868,29 @@ class PaymentController extends Controller
             'resultCode' => 0,
             'message' => 'success',
         ]);
+    }
+
+    /**
+     * Mark coupon as consumed upon successful payment.
+     */
+    private function markCouponAsConsumed(Order $order): void
+    {
+        if (! $order->coupon_id) {
+            return;
+        }
+
+        $coupon = Coupon::whereKey($order->coupon_id)
+            ->lockForUpdate()
+            ->first();
+
+        if ($coupon) {
+            $coupon->reserved_count = max(0, (int) $coupon->reserved_count - 1);
+            $coupon->used_count += 1;
+            $coupon->save();
+        }
+
+        CouponRedemption::where('order_id', $order->id)
+            ->where('status', 'reserved')
+            ->update(['status' => 'consumed']);
     }
 }

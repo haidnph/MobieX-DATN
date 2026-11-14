@@ -155,6 +155,23 @@ class AdminOrderController extends Controller
                 }
             } elseif ($newStatus === 'delivered') {
                 $updateData['delivered_at'] = now();
+
+                // Consume coupon reservation when order is delivered successfully
+                if ($order->coupon_id) {
+                    $coupon = Coupon::whereKey($order->coupon_id)
+                        ->lockForUpdate()
+                        ->first();
+
+                    if ($coupon) {
+                        $coupon->reserved_count = max(0, (int) $coupon->reserved_count - 1);
+                        $coupon->used_count += 1;
+                        $coupon->save();
+                    }
+
+                    CouponRedemption::where('order_id', $order->id)
+                        ->where('status', 'reserved')
+                        ->update(['status' => 'consumed']);
+                }
             } elseif ($newStatus === 'cancelled') {
                 $reason = $validated['cancel_reason'] ?? $note;
                 $updateData['cancelled_at'] = now();

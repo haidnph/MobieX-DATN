@@ -99,6 +99,7 @@ class CouponController extends Controller
         $finalTotal = max(0.0, round($subtotal - $discountAmount, 2));
 
         return response()->json([
+            'status' => true,
             'message' => 'Áp dụng mã giảm giá thành công.',
             'data' => [
                 'coupon_id' => $coupon->id,

@@ -244,4 +244,56 @@ class OrderCouponReservationTest extends TestCase
             'status' => 'released',
         ]);
     }
+
+    public function test_order_delivery_marks_coupon_as_consumed_and_increments_used_count(): void
+    {
+        $this->setupCart(1);
+
+        $coupon = Coupon::create([
+            'code' => 'DELIVERTEST',
+            'discount_type' => 'fixed',
+            'discount_value' => 150000,
+            'usage_limit' => 10,
+            'reserved_count' => 0,
+            'used_count' => 0,
+            'is_active' => true,
+        ]);
+
+        $orderRes = $this->actingAs($this->user, 'sanctum')
+            ->postJson('/api/orders', [
+                'shipping_name' => 'Nguyen Van Delivery',
+                'shipping_phone' => '0987654322',
+                'shipping_address' => '789 Tran Phu',
+                'shipping_method_id' => $this->shippingMethod->id,
+                'payment_method' => 'COD',
+                'coupon_code' => 'DELIVERTEST',
+            ]);
+
+        $orderId = $orderRes->json('data.id');
+        $this->assertEquals(1, $coupon->fresh()->reserved_count);
+        $this->assertEquals(0, $coupon->fresh()->used_count);
+
+        // Transition through order states: pending -> confirmed -> processing -> shipping -> delivered
+        $states = ['confirmed', 'processing', 'shipping', 'delivered'];
+        foreach ($states as $st) {
+            $this->actingAs($this->adminUser, 'sanctum')
+                ->patchJson("/api/admin/orders/{$orderId}/status", [
+                    'status' => $st,
+                    'note' => "Chuyển sang {$st}",
+                ])
+                ->assertStatus(200);
+        }
+
+        // Verify coupon counts updated
+        $freshCoupon = $coupon->fresh();
+        $this->assertEquals(0, $freshCoupon->reserved_count);
+        $this->assertEquals(1, $freshCoupon->used_count);
+
+        // Verify coupon redemption status updated to consumed
+        $this->assertDatabaseHas('coupon_redemptions', [
+            'coupon_id' => $coupon->id,
+            'order_id' => $orderId,
+            'status' => 'consumed',
+        ]);
+    }
 }

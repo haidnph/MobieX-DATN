@@ -13,7 +13,7 @@ import Button from '../../components/common/Button'
 import Input from '../../components/common/Input'
 
 export default function CheckoutPage() {
-  const { cartItems, cartSummary, fetchCart } = useCart()
+  const { cartItems, cartSummary, fetchCart, applyCoupon, clearCoupon } = useCart()
   const { user } = useAuth()
   const { showToast } = useToast()
   const navigate = useNavigate()
@@ -31,6 +31,8 @@ export default function CheckoutPage() {
   const [useCustomAddress, setUseCustomAddress] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [errors, setErrors] = useState({})
+  const [couponInput, setCouponInput] = useState('')
+  const [applyingCoupon, setApplyingCoupon] = useState(false)
 
   // ── Fetch saved addresses ──────────────────────────────────────────────────
   useEffect(() => {
@@ -82,6 +84,30 @@ export default function CheckoutPage() {
     setErrors((prev) => ({ ...prev, [e.target.name]: '' }))
   }
 
+  const handleApplyCoupon = async (e) => {
+    e?.preventDefault()
+    if (!couponInput.trim()) return
+    setApplyingCoupon(true)
+    try {
+      const res = await applyCoupon(couponInput.trim())
+      showToast(res.message || 'Áp dụng mã giảm giá thành công!', 'success')
+      setCouponInput('')
+    } catch (err) {
+      showToast(err.message || 'Mã giảm giá không hợp lệ', 'error')
+    } finally {
+      setApplyingCoupon(false)
+    }
+  }
+
+  const handleClearCoupon = async () => {
+    try {
+      await clearCoupon()
+      showToast('Đã hủy áp dụng mã giảm giá', 'info')
+    } catch (err) {
+      showToast(err.message || 'Không thể hủy mã', 'error')
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (cartItems.length === 0) {
@@ -113,8 +139,8 @@ export default function CheckoutPage() {
       const { data } = await axiosClient.post(EP.ORDERS, payload)
       const order = data.data ?? data
 
-      // Refresh cart to reflect empty state
-      await fetchCart()
+      // Clear applied coupon from storage and reset cart
+      await clearCoupon()
 
       if (form.payment_method === 'vnpay') {
         // Redirect to VNPay initiate page
@@ -588,6 +614,58 @@ export default function CheckoutPage() {
               })}
             </div>
 
+            {/* Coupon Section */}
+            <div className="pt-4 border-t border-outline-variant/10 space-y-2">
+              <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block">
+                Mã giảm giá
+              </label>
+
+              {cartSummary.couponCode ? (
+                <div className="flex items-center justify-between bg-secondary-container/10 border border-secondary/20 rounded-xl px-3 py-2">
+                  <div className="flex items-center gap-1.5 text-xs text-secondary font-semibold">
+                    <span className="material-symbols-outlined text-sm">check_circle</span>
+                    <span>Mã: {cartSummary.couponCode}</span>
+                    <span className="text-[11px] font-normal text-on-surface-variant">
+                      (-{formatCurrencyVND(cartSummary.discount)})
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleClearCoupon}
+                    className="text-xs text-outline hover:text-error transition-colors font-medium"
+                  >
+                    Bỏ mã
+                  </button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={couponInput}
+                    onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                    placeholder="Nhập mã voucher..."
+                    className="flex-1 bg-surface-container-low text-on-surface placeholder:text-outline rounded-xl px-3 py-2 text-xs border border-outline-variant/40 focus:outline-none focus:ring-2 focus:ring-primary uppercase font-mono"
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    loading={applyingCoupon}
+                    onClick={handleApplyCoupon}
+                  >
+                    Áp dụng
+                  </Button>
+                </div>
+              )}
+
+              {cartSummary.couponInvalidReason && (
+                <div className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2">
+                  <span className="material-symbols-outlined text-sm shrink-0 mt-0.5">warning</span>
+                  <span>{cartSummary.couponInvalidReason}</span>
+                </div>
+              )}
+            </div>
+
             {/* Calculations */}
             <div className="space-y-2.5 pt-4 border-t border-outline-variant/10 text-sm">
               <div className="flex justify-between text-on-surface-variant">
@@ -596,7 +674,7 @@ export default function CheckoutPage() {
               </div>
 
               {cartSummary.discount > 0 && (
-                <div className="flex justify-between text-secondary">
+                <div className="flex justify-between text-secondary font-semibold">
                   <span>Giảm giá ({cartSummary.couponCode})</span>
                   <span>-{formatCurrencyVND(cartSummary.discount)}</span>
                 </div>
@@ -610,7 +688,7 @@ export default function CheckoutPage() {
               <div className="pt-3 border-t border-outline-variant/10 flex justify-between items-baseline">
                 <span className="text-base font-bold text-on-surface">Tổng thanh toán</span>
                 <span className="text-2xl font-extrabold text-primary">
-                  {formatCurrencyVND(cartSummary.total || cartSummary.subtotal - cartSummary.discount)}
+                  {formatCurrencyVND(cartSummary.total || Math.max(0, cartSummary.subtotal - cartSummary.discount))}
                 </span>
               </div>
             </div>

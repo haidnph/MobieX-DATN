@@ -90,6 +90,15 @@ export default function CartPage() {
     }
   }
 
+  const handleClearCoupon = async () => {
+    try {
+      await clearCoupon()
+      showToast('Đã hủy áp dụng mã giảm giá', 'info')
+    } catch (err) {
+      showToast(err.message || 'Không thể hủy mã', 'error')
+    }
+  }
+
   const handleProceedToCheckout = () => {
     if (!user) {
       navigate('/login', { state: { from: { pathname: '/checkout' } } })
@@ -277,11 +286,18 @@ export default function CartPage() {
                   </div>
                   <button
                     type="button"
-                    onClick={clearCoupon}
+                    onClick={handleClearCoupon}
                     className="text-xs text-outline hover:text-error transition-colors"
                   >
                     Bỏ mã
                   </button>
+                </div>
+              )}
+
+              {cartSummary.couponInvalidReason && (
+                <div className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2 mt-2">
+                  <span className="material-symbols-outlined text-sm shrink-0 mt-0.5">warning</span>
+                  <span>{cartSummary.couponInvalidReason}</span>
                 </div>
               )}
             </form>
@@ -296,8 +312,8 @@ export default function CartPage() {
               </div>
 
               {cartSummary.discount > 0 && (
-                <div className="flex justify-between text-secondary">
-                  <span>Giảm giá</span>
+                <div className="flex justify-between text-secondary font-semibold">
+                  <span>Giảm giá ({cartSummary.couponCode})</span>
                   <span>-{formatCurrencyVND(cartSummary.discount)}</span>
                 </div>
               )}
@@ -310,7 +326,7 @@ export default function CartPage() {
               <div className="pt-3 border-t border-outline-variant/10 flex justify-between items-baseline">
                 <span className="text-base font-bold text-on-surface">Tổng cộng</span>
                 <span className="text-2xl font-extrabold text-primary">
-                  {formatCurrencyVND(cartSummary.total || cartSummary.subtotal - cartSummary.discount)}
+                  {formatCurrencyVND(cartSummary.total || Math.max(0, cartSummary.subtotal - cartSummary.discount))}
                 </span>
               </div>
             </div>
