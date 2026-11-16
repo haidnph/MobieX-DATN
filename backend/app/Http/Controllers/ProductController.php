@@ -798,9 +798,9 @@ class ProductController extends Controller
     /**
      * API lấy chi tiết sản phẩm.
      */
-    public function show($id)
+    public function show(string $id)
     {
-        $product = Product::with([
+        $query = Product::with([
             'brand',
             'category',
             'images',
@@ -808,7 +808,14 @@ class ProductController extends Controller
             'variants.inventory',
             'variants.images',
             'variants.attributeValues.attribute',
-        ])->find($id);
+        ]);
+
+        // Chấp nhận cả numeric ID lẫn slug (SEO-friendly URLs)
+        if (is_numeric($id)) {
+            $product = $query->find((int) $id);
+        } else {
+            $product = $query->where('slug', $id)->first();
+        }
 
         if (! $product) {
             return response()->json([

@@ -37,63 +37,75 @@ export default function ProductDetailPage() {
 
   useEffect(() => {
     setLoading(true)
+    // Bước 1: Load product detail và reviews song song (cả hai chấp nhận slug hoặc ID)
     Promise.allSettled([
       axiosClient.get(EP.PRODUCT_DETAIL(id)),
       axiosClient.get(EP.PRODUCT_REVIEWS(id)),
-      axiosClient.get(EP.PRODUCT_IMAGES, { params: { product_id: id } }),
     ])
-      .then(([prodRes, revRes, imgRes]) => {
-        let imgs = []
-        if (imgRes.status === 'fulfilled') {
-          const raw = imgRes.value.data?.data ?? imgRes.value.data
-          if (Array.isArray(raw)) {
-            imgs = [...raw].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-          }
-        }
+      .then(([prodRes, revRes]) => {
+        let productData = null
 
         if (prodRes.status === 'fulfilled') {
-          const prodData = prodRes.value.data.data ?? prodRes.value.data
-          setProduct(prodData)
-          addViewed(prodData)
-
-          if (imgs.length === 0 && prodData.images?.length > 0) {
-            imgs = [...prodData.images].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-          }
-          setProductImages(imgs)
+          productData = prodRes.value.data.data ?? prodRes.value.data
+          setProduct(productData)
+          addViewed(productData)
 
           // Default to first available or active variant
           const firstVariant =
-            prodData.variants?.find((v) => (v.is_active ?? true) && ((v.inventory?.available_quantity ?? v.available_quantity ?? 0) > 0)) ||
-            prodData.variants?.[0] ||
+            productData.variants?.find((v) => (v.is_active ?? true) && ((v.inventory?.available_quantity ?? v.available_quantity ?? 0) > 0)) ||
+            productData.variants?.[0] ||
             null
           setSelectedVariant(firstVariant)
+        }
+
+        if (revRes.status === 'fulfilled') {
+          const revData = revRes.value.data.data ?? revRes.value.data
+          setReviews(Array.isArray(revData) ? revData : (revData?.data ?? []))
+        }
+
+        // Bước 2: Dùng numeric product.id để load images (API product-images yêu cầu numeric ID)
+        const numericId = productData?.id
+        const imagePromise = numericId
+          ? axiosClient.get(EP.PRODUCT_IMAGES, { params: { product_id: numericId } })
+          : Promise.reject(new Error('no product id'))
+
+        return Promise.allSettled([
+          imagePromise,
+          // Fetch related products nếu có category
+          productData?.category_id
+            ? axiosClient.get(EP.PRODUCTS, { params: { category_id: productData.category_id, per_page: 5 } })
+            : Promise.reject(new Error('no category')),
+        ]).then(([imgRes, relRes]) => {
+          // Xử lý images
+          let imgs = []
+          if (imgRes.status === 'fulfilled') {
+            const raw = imgRes.value.data?.data ?? imgRes.value.data
+            if (Array.isArray(raw)) {
+              imgs = [...raw].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+            }
+          }
+          if (imgs.length === 0 && productData?.images?.length > 0) {
+            imgs = [...productData.images].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+          }
+          setProductImages(imgs)
 
           const primaryImg =
             imgs.find((img) => img.is_primary)?.image_url ||
             imgs.find((img) => img.is_primary)?.image_path ||
             imgs[0]?.image_url ||
             imgs[0]?.image_path ||
-            prodData.thumbnail ||
-            firstVariant?.image_url ||
+            productData?.thumbnail ||
+            productData?.variants?.[0]?.image_url ||
             null
           setActiveImage(primaryImg)
 
-          // Fetch related products by category
-          if (prodData.category_id) {
-            axiosClient
-              .get(EP.PRODUCTS, { params: { category_id: prodData.category_id, per_page: 5 } })
-              .then(({ data }) => {
-                const list = data.data?.data ?? data.data ?? data ?? []
-                const items = Array.isArray(list) ? list : []
-                setRelatedProducts(items.filter((p) => p.id !== prodData.id).slice(0, 4))
-              })
-              .catch(() => {})
+          // Xử lý related products
+          if (relRes.status === 'fulfilled') {
+            const list = relRes.value.data.data?.data ?? relRes.value.data.data ?? relRes.value.data ?? []
+            const items = Array.isArray(list) ? list : []
+            setRelatedProducts(items.filter((p) => p.id !== productData?.id).slice(0, 4))
           }
-        }
-        if (revRes.status === 'fulfilled') {
-          const revData = revRes.value.data.data ?? revRes.value.data
-          setReviews(Array.isArray(revData) ? revData : (revData?.data ?? []))
-        }
+        })
       })
       .finally(() => setLoading(false))
   }, [id])

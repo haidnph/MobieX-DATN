@@ -141,8 +141,8 @@ class Product extends Model
         return $this->belongsToMany(
             Product::class,
             'product_compatibilities',
-            'product_id',
-            'compatible_product_id'
+            'accessory_product_id',
+            'compatible_phone_product_id'
         )->withPivot('note');
     }
 
@@ -152,8 +152,8 @@ class Product extends Model
         return $this->belongsToMany(
             Product::class,
             'product_compatibilities',
-            'compatible_product_id',
-            'product_id'
+            'compatible_phone_product_id',
+            'accessory_product_id'
         )->withPivot('note');
     }
 }

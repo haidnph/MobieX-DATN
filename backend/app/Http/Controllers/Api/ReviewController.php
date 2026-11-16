@@ -16,7 +16,9 @@ class ReviewController extends Controller
      */
     public function index(Request $request, int|string $productId): JsonResponse
     {
-        $product = Product::findOrFail($productId);
+        $product = is_numeric($productId)
+            ? Product::findOrFail((int) $productId)
+            : Product::where('slug', $productId)->firstOrFail();
 
         $query = Review::where('product_id', $product->id)
             ->where('status', 'approved')
@@ -37,7 +39,9 @@ class ReviewController extends Controller
      */
     public function store(Request $request, int|string $productId): JsonResponse
     {
-        $product = Product::findOrFail($productId);
+        $product = is_numeric($productId)
+            ? Product::findOrFail((int) $productId)
+            : Product::where('slug', $productId)->firstOrFail();
 
         $validated = $request->validate([
             'order_item_id' => ['required', 'integer', 'exists:order_items,id'],

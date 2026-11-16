@@ -263,7 +263,7 @@ function SearchDropdownPanel({
                 return (
                   <Link
                     key={item.id}
-                    to={`/products/${item.slug || item.id}`}
+                    to={`/products/${item.slug ?? item.id}`}
                     onClick={() => {
                       addRecentSearch(item.name)
                       onClose()
@@ -530,7 +530,7 @@ export default function Header() {
             if (prod) {
               addRecentSearch(prod.name)
               setShowSearchDropdown(false)
-              navigate(`/products/${prod.slug || prod.id}`)
+              navigate(`/products/${prod.slug ?? prod.id}`)
             }
           } else {
             // "View all" item selected

@@ -121,19 +121,16 @@ Route::get(
 Route::get(
     '/products/{id}/compatible-phones',
     [ProductCompatibilityController::class, 'index'],
-)->whereNumber('id')
-    ->name('api.products.compatible-phones.index');
+)->name('api.products.compatible-phones.index');
 Route::get(
     '/products/{id}',
     [ProductController::class, 'show'],
-)->whereNumber('id')
-    ->name('api.products.show');
+)->name('api.products.show');
 
 Route::get(
     '/products/{id}/reviews',
     [ReviewController::class, 'index'],
-)->whereNumber('id')
-    ->name('api.products.reviews.index');
+)->name('api.products.reviews.index');
 
 Route::get(
     '/product-variants',

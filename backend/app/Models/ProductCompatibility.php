@@ -14,18 +14,18 @@ class ProductCompatibility extends Model
     public $incrementing = false;
 
     protected $fillable = [
-        'product_id',
-        'compatible_product_id',
+        'accessory_product_id',
+        'compatible_phone_product_id',
         'note',
     ];
 
-    public function product(): BelongsTo
+    public function accessory(): BelongsTo
     {
-        return $this->belongsTo(Product::class, 'product_id');
+        return $this->belongsTo(Product::class, 'accessory_product_id');
     }
 
-    public function compatibleProduct(): BelongsTo
+    public function compatiblePhone(): BelongsTo
     {
-        return $this->belongsTo(Product::class, 'compatible_product_id');
+        return $this->belongsTo(Product::class, 'compatible_phone_product_id');
     }
 }

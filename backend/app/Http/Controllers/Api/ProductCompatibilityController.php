@@ -14,7 +14,9 @@ class ProductCompatibilityController extends Controller
      */
     public function index($id)
     {
-        $accessory = Product::find($id);
+        $accessory = is_numeric($id)
+            ? Product::find((int) $id)
+            : Product::where('slug', $id)->first();
 
         if (! $accessory) {
             return response()->json([
@@ -39,7 +41,9 @@ class ProductCompatibilityController extends Controller
      */
     public function store(Request $request, $id)
     {
-        $accessory = Product::find($id);
+        $accessory = is_numeric($id)
+            ? Product::find((int) $id)
+            : Product::where('slug', $id)->first();
 
         if (! $accessory) {
             return response()->json([
@@ -53,7 +57,7 @@ class ProductCompatibilityController extends Controller
             'note' => 'nullable|string|max:255',
         ]);
 
-        if ((int) $id === (int) $validated['compatible_product_id']) {
+        if ((int) $accessory->id === (int) $validated['compatible_product_id']) {
             return response()->json([
                 'status' => false,
                 'message' => 'Phụ kiện không thể tương thích với chính nó',
@@ -70,8 +74,8 @@ class ProductCompatibilityController extends Controller
         }
 
         $exists = DB::table('product_compatibilities')
-            ->where('product_id', $id)
-            ->where('compatible_product_id', $phone->id)
+            ->where('accessory_product_id', $accessory->id)
+            ->where('compatible_phone_product_id', $phone->id)
             ->exists();
 
         if ($exists) {
@@ -82,9 +86,10 @@ class ProductCompatibilityController extends Controller
         }
 
         DB::table('product_compatibilities')->insert([
-            'product_id' => $id,
-            'compatible_product_id' => $phone->id,
+            'accessory_product_id' => $accessory->id,
+            'compatible_phone_product_id' => $phone->id,
             'note' => $validated['note'] ?? null,
+            'created_at' => now(),
         ]);
 
         return response()->json([
@@ -98,13 +103,24 @@ class ProductCompatibilityController extends Controller
      */
     public function update(Request $request, $id, $phoneId)
     {
+        $accessory = is_numeric($id)
+            ? Product::find((int) $id)
+            : Product::where('slug', $id)->first();
+
+        if (! $accessory) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Không tìm thấy sản phẩm phụ kiện',
+            ], 404);
+        }
+
         $validated = $request->validate([
             'note' => 'present|nullable|string|max:255',
         ]);
 
         $updated = DB::table('product_compatibilities')
-            ->where('product_id', $id)
-            ->where('compatible_product_id', $phoneId)
+            ->where('accessory_product_id', $accessory->id)
+            ->where('compatible_phone_product_id', $phoneId)
             ->update([
                 'note' => $validated['note'],
             ]);
@@ -127,9 +143,20 @@ class ProductCompatibilityController extends Controller
      */
     public function destroy($id, $phoneId)
     {
+        $accessory = is_numeric($id)
+            ? Product::find((int) $id)
+            : Product::where('slug', $id)->first();
+
+        if (! $accessory) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Không tìm thấy sản phẩm phụ kiện',
+            ], 404);
+        }
+
         $deleted = DB::table('product_compatibilities')
-            ->where('product_id', $id)
-            ->where('compatible_product_id', $phoneId)
+            ->where('accessory_product_id', $accessory->id)
+            ->where('compatible_phone_product_id', $phoneId)
             ->delete();
 
         if (! $deleted) {
