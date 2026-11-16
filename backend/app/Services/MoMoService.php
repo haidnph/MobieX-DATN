@@ -146,7 +146,7 @@ class MoMoService
      * Verify Return Redirect Signature from MoMo.
      * Raw hash sequence: accessKey, amount, extraData, message, orderId, orderInfo, orderType, partnerCode, payType, requestId, responseTime, resultCode, transId
      *
-     * @param array<string, mixed> $params
+     * @param  array<string, mixed>  $params
      */
     public function verifyReturnSignature(array $params): bool
     {
@@ -177,7 +177,7 @@ class MoMoService
     /**
      * Verify IPN Webhook Callback Signature from MoMo.
      *
-     * @param array<string, mixed> $params
+     * @param  array<string, mixed>  $params
      */
     public function verifyCallbackSignature(array $params): bool
     {

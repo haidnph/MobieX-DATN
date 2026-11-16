@@ -18,6 +18,7 @@ class CartClearTest extends TestCase
     use RefreshDatabase;
 
     private User $user;
+
     private ProductVariant $variant;
 
     protected function setUp(): void

@@ -6,14 +6,9 @@ use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Inventory;
 use App\Models\InventoryTransaction;
-use App\Models\Order;
-use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\ProductVariant;
-use App\Models\Review;
-use App\Models\ShippingMethod;
-use App\Models\User;
 use Illuminate\Database\Seeder;
 
 /**
@@ -92,7 +87,7 @@ class ProductEdgeCaseSeeder extends Seeder
         $samsung = $brands->get('samsung');
         $phoneCat = $cats->get('dien-thoai');
 
-        $longText = str_repeat("MobieX Enterprise Edition mang lại trải nghiệm đỉnh cao cho doanh nghiệp với hiệu năng bứt phá, bảo mật đa lớp Knox và Apple Silicon, hỗ trợ cập nhật phần mềm liên tục trong vòng 7 năm. Thiết bị đáp ứng các tiêu chuẩn quân đội khắt khe nhất về độ bền và khả năng chống nước IP68. ", 6);
+        $longText = str_repeat('MobieX Enterprise Edition mang lại trải nghiệm đỉnh cao cho doanh nghiệp với hiệu năng bứt phá, bảo mật đa lớp Knox và Apple Silicon, hỗ trợ cập nhật phần mềm liên tục trong vòng 7 năm. Thiết bị đáp ứng các tiêu chuẩn quân đội khắt khe nhất về độ bền và khả năng chống nước IP68. ', 6);
 
         $items = [
             [
@@ -485,7 +480,7 @@ class ProductEdgeCaseSeeder extends Seeder
             $stock = ($i % 10 === 0) ? 0 : (($i % 7 === 0) ? 2 : (10 + ($i % 50)));
             $status = ($i % 25 === 0) ? 'inactive' : 'active';
 
-            $slug = "edge-test-item-{$i}-" . strtolower($brand->slug);
+            $slug = "edge-test-item-{$i}-".strtolower($brand->slug);
             $name = $isAccessory
                 ? "Phụ kiện {$brand->name} Edition {$i} Bảo Hành Chính Hãng"
                 : "Điện thoại {$brand->name} Model Turbo {$i} Series 5G";

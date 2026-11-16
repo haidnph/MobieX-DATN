@@ -2,12 +2,12 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Coupon;
 use App\Models\Order;
 use App\Models\Permission;
 use App\Models\Product;
-use App\Models\ProductVariant;
 use App\Models\Role;
 use App\Models\ShippingMethod;
 use App\Models\User;
@@ -19,6 +19,7 @@ class AdminOmnisearchTest extends TestCase
     use RefreshDatabase;
 
     private User $adminUser;
+
     private User $regularUser;
 
     protected function setUp(): void
@@ -81,7 +82,7 @@ class AdminOmnisearchTest extends TestCase
     public function test_admin_can_search_products_by_name(): void
     {
         $category = Category::factory()->create();
-        $brand = \App\Models\Brand::factory()->create();
+        $brand = Brand::factory()->create();
 
         $product = Product::create([
             'name' => 'iPhone 16 Pro Max 512GB',
@@ -107,7 +108,7 @@ class AdminOmnisearchTest extends TestCase
     {
         $shipping = ShippingMethod::create([
             'name' => 'Giao hàng',
-            'code' => 'STD_' . uniqid(),
+            'code' => 'STD_'.uniqid(),
             'fee' => 30000,
             'is_active' => true,
         ]);

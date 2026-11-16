@@ -4,7 +4,6 @@ namespace Tests\Feature\Admin;
 
 use App\Models\Brand;
 use App\Models\Category;
-use App\Models\Permission;
 use App\Models\Product;
 use App\Models\ProductSpecification;
 use App\Models\ProductSpecificationDefinition;
@@ -18,10 +17,15 @@ class ProductSpecificationSyncTest extends TestCase
     use RefreshDatabase;
 
     private User $adminUser;
+
     private User $regularUser;
+
     private Product $product;
+
     private ProductSpecificationDefinition $defCpu;
+
     private ProductSpecificationDefinition $defRam;
+
     private ProductSpecificationDefinition $defNfc;
 
     protected function setUp(): void

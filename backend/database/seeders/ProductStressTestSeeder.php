@@ -76,7 +76,7 @@ class ProductStressTestSeeder extends Seeder
                         $variant = ProductVariant::create([
                             'product_id' => $product->id,
                             'sku' => $sku,
-                            'option_signature' => "capacity:128gb",
+                            'option_signature' => 'capacity:128gb',
                             'price' => $price,
                             'compare_price' => $price + 500000,
                             'is_active' => true,

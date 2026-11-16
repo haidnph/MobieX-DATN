@@ -5,8 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Product extends Model
@@ -78,6 +78,7 @@ class Product extends Model
                     return (float) $maxCompare;
                 }
                 $maxPrice = $this->variants->max('price');
+
                 return ($maxPrice && (float) $maxPrice > 0) ? (float) $maxPrice : null;
             }
 

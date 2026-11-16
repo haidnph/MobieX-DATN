@@ -1,6 +1,5 @@
 <?php
 
-
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
@@ -149,7 +148,7 @@ class ProductImageController extends Controller
                     $path = $file->store('products', 'public');
                     $storedPaths[] = $path;
 
-                    $imageUrl = asset('storage/' . $path);
+                    $imageUrl = asset('storage/'.$path);
 
                     if ($primaryIndex !== null) {
                         $isPrimary = ($index === $primaryIndex);
@@ -234,7 +233,7 @@ class ProductImageController extends Controller
                     'public'
                 );
 
-                $validated['image_url'] = asset('storage/' . $newPath);
+                $validated['image_url'] = asset('storage/'.$newPath);
             }
 
             unset($validated['image']);
@@ -298,6 +297,7 @@ class ProductImageController extends Controller
 
             if (! empty($storagePath) && Storage::disk('public')->exists($storagePath)) {
                 Storage::disk('public')->delete($storagePath);
+
                 return;
             }
         }

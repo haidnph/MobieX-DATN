@@ -6,7 +6,6 @@ use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductImage;
-use App\Models\ProductVariant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -19,7 +18,9 @@ class ProductGalleryWorkflowTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private Brand $brand;
+
     private Category $category;
 
     protected function setUp(): void
@@ -126,7 +127,7 @@ class ProductGalleryWorkflowTest extends TestCase
             $path = $file->store('products', 'public');
             $initialImages[] = ProductImage::create([
                 'product_id' => $product->id,
-                'image_url' => asset('storage/' . $path),
+                'image_url' => asset('storage/'.$path),
                 'is_primary' => ($i === 0),
                 'sort_order' => $i,
             ]);

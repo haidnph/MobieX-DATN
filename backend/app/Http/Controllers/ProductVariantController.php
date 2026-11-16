@@ -1,6 +1,5 @@
 <?php
 
-
 namespace App\Http\Controllers;
 
 use App\Models\AttributeValue;
@@ -498,7 +497,7 @@ class ProductVariantController extends Controller
                 );
 
                 if ($attributePrefix && $attributeValueCode) {
-                    $otherCodes[] = $attributePrefix . $attributeValueCode;
+                    $otherCodes[] = $attributePrefix.$attributeValueCode;
                 }
             }
         }
@@ -526,7 +525,7 @@ class ProductVariantController extends Controller
         $counter = 2;
 
         while (ProductVariant::where('sku', $sku)->exists()) {
-            $sku = $baseSku . '-' . $counter;
+            $sku = $baseSku.'-'.$counter;
             $counter++;
         }
 

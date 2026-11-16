@@ -14,7 +14,9 @@ class VNPayReturnUrlTest extends TestCase
     use RefreshDatabase;
 
     private User $user;
+
     private Order $order;
+
     private VNPayService $vnpayService;
 
     protected function setUp(): void

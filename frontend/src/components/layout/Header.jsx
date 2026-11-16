@@ -16,6 +16,13 @@ import { useToast } from '../../contexts/ToastContext'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { useDebounce } from '../../hooks/useDebounce'
 import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
+import {
+  getRecentSearches,
+  addRecentSearch,
+  removeRecentSearch,
+  clearRecentSearches,
+  POPULAR_SEARCHES,
+} from '../../utils/searchHistory'
 import LanguageSelector from './LanguageSelector'
 import CategoryMegaMenu, {
   buildCategoryTree,
@@ -23,6 +30,310 @@ import CategoryMegaMenu, {
   getLocalizedCategoryName,
   CATEGORY_UI,
 } from './CategoryMegaMenu'
+
+/**
+ * Reusable dropdown for Search Autocomplete, Search History & Trending Searches.
+ */
+function SearchDropdownPanel({
+  searchQuery,
+  suggestions,
+  loadingSuggestions,
+  recentSearches,
+  selectedIndex,
+  onSelectSearch,
+  onSelectBrand,
+  onSelectCategory,
+  onRemoveHistory,
+  onClearHistory,
+  onClose,
+  lang,
+  isMobile = false,
+}) {
+  const isShortQuery = searchQuery.trim().length < 2
+  const products = suggestions.products || []
+  const brands = suggestions.brands || []
+  const categories = suggestions.categories || []
+  const total = suggestions.total || products.length
+
+  return (
+    <div
+      className={`absolute top-full left-0 right-0 mt-2 bg-surface-container-high/98 backdrop-blur-xl rounded-2xl shadow-2xl border border-outline-variant/30 overflow-hidden z-50 text-left ${
+        isMobile ? 'text-xs' : 'text-sm'
+      }`}
+    >
+      {/* ── CASE 1: Query < 2 (Lịch sử tìm kiếm & Xu hướng) ── */}
+      {isShortQuery ? (
+        <div className="p-3.5 space-y-4">
+          {recentSearches.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between text-xs text-on-surface-variant font-bold mb-2 px-1">
+                <span className="flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-sm text-primary">history</span>
+                  {lang === 'zh-CN' ? '最近搜索' : lang === 'en' ? 'Recent Searches' : 'Lịch sử tìm kiếm'}
+                </span>
+                <button
+                  type="button"
+                  onClick={onClearHistory}
+                  className="text-[11px] text-error hover:underline transition-colors font-medium"
+                >
+                  {lang === 'zh-CN' ? '清空' : lang === 'en' ? 'Clear all' : 'Xóa tất cả'}
+                </button>
+              </div>
+              <div className="space-y-0.5">
+                {recentSearches.map((item, idx) => {
+                  const isHighlighted = selectedIndex === idx
+                  return (
+                    <div
+                      key={item}
+                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-xl group transition-colors cursor-pointer ${
+                        isHighlighted
+                          ? 'bg-primary/10 text-primary font-bold'
+                          : 'hover:bg-surface-bright text-on-surface'
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => onSelectSearch(item)}
+                        className="flex items-center gap-2 flex-1 text-left min-w-0"
+                      >
+                        <span className="material-symbols-outlined text-sm text-outline group-hover:text-primary">
+                          history
+                        </span>
+                        <span className="truncate text-xs">{item}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onRemoveHistory(item)
+                        }}
+                        className="p-1 text-outline hover:text-error opacity-60 group-hover:opacity-100 transition-opacity"
+                        aria-label={`Xóa ${item} khỏi lịch sử`}
+                      >
+                        <span className="material-symbols-outlined text-xs">close</span>
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Popular searches section */}
+          <div>
+            <div className="flex items-center gap-1.5 text-xs text-on-surface-variant font-bold mb-2.5 px-1">
+              <span className="material-symbols-outlined text-sm text-tertiary">trending_up</span>
+              <span>{lang === 'zh-CN' ? '热门搜索' : lang === 'en' ? 'Trending Searches' : 'Xu hướng tìm kiếm'}</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {POPULAR_SEARCHES.map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => onSelectSearch(tag)}
+                  className="px-3 py-1 rounded-full text-xs font-semibold bg-surface-container hover:bg-primary hover:text-on-primary text-on-surface-variant border border-outline-variant/20 transition-all flex items-center gap-1"
+                >
+                  <span>{tag}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* ── CASE 2: Query >= 2 (Autocomplete Results) ── */
+        <div>
+          {/* Header bar */}
+          <div className="px-4 py-2 border-b border-outline-variant/20 flex items-center justify-between text-xs text-on-surface-variant font-medium bg-surface-container/40">
+            <span>
+              {lang === 'zh-CN' ? '搜索建议' : lang === 'en' ? 'Suggestions' : 'Gợi ý tìm kiếm'} ({total})
+            </span>
+            {loadingSuggestions && (
+              <span className="flex items-center gap-1.5 text-primary text-[11px]">
+                <span className="inline-block w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                {lang === 'zh-CN' ? '正在搜索...' : lang === 'en' ? 'Searching...' : 'Đang tìm...'}
+              </span>
+            )}
+          </div>
+
+          {/* Typo Correction Suggestion */}
+          {suggestions.has_typo && suggestions.suggested_query && (
+            <div className="px-3.5 py-2 bg-primary/10 border-b border-primary/20 flex items-center justify-between gap-2 text-xs">
+              <span className="flex items-center gap-1.5 text-on-surface">
+                <span className="material-symbols-outlined text-primary text-sm">auto_fix_high</span>
+                <span>
+                  Có phải bạn muốn tìm:{' '}
+                  <strong className="text-primary">&ldquo;{suggestions.suggested_query}&rdquo;</strong>?
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={() => onSelectSearch(suggestions.suggested_query)}
+                className="text-[11px] font-bold text-primary hover:underline cursor-pointer"
+              >
+                Chọn từ này
+              </button>
+            </div>
+          )}
+
+          {/* Model Alias Pill */}
+          {suggestions.model_alias && (
+            <div className="px-3.5 py-1.5 bg-secondary-container/40 border-b border-secondary/20 flex items-center gap-1.5 text-xs text-on-secondary-container font-medium">
+              <span className="material-symbols-outlined text-secondary text-sm">smartphone</span>
+              <span>
+                Thiết bị nhận diện: <strong className="text-on-surface">{suggestions.model_alias}</strong>
+              </span>
+            </div>
+          )}
+
+          {/* Quick matching brands and categories chips */}
+          {(brands.length > 0 || categories.length > 0) && (
+            <div className="px-3.5 py-2.5 border-b border-outline-variant/15 bg-surface-container-low/50 flex flex-wrap gap-1.5 items-center">
+              <span className="text-[11px] text-on-surface-variant font-bold mr-1">Khám phá:</span>
+              {brands.map((b) => (
+                <button
+                  key={`brand-${b.id}`}
+                  type="button"
+                  onClick={() => onSelectBrand(b)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-secondary-container/70 text-on-secondary-container hover:bg-secondary-container transition-colors border border-secondary/20"
+                >
+                  <span className="material-symbols-outlined text-xs">verified</span>
+                  <span>{b.name}</span>
+                </button>
+              ))}
+              {categories.map((c) => (
+                <button
+                  key={`cat-${c.id}`}
+                  type="button"
+                  onClick={() => onSelectCategory(c)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-tertiary-container/70 text-on-tertiary-container hover:bg-tertiary-container transition-colors border border-tertiary/20"
+                >
+                  <span className="material-symbols-outlined text-xs">category</span>
+                  <span>{c.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Loading empty state */}
+          {loadingSuggestions && products.length === 0 ? (
+            <div className="py-8 text-center text-xs text-on-surface-variant flex flex-col items-center justify-center gap-2">
+              <span className="inline-block w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              <span>Đang tìm sản phẩm phù hợp...</span>
+            </div>
+          ) : products.length === 0 && brands.length === 0 && categories.length === 0 ? (
+            /* Zero results empty notice */
+            <div className="py-7 px-4 text-center">
+              <div className="w-10 h-10 rounded-xl bg-surface-container mx-auto flex items-center justify-center text-outline mb-2">
+                <span className="material-symbols-outlined text-xl">search_off</span>
+              </div>
+              <p className="text-xs font-bold text-on-surface mb-1">
+                Không tìm thấy sản phẩm khớp với &ldquo;{searchQuery}&rdquo;
+              </p>
+              <p className="text-[11px] text-on-surface-variant mb-3">
+                Thử kiểm tra lỗi chính tả hoặc tìm theo thương hiệu/danh mục khác.
+              </p>
+              <div className="flex flex-wrap justify-center gap-1.5">
+                {POPULAR_SEARCHES.slice(0, 4).map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => onSelectSearch(tag)}
+                    className="px-2.5 py-0.5 rounded-full text-[11px] bg-surface-container hover:bg-primary hover:text-on-primary text-on-surface-variant transition-colors"
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            /* Products list */
+            <div className="divide-y divide-outline-variant/10 max-h-80 overflow-y-auto">
+              {products.map((item, idx) => {
+                const img =
+                  item.images?.find((i) => i.is_primary)?.image_path ||
+                  item.thumbnail ||
+                  item.images?.[0]?.image_path
+                const price =
+                  item.min_price ||
+                  item.price ||
+                  item.base_price ||
+                  item.variants?.[0]?.price
+                const isHighlighted = selectedIndex === idx
+
+                return (
+                  <Link
+                    key={item.id}
+                    to={`/products/${item.slug || item.id}`}
+                    onClick={() => {
+                      addRecentSearch(item.name)
+                      onClose()
+                    }}
+                    className={`flex items-center gap-3 px-4 py-2.5 transition-colors group ${
+                      isHighlighted ? 'bg-primary/10 ring-1 ring-primary/30' : 'hover:bg-surface-bright'
+                    }`}
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-surface-container shrink-0 overflow-hidden border border-outline-variant/20 flex items-center justify-center p-1">
+                      {img ? (
+                        <img
+                          src={img}
+                          alt={item.name}
+                          className="w-full h-full object-contain"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <span className="material-symbols-outlined text-outline text-lg">
+                          smartphone
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-on-surface truncate group-hover:text-primary transition-colors">
+                        {item.name}
+                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {price && (
+                          <span className="text-[11px] font-extrabold text-primary">
+                            {formatCurrencyVND(price)}
+                          </span>
+                        )}
+                        {item.brand?.name && (
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-surface-container text-on-surface-variant font-medium">
+                            {item.brand.name}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="material-symbols-outlined text-outline group-hover:text-primary text-base">
+                      chevron_right
+                    </span>
+                  </Link>
+                )
+              })}
+            </div>
+          )}
+
+          {/* View all button */}
+          <button
+            type="button"
+            onClick={() => onSelectSearch(searchQuery)}
+            className={`w-full px-4 py-2.5 text-xs text-primary font-bold text-center border-t border-outline-variant/20 transition-colors flex items-center justify-center gap-1.5 ${
+              selectedIndex === products.length
+                ? 'bg-primary text-on-primary'
+                : 'bg-surface-container-low hover:bg-surface-container'
+            }`}
+          >
+            <span>
+              {lang === 'zh-CN' ? '查看全部结果' : lang === 'en' ? 'View all results for' : 'Xem tất cả kết quả cho'} &ldquo;{searchQuery}&rdquo; {total > 0 ? `(${total})` : ''}
+            </span>
+            <span className="material-symbols-outlined text-sm">
+              arrow_forward
+            </span>
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function Header() {
   const { user, logout, isAdmin } = useAuth()
@@ -44,9 +355,16 @@ export default function Header() {
   const [mobileCatOpen, setMobileCatOpen] = useState(false)
 
   // Autocomplete search states
-  const [searchSuggestions, setSearchSuggestions] = useState([])
+  const [searchSuggestions, setSearchSuggestions] = useState({
+    products: [],
+    brands: [],
+    categories: [],
+    total: 0,
+  })
   const [loadingSuggestions, setLoadingSuggestions] = useState(false)
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
+  const [recentSearches, setRecentSearches] = useState(() => getRecentSearches())
+  const [selectedIndex, setSelectedIndex] = useState(-1)
 
   // Voice Search states
   const [isListening, setIsListening] = useState(false)
@@ -55,7 +373,10 @@ export default function Header() {
   const userMenuRef = useRef(null)
   const categoryMenuRef = useRef(null)
   const searchRef = useRef(null)
+  const searchInputRef = useRef(null)
   const mobileSearchRef = useRef(null)
+  const mobileSearchInputRef = useRef(null)
+  const abortControllerRef = useRef(null)
 
   const debouncedSearch = useDebounce(searchQuery, 300)
 
@@ -67,38 +388,159 @@ export default function Header() {
       .catch(() => {})
   }, [])
 
-  // Live autocomplete search query
+  // Global "/" hotkey to focus search
+  useEffect(() => {
+    const handleGlobalSlash = (e) => {
+      if (
+        e.key === '/' &&
+        !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) &&
+        !document.activeElement?.isContentEditable
+      ) {
+        e.preventDefault()
+        if (window.innerWidth >= 1024) {
+          searchInputRef.current?.focus()
+        } else {
+          mobileSearchInputRef.current?.focus()
+        }
+        setShowSearchDropdown(true)
+      }
+    }
+    window.addEventListener('keydown', handleGlobalSlash)
+    return () => window.removeEventListener('keydown', handleGlobalSlash)
+  }, [])
+
+  // Live autocomplete search query with AbortController
   useEffect(() => {
     const query = debouncedSearch.trim()
     if (query.length < 2) {
-      setSearchSuggestions([])
-      setShowSearchDropdown(false)
+      setSearchSuggestions({ products: [], brands: [], categories: [], total: 0 })
+      setSelectedIndex(-1)
       return
     }
 
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
     setLoadingSuggestions(true)
     setShowSearchDropdown(true)
+    setSelectedIndex(-1)
+
     axiosClient
-      .get(EP.PRODUCTS, { params: { keyword: query, per_page: 5 } })
+      .get(EP.PRODUCTS, {
+        params: { keyword: query, suggest: 1, per_page: 5, status: 'active' },
+        signal: controller.signal,
+      })
       .then(({ data }) => {
         const payload = data.data ?? data
-        const items = Array.isArray(payload) ? payload : payload.data ?? []
-        setSearchSuggestions(items)
+        if (
+          payload &&
+          typeof payload === 'object' &&
+          ('products' in payload || 'brands' in payload)
+        ) {
+          setSearchSuggestions({
+            products: payload.products ?? [],
+            brands: payload.brands ?? [],
+            categories: payload.categories ?? [],
+            total: payload.total ?? (payload.products?.length || 0),
+            intent: payload.intent ?? null,
+            has_typo: payload.has_typo ?? false,
+            suggested_query: payload.suggested_query ?? null,
+            model_alias: payload.model_alias ?? null,
+          })
+        } else {
+          const items = Array.isArray(payload) ? payload : payload.data ?? []
+          setSearchSuggestions({
+            products: items,
+            brands: [],
+            categories: [],
+            total: items.length,
+            intent: null,
+            has_typo: false,
+            suggested_query: null,
+            model_alias: null,
+          })
+        }
       })
-      .catch(() => {
-        setSearchSuggestions([])
+      .catch((err) => {
+        if (err?.code !== 'ERR_CANCELED' && err?.name !== 'CanceledError') {
+          setSearchSuggestions({ products: [], brands: [], categories: [], total: 0 })
+        }
       })
       .finally(() => {
         setLoadingSuggestions(false)
       })
+
+    return () => {
+      controller.abort()
+    }
   }, [debouncedSearch])
+
+  // Execute search and save to history
+  const executeSearch = (query) => {
+    const clean = typeof query === 'string' ? query.trim() : ''
+    if (!clean) return
+    addRecentSearch(clean)
+    setRecentSearches(getRecentSearches())
+    setShowSearchDropdown(false)
+    setSelectedIndex(-1)
+    navigate(`/products?q=${encodeURIComponent(clean)}`)
+  }
 
   // Handle search submission
   const handleSearch = (e) => {
     e.preventDefault()
-    setShowSearchDropdown(false)
-    if (searchQuery.trim()) {
-      navigate(`/products?q=${encodeURIComponent(searchQuery.trim())}`)
+    executeSearch(searchQuery)
+  }
+
+  // Handle keyboard navigation inside search input
+  const handleSearchKeyDown = (e) => {
+    if (!showSearchDropdown) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        setShowSearchDropdown(true)
+      }
+      return
+    }
+
+    const isShortQuery = searchQuery.trim().length < 2
+    const productsCount = searchSuggestions.products?.length || 0
+    const totalItems = isShortQuery ? recentSearches.length : productsCount + 1
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      if (totalItems > 0) {
+        setSelectedIndex((prev) => (prev + 1 >= totalItems ? 0 : prev + 1))
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      if (totalItems > 0) {
+        setSelectedIndex((prev) => (prev <= 0 ? totalItems - 1 : prev - 1))
+      }
+    } else if (e.key === 'Enter') {
+      if (selectedIndex >= 0) {
+        e.preventDefault()
+        if (isShortQuery) {
+          const selected = recentSearches[selectedIndex]
+          if (selected) executeSearch(selected)
+        } else {
+          if (selectedIndex < productsCount) {
+            const prod = searchSuggestions.products[selectedIndex]
+            if (prod) {
+              addRecentSearch(prod.name)
+              setShowSearchDropdown(false)
+              navigate(`/products/${prod.slug || prod.id}`)
+            }
+          } else {
+            // "View all" item selected
+            executeSearch(searchQuery)
+          }
+        }
+      }
+    } else if (e.key === 'Escape') {
+      setShowSearchDropdown(false)
+      setSelectedIndex(-1)
     }
   }
 
@@ -182,16 +624,17 @@ export default function Header() {
       if (
         searchRef.current &&
         !searchRef.current.contains(e.target) &&
-        mobileSearchRef.current &&
-        !mobileSearchRef.current.contains(e.target)
+        (!mobileSearchRef.current || !mobileSearchRef.current.contains(e.target))
       ) {
         setShowSearchDropdown(false)
+        setSelectedIndex(-1)
       }
     }
 
     const keyHandler = (e) => {
       if (e.key === 'Escape') {
         setShowSearchDropdown(false)
+        setSelectedIndex(-1)
         setUserMenuOpen(false)
         setCategoryMenuOpen(false)
         setMobileMenuOpen(false)
@@ -229,7 +672,7 @@ export default function Header() {
             </span>
           </Link>
 
-          {/* 2. Flexible Search Bar with Autocomplete & Voice Search */}
+          {/* 2. Flexible Search Bar with Autocomplete, History & Voice Search */}
           <div
             ref={searchRef}
             className="relative flex-1 max-w-md xl:max-w-xl mx-1"
@@ -240,36 +683,33 @@ export default function Header() {
                   search
                 </span>
                 <input
+                  ref={searchInputRef}
                   type="text"
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value)
-                    if (
-                      !showSearchDropdown &&
-                      e.target.value.trim().length >= 2
-                    ) {
-                      setShowSearchDropdown(true)
-                    }
+                    setSelectedIndex(-1)
+                    if (!showSearchDropdown) setShowSearchDropdown(true)
                   }}
                   onFocus={() => {
-                    if (
-                      searchSuggestions.length > 0 ||
-                      searchQuery.trim().length >= 2
-                    ) {
-                      setShowSearchDropdown(true)
-                    }
+                    setShowSearchDropdown(true)
+                    setSelectedIndex(-1)
                   }}
+                  onKeyDown={handleSearchKeyDown}
                   className="w-full bg-transparent text-sm text-on-surface placeholder:text-outline/80 focus:outline-none"
-                  placeholder={lang === 'zh-CN' ? '搜索商品...' : lang === 'en' ? 'Search for products...' : 'Tìm kiếm sản phẩm...'}
+                  placeholder={lang === 'zh-CN' ? '搜索商品... (按 / 聚焦)' : lang === 'en' ? 'Search products... (Press /)' : 'Tìm kiếm sản phẩm... (Nhấn /)'}
                   aria-label={lang === 'zh-CN' ? '搜索商品' : lang === 'en' ? 'Search products' : 'Tìm kiếm sản phẩm'}
                 />
+                <kbd className="hidden xl:inline-block px-1.5 py-0.5 text-[10px] font-mono font-semibold text-outline bg-surface-container rounded border border-outline-variant/30 mr-1 select-none">
+                  /
+                </kbd>
                 {searchQuery && (
                   <button
                     type="button"
                     onClick={() => {
                       setSearchQuery('')
-                      setSearchSuggestions([])
-                      setShowSearchDropdown(false)
+                      setSearchSuggestions({ products: [], brands: [], categories: [], total: 0 })
+                      setSelectedIndex(-1)
                     }}
                     className="text-outline hover:text-on-surface text-sm ml-1 p-0.5 rounded-md transition-colors"
                     aria-label="Xóa từ khóa tìm kiếm"
@@ -302,102 +742,40 @@ export default function Header() {
               </div>
             </form>
 
-            {/* Live Autocomplete Dropdown */}
-            {showSearchDropdown && searchQuery.trim().length >= 2 && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-surface-container-high/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-outline-variant/30 overflow-hidden z-50">
-                <div className="px-4 py-2.5 border-b border-outline-variant/20 flex items-center justify-between text-xs text-on-surface-variant font-medium">
-                  <span>{lang === 'zh-CN' ? '搜索建议' : lang === 'en' ? 'Search Suggestions' : 'Gợi ý tìm kiếm'} ({searchSuggestions.length})</span>
-                  {loadingSuggestions && (
-                    <span className="flex items-center gap-1.5 text-primary">
-                      <span className="inline-block w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                      {lang === 'zh-CN' ? '正在搜索...' : lang === 'en' ? 'Searching...' : 'Đang tìm...'}
-                    </span>
-                  )}
-                </div>
-
-                {loadingSuggestions && searchSuggestions.length === 0 ? (
-                  <div className="py-6 text-center text-xs text-on-surface-variant">
-                    Đang tìm sản phẩm phù hợp...
-                  </div>
-                ) : searchSuggestions.length === 0 ? (
-                  <div className="py-6 px-4 text-center text-xs text-on-surface-variant">
-                    Không tìm thấy sản phẩm nào khớp với &ldquo;
-                    {searchQuery}&rdquo;
-                  </div>
-                ) : (
-                  <div className="divide-y divide-outline-variant/10 max-h-80 overflow-y-auto">
-                    {searchSuggestions.map((item) => {
-                      const img =
-                        item.images?.find((i) => i.is_primary)?.image_path ||
-                        item.thumbnail ||
-                        item.images?.[0]?.image_path
-                      const price =
-                        item.min_price ||
-                        item.price ||
-                        item.base_price ||
-                        item.variants?.[0]?.price
-                      return (
-                        <Link
-                          key={item.id}
-                          to={`/products/${item.slug || item.id}`}
-                          onClick={() => {
-                            setShowSearchDropdown(false)
-                            setSearchQuery('')
-                          }}
-                          className="flex items-center gap-3 px-4 py-2.5 hover:bg-surface-bright transition-colors group"
-                        >
-                          <div className="w-10 h-10 rounded-xl bg-surface-container-low shrink-0 overflow-hidden border border-outline-variant/30 flex items-center justify-center p-1">
-                            {img ? (
-                              <img
-                                src={img}
-                                alt={item.name}
-                                className="w-full h-full object-contain"
-                              />
-                            ) : (
-                              <span className="material-symbols-outlined text-outline text-lg">
-                                smartphone
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold text-on-surface truncate group-hover:text-primary transition-colors">
-                              {item.name}
-                            </p>
-                            {price && (
-                              <p className="text-[11px] font-bold text-primary">
-                                {formatCurrencyVND(price)}
-                              </p>
-                            )}
-                          </div>
-                          <span className="material-symbols-outlined text-outline-variant group-hover:text-primary text-base">
-                            chevron_right
-                          </span>
-                        </Link>
-                      )
-                    })}
-                  </div>
-                )}
-
-                {searchQuery.trim() && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowSearchDropdown(false)
-                      navigate(
-                        `/products?q=${encodeURIComponent(searchQuery.trim())}`
-                      )
-                    }}
-                    className="w-full px-4 py-2.5 bg-surface-container-low hover:bg-surface-container text-xs text-primary font-semibold text-center border-t border-outline-variant/20 transition-colors flex items-center justify-center gap-1"
-                  >
-                    <span>
-                      {lang === 'zh-CN' ? '查看全部结果' : lang === 'en' ? 'View all results for' : 'Xem tất cả kết quả cho'} &ldquo;{searchQuery}&rdquo;
-                    </span>
-                    <span className="material-symbols-outlined text-sm">
-                      arrow_forward
-                    </span>
-                  </button>
-                )}
-              </div>
+            {/* Smart Search Dropdown (History / Popular / Autocomplete) */}
+            {showSearchDropdown && (
+              <SearchDropdownPanel
+                searchQuery={searchQuery}
+                suggestions={searchSuggestions}
+                loadingSuggestions={loadingSuggestions}
+                recentSearches={recentSearches}
+                selectedIndex={selectedIndex}
+                onSelectSearch={executeSearch}
+                onSelectBrand={(brand) => {
+                  addRecentSearch(brand.name)
+                  setRecentSearches(getRecentSearches())
+                  setShowSearchDropdown(false)
+                  navigate(`/products?brand_id=${brand.id}`)
+                }}
+                onSelectCategory={(cat) => {
+                  addRecentSearch(cat.name)
+                  setRecentSearches(getRecentSearches())
+                  setShowSearchDropdown(false)
+                  navigate(`/products?category_id=${cat.id}`)
+                }}
+                onRemoveHistory={(term) => {
+                  setRecentSearches(removeRecentSearch(term))
+                }}
+                onClearHistory={() => {
+                  setRecentSearches(clearRecentSearches())
+                }}
+                onClose={() => {
+                  setShowSearchDropdown(false)
+                  setSelectedIndex(-1)
+                }}
+                lang={lang}
+                isMobile={false}
+              />
             )}
           </div>
 
@@ -689,22 +1067,19 @@ export default function Header() {
                 search
               </span>
               <input
+                ref={mobileSearchInputRef}
                 type="text"
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value)
-                  if (!showSearchDropdown && e.target.value.trim().length >= 2) {
-                    setShowSearchDropdown(true)
-                  }
+                  setSelectedIndex(-1)
+                  if (!showSearchDropdown) setShowSearchDropdown(true)
                 }}
                 onFocus={() => {
-                  if (
-                    searchSuggestions.length > 0 ||
-                    searchQuery.trim().length >= 2
-                  ) {
-                    setShowSearchDropdown(true)
-                  }
+                  setShowSearchDropdown(true)
+                  setSelectedIndex(-1)
                 }}
+                onKeyDown={handleSearchKeyDown}
                 className="w-full bg-transparent text-xs text-on-surface placeholder:text-outline focus:outline-none"
                 placeholder={lang === 'zh-CN' ? '搜索商品...' : lang === 'en' ? 'Search for products...' : 'Tìm kiếm sản phẩm...'}
                 aria-label={lang === 'zh-CN' ? '搜索商品' : lang === 'en' ? 'Search products' : 'Tìm kiếm sản phẩm'}
@@ -714,8 +1089,8 @@ export default function Header() {
                   type="button"
                   onClick={() => {
                     setSearchQuery('')
-                    setSearchSuggestions([])
-                    setShowSearchDropdown(false)
+                    setSearchSuggestions({ products: [], brands: [], categories: [], total: 0 })
+                    setSelectedIndex(-1)
                   }}
                   className="text-outline hover:text-on-surface text-sm ml-1 p-0.5"
                   aria-label="Xóa từ khóa"
@@ -742,46 +1117,40 @@ export default function Header() {
             </div>
           </form>
 
-          {/* Mobile Autocomplete Dropdown */}
-          {showSearchDropdown && searchQuery.trim().length >= 2 && (
-            <div className="absolute top-full left-0 right-0 mt-1.5 bg-surface-container-high rounded-2xl shadow-2xl border border-outline-variant/30 overflow-hidden z-50">
-              <div className="px-3.5 py-2 border-b border-outline-variant/20 flex items-center justify-between text-[11px] text-on-surface-variant font-medium">
-                <span>{lang === 'zh-CN' ? '搜索建议' : lang === 'en' ? 'Search' : 'Gợi ý'} ({searchSuggestions.length})</span>
-                {loadingSuggestions && (
-                  <span className="text-primary text-[10px]">{lang === 'zh-CN' ? '正在搜索...' : lang === 'en' ? 'Searching...' : 'Đang tìm...'}</span>
-                )}
-              </div>
-              {searchSuggestions.slice(0, 4).map((item) => (
-                <Link
-                  key={item.id}
-                  to={`/products/${item.slug || item.id}`}
-                  onClick={() => {
-                    setShowSearchDropdown(false)
-                    setSearchQuery('')
-                  }}
-                  className="flex items-center gap-2.5 px-3 py-2 hover:bg-surface-bright text-xs text-on-surface border-b border-outline-variant/10"
-                >
-                  <span className="truncate flex-1 font-semibold">
-                    {item.name}
-                  </span>
-                  <span className="material-symbols-outlined text-xs text-outline">
-                    arrow_forward
-                  </span>
-                </Link>
-              ))}
-              <button
-                type="button"
-                onClick={() => {
-                  setShowSearchDropdown(false)
-                  navigate(
-                    `/products?q=${encodeURIComponent(searchQuery.trim())}`
-                  )
-                }}
-                className="w-full px-3 py-2 text-center text-xs text-primary font-bold bg-surface-container-low hover:bg-surface-container"
-              >
-                {lang === 'zh-CN' ? '查看全部结果 →' : lang === 'en' ? 'View all results →' : 'Xem tất cả kết quả →'}
-              </button>
-            </div>
+          {/* Mobile Autocomplete / History Dropdown */}
+          {showSearchDropdown && (
+            <SearchDropdownPanel
+              searchQuery={searchQuery}
+              suggestions={searchSuggestions}
+              loadingSuggestions={loadingSuggestions}
+              recentSearches={recentSearches}
+              selectedIndex={selectedIndex}
+              onSelectSearch={executeSearch}
+              onSelectBrand={(brand) => {
+                addRecentSearch(brand.name)
+                setRecentSearches(getRecentSearches())
+                setShowSearchDropdown(false)
+                navigate(`/products?brand_id=${brand.id}`)
+              }}
+              onSelectCategory={(cat) => {
+                addRecentSearch(cat.name)
+                setRecentSearches(getRecentSearches())
+                setShowSearchDropdown(false)
+                navigate(`/products?category_id=${cat.id}`)
+              }}
+              onRemoveHistory={(term) => {
+                setRecentSearches(removeRecentSearch(term))
+              }}
+              onClearHistory={() => {
+                setRecentSearches(clearRecentSearches())
+              }}
+              onClose={() => {
+                setShowSearchDropdown(false)
+                setSelectedIndex(-1)
+              }}
+              lang={lang}
+              isMobile={true}
+            />
           )}
         </div>
       </div>

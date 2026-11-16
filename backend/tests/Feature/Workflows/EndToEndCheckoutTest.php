@@ -5,6 +5,7 @@ namespace Tests\Feature\Workflows;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Inventory;
+use App\Models\OrderItem;
 use App\Models\Permission;
 use App\Models\Product;
 use App\Models\ProductVariant;
@@ -20,10 +21,15 @@ class EndToEndCheckoutTest extends TestCase
     use RefreshDatabase;
 
     private User $customer;
+
     private User $admin;
+
     private Product $product;
+
     private ProductVariant $variant;
+
     private Inventory $inventory;
+
     private ShippingMethod $shippingMethod;
 
     protected function setUp(): void
@@ -151,7 +157,7 @@ class EndToEndCheckoutTest extends TestCase
         // ── Step 5: Customer leaves a 5-star review for the delivered product ──
         Sanctum::actingAs($this->customer);
 
-        $orderItem = \App\Models\OrderItem::where('order_id', $orderId)->first();
+        $orderItem = OrderItem::where('order_id', $orderId)->first();
         $this->assertNotNull($orderItem);
 
         $reviewRes = $this->postJson("/api/products/{$this->product->id}/reviews", [

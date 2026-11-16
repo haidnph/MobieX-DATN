@@ -1,13 +1,15 @@
 <?php
 
-
 namespace App\Http\Controllers;
 
+use App\Models\Brand;
 use App\Models\Category;
 use App\Models\InventoryTransaction;
 use App\Models\Product;
+use App\Models\ProductSpecification;
 use App\Models\ProductSpecificationDefinition;
 use App\Models\ProductVariant;
+use App\Services\Search\SearchIntentParser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -46,7 +48,7 @@ class ProductController extends Controller
         $suffix = 1;
 
         while (ProductVariant::where('sku', $sku)->exists()) {
-            $sku = $baseSku . '-' . $suffix;
+            $sku = $baseSku.'-'.$suffix;
             $suffix++;
         }
 
@@ -115,9 +117,163 @@ class ProductController extends Controller
             'quantity' => $quantity,
             'reference_type' => 'product_update',
             'reference_id' => $productId,
-            'idempotency_key' => 'tx_' . (string) Str::uuid(),
+            'idempotency_key' => 'tx_'.(string) Str::uuid(),
             'note' => $note,
         ]);
+    }
+
+    /**
+     * Trả về gợi ý đa tầng (sản phẩm, thương hiệu, danh mục, bí danh, sửa lỗi) cho autocomplete.
+     */
+    private function searchSuggestions(string $rawKeyword)
+    {
+        $keyword = trim($rawKeyword);
+        $parser = new SearchIntentParser;
+        $intent = $parser->parse($keyword);
+
+        $effectiveTerm = $intent->modelAlias ?: ($intent->normalizedQuery ?: $keyword);
+        $cleanLower = mb_strtolower($effectiveTerm, 'UTF-8');
+        $slugKeyword = Str::slug($effectiveTerm);
+        $tokens = ! empty($intent->searchTokens) ? $intent->searchTokens : array_filter(preg_split('/\s+/', $effectiveTerm), fn ($t) => mb_strlen($t) > 0);
+
+        // 1. Gợi ý thương hiệu trùng khớp (kể cả brand từ intent)
+        $brandQuery = Brand::query()->where('is_active', true);
+        if ($intent->brandId) {
+            $brandQuery->where(function ($bq) use ($intent, $keyword, $slugKeyword) {
+                $bq->where('id', $intent->brandId)
+                    ->orWhere('name', 'like', "%{$keyword}%")
+                    ->orWhere('slug', 'like', "%{$slugKeyword}%");
+            });
+        } else {
+            $brandQuery->where(function ($bq) use ($keyword, $slugKeyword) {
+                $bq->where('name', 'like', "%{$keyword}%")
+                    ->orWhere('slug', 'like', "%{$slugKeyword}%");
+            });
+        }
+        $brands = $brandQuery
+            ->withCount(['products' => fn ($pq) => $pq->where('status', 'active')])
+            ->limit(3)
+            ->get(['id', 'name', 'slug', 'logo_path']);
+
+        // 2. Gợi ý danh mục trùng khớp (kể cả category từ intent)
+        $categoryQuery = Category::query()->where('is_active', true);
+        if ($intent->categoryId) {
+            $categoryQuery->where(function ($cq) use ($intent, $keyword, $slugKeyword) {
+                $cq->where('id', $intent->categoryId)
+                    ->orWhere('name', 'like', "%{$keyword}%")
+                    ->orWhere('slug', 'like', "%{$slugKeyword}%");
+            });
+        } else {
+            $categoryQuery->where(function ($cq) use ($keyword, $slugKeyword) {
+                $cq->where('name', 'like', "%{$keyword}%")
+                    ->orWhere('slug', 'like', "%{$slugKeyword}%");
+            });
+        }
+        $categories = $categoryQuery
+            ->withCount(['products' => fn ($pq) => $pq->where('status', 'active')])
+            ->limit(3)
+            ->get(['id', 'name', 'slug', 'parent_id']);
+
+        // 3. Gợi ý sản phẩm phù hợp nhất (áp dụng relevance ranking)
+        $productQuery = Product::query()
+            ->where('status', 'active');
+
+        // Apply detected brand/category if found
+        if ($intent->brandId) {
+            $productQuery->where('brand_id', $intent->brandId);
+        }
+        if ($intent->categoryId) {
+            $catIds = $this->getAllCategoryIdsRecursively($intent->categoryId);
+            $productQuery->whereIn('category_id', $catIds);
+        }
+
+        // Apply search keyword matching
+        if ($effectiveTerm !== '') {
+            $productQuery->where(function ($sub) use ($effectiveTerm, $tokens, $slugKeyword, $keyword) {
+                $sub->where(function ($phraseQuery) use ($effectiveTerm, $slugKeyword, $keyword) {
+                    $phraseQuery->where('products.name', 'like', "%{$effectiveTerm}%")
+                        ->orWhere('products.slug', 'like', "%{$effectiveTerm}%")
+                        ->orWhere('products.description', 'like', "%{$effectiveTerm}%")
+                        ->orWhereHas('brand', fn ($b) => $b->where('name', 'like', "%{$effectiveTerm}%"))
+                        ->orWhereHas('category', fn ($c) => $c->where('name', 'like', "%{$effectiveTerm}%"))
+                        ->orWhereHas('variants', fn ($v) => $v->where('sku', 'like', "%{$effectiveTerm}%"));
+
+                    if ($keyword !== $effectiveTerm) {
+                        $phraseQuery->orWhere('products.name', 'like', "%{$keyword}%");
+                    }
+                    if ($slugKeyword && $slugKeyword !== $effectiveTerm) {
+                        $phraseQuery->orWhere('products.slug', 'like', "%{$slugKeyword}%");
+                    }
+                });
+
+                if (count($tokens) > 1) {
+                    $sub->orWhere(function ($tokenQuery) use ($tokens) {
+                        foreach ($tokens as $token) {
+                            $tokenSlug = Str::slug($token);
+                            $tokenQuery->where(function ($q) use ($token, $tokenSlug) {
+                                $q->where('products.name', 'like', "%{$token}%")
+                                    ->orWhere('products.description', 'like', "%{$token}%")
+                                    ->orWhere('products.slug', 'like', "%{$tokenSlug}%")
+                                    ->orWhereHas('brand', fn ($b) => $b->where('name', 'like', "%{$token}%"))
+                                    ->orWhereHas('category', fn ($c) => $c->where('name', 'like', "%{$token}%"))
+                                    ->orWhereHas('variants', fn ($v) => $v->where('sku', 'like', "%{$token}%"));
+
+                                if ($tokenSlug && $tokenSlug !== $token) {
+                                    $q->orWhere('products.slug', 'like', "%{$tokenSlug}%");
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+        }
+
+        $totalCount = (clone $productQuery)->count();
+
+        // Relevance ordering
+        $aliasLower = $intent->modelAlias ? mb_strtolower($intent->modelAlias, 'UTF-8') : '';
+        $products = $productQuery
+            ->with([
+                'brand:id,name,slug',
+                'category:id,name,slug',
+                'images' => fn ($iq) => $iq->select('id', 'product_id', 'image_path', 'is_primary')->orderBy('sort_order'),
+                'variants' => fn ($vq) => $vq->select('id', 'product_id', 'price', 'compare_price', 'is_active'),
+            ])
+            ->orderByRaw(
+                'CASE 
+                    WHEN ? != "" AND LOWER(products.name) LIKE ? THEN 150
+                    WHEN LOWER(products.name) = ? THEN 100
+                    WHEN LOWER(products.name) LIKE ? THEN 80
+                    WHEN LOWER(products.name) LIKE ? THEN 60
+                    ELSE 10 
+                END DESC',
+                [
+                    $aliasLower,
+                    $aliasLower ? "%{$aliasLower}%" : '',
+                    $cleanLower,
+                    "{$cleanLower}%",
+                    "%{$cleanLower}%",
+                ]
+            )
+            ->latest('products.id')
+            ->limit(5)
+            ->get(['id', 'name', 'slug', 'category_id', 'brand_id', 'status']);
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Gợi ý tìm kiếm thành công',
+            'data' => [
+                'keyword' => $keyword,
+                'intent' => $intent->toArray(),
+                'has_typo' => $intent->hasTypo,
+                'suggested_query' => $intent->suggestedQuery,
+                'model_alias' => $intent->modelAlias,
+                'products' => $products,
+                'brands' => $brands,
+                'categories' => $categories,
+                'total' => $totalCount,
+            ],
+        ], 200);
     }
 
     /**
@@ -140,9 +296,29 @@ class ProductController extends Controller
             'ram' => 'nullable|string|max:50',
             'storage' => 'nullable|string|max:50',
             'status' => 'nullable|in:draft,active,inactive,out_of_stock',
-            'sort_by' => 'nullable|string|in:price_asc,price_desc,newest,oldest,name_asc,name_desc,popular',
+            'sort_by' => 'nullable|string|in:relevance,price_asc,price_desc,newest,oldest,name_asc,name_desc,popular',
             'per_page' => 'nullable|integer|min:1|max:100',
+            'suggest' => 'nullable|boolean',
+            'exclude_criteria' => 'nullable|string|max:255',
         ]);
+
+        if ($request->boolean('suggest')) {
+            if (empty($validated['keyword'])) {
+                return response()->json([
+                    'status' => true,
+                    'message' => 'Từ khóa tìm kiếm trống',
+                    'data' => [
+                        'keyword' => '',
+                        'products' => [],
+                        'brands' => [],
+                        'categories' => [],
+                        'total' => 0,
+                    ],
+                ], 200);
+            }
+
+            return $this->searchSuggestions($validated['keyword']);
+        }
 
         $query = Product::with([
             'brand',
@@ -152,16 +328,64 @@ class ProductController extends Controller
             'images',
         ]);
 
-        if (! empty($validated['keyword'])) {
-            $keyword = $validated['keyword'];
+        $intent = null;
+        $excludeCriteria = ! empty($validated['exclude_criteria'])
+            ? array_filter(array_map('trim', explode(',', (string) $validated['exclude_criteria'])))
+            : [];
 
-            $query->where(function ($q) use ($keyword) {
-                $q->where('name', 'like', "%{$keyword}%")
-                    ->orWhere('slug', 'like', "%{$keyword}%");
-            });
+        if (! empty($validated['keyword'])) {
+            $rawKeyword = trim($validated['keyword']);
+            $parser = new SearchIntentParser;
+            $intent = $parser->parse($rawKeyword);
+
+            $effectiveTerm = $intent->modelAlias ?: ($intent->normalizedQuery ?: '');
+            $tokens = ! empty($intent->searchTokens) ? $intent->searchTokens : array_filter(preg_split('/\s+/', $effectiveTerm), fn ($t) => mb_strlen($t) > 0);
+            $slugKeyword = Str::slug($effectiveTerm);
+
+            if ($effectiveTerm !== '') {
+                $query->where(function ($sub) use ($effectiveTerm, $tokens, $slugKeyword, $rawKeyword) {
+                    // Khớp nguyên cụm từ với Tên, Slug, Mô tả, Brand, Category, SKU
+                    $sub->where(function ($phraseQuery) use ($effectiveTerm, $slugKeyword, $rawKeyword) {
+                        $phraseQuery->where('products.name', 'like', "%{$effectiveTerm}%")
+                            ->orWhere('products.slug', 'like', "%{$effectiveTerm}%")
+                            ->orWhere('products.description', 'like', "%{$effectiveTerm}%")
+                            ->orWhereHas('brand', fn ($b) => $b->where('name', 'like', "%{$effectiveTerm}%"))
+                            ->orWhereHas('category', fn ($c) => $c->where('name', 'like', "%{$effectiveTerm}%"))
+                            ->orWhereHas('variants', fn ($v) => $v->where('sku', 'like', "%{$effectiveTerm}%"));
+
+                        if ($rawKeyword !== $effectiveTerm) {
+                            $phraseQuery->orWhere('products.name', 'like', "%{$rawKeyword}%");
+                        }
+                        if ($slugKeyword && $slugKeyword !== $effectiveTerm) {
+                            $phraseQuery->orWhere('products.slug', 'like', "%{$slugKeyword}%");
+                        }
+                    });
+
+                    // Khớp đa từ (multi-token): mỗi từ khóa đều phải xuất hiện trên sản phẩm hoặc thuộc tính liên quan
+                    if (count($tokens) > 1) {
+                        $sub->orWhere(function ($tokenQuery) use ($tokens) {
+                            foreach ($tokens as $token) {
+                                $tokenSlug = Str::slug($token);
+                                $tokenQuery->where(function ($q) use ($token, $tokenSlug) {
+                                    $q->where('products.name', 'like', "%{$token}%")
+                                        ->orWhere('products.description', 'like', "%{$token}%")
+                                        ->orWhere('products.slug', 'like', "%{$tokenSlug}%")
+                                        ->orWhereHas('brand', fn ($b) => $b->where('name', 'like', "%{$token}%"))
+                                        ->orWhereHas('category', fn ($c) => $c->where('name', 'like', "%{$token}%"))
+                                        ->orWhereHas('variants', fn ($v) => $v->where('sku', 'like', "%{$token}%"));
+
+                                    if ($tokenSlug && $tokenSlug !== $token) {
+                                        $q->orWhere('products.slug', 'like', "%{$tokenSlug}%");
+                                    }
+                                });
+                            }
+                        });
+                    }
+                });
+            }
         }
 
-        // Lọc theo thương hiệu (hỗ trợ single id, mảng id hoặc chuỗi phân cách bởi dấu phẩy)
+        // Lọc theo thương hiệu (hỗ trợ single id, mảng id hoặc chuỗi phân cách bởi dấu phẩy, hoặc từ intent)
         if (! empty($validated['brand_id'])) {
             $rawBrand = $validated['brand_id'];
             if (is_array($rawBrand)) {
@@ -172,50 +396,181 @@ class ProductController extends Controller
             if (! empty($brandIds)) {
                 $query->whereIn('brand_id', $brandIds);
             }
+        } elseif ($intent && $intent->brandId && ! in_array('brand', $excludeCriteria)) {
+            $query->where('brand_id', $intent->brandId);
         }
 
+        // Lọc theo danh mục (hỗ trợ phân cấp đệ quy hoặc từ intent)
         if (! empty($validated['category_id'])) {
             $categoryId = (int) $validated['category_id'];
             $categoryIds = $this->getAllCategoryIdsRecursively($categoryId);
             $query->whereIn('category_id', $categoryIds);
+        } elseif ($intent && $intent->categoryId && ! in_array('category', $excludeCriteria)) {
+            $categoryIds = $this->getAllCategoryIdsRecursively($intent->categoryId);
+            $query->whereIn('category_id', $categoryIds);
+        }
+
+        // Lọc thông số kỹ thuật (Hardware Specs) từ Search Intent
+        if ($intent && ! empty($intent->specs) && ! in_array('spec', $excludeCriteria)) {
+            // Dung lượng pin (battery)
+            if (! empty($intent->specs['battery_min'])) {
+                $minBattery = (int) $intent->specs['battery_min'];
+                $query->where(function ($bq) use ($minBattery) {
+                    $bq->whereHas('specifications', function ($sq) use ($minBattery) {
+                        $sq->whereHas('definition', fn ($dq) => $dq->where('code', 'battery_capacity'))
+                            ->where('numeric_value', '>=', $minBattery);
+                    })->orWhere('products.description', 'like', '%pin%');
+                });
+            }
+
+            // Công suất sạc (wattage)
+            if (! empty($intent->specs['charging_wattage'])) {
+                $watt = (int) $intent->specs['charging_wattage'];
+                $query->where(function ($wq) use ($watt) {
+                    $wq->whereHas('specifications', function ($sq) use ($watt) {
+                        $sq->whereHas('definition', fn ($dq) => $dq->where('code', 'charging_power'))
+                            ->where('numeric_value', '>=', $watt);
+                    })
+                        ->orWhere('products.name', 'like', "%{$watt}W%")
+                        ->orWhere('products.name', 'like', "%{$watt} W%")
+                        ->orWhere('products.description', 'like', "%{$watt}W%")
+                        ->orWhere('products.description', 'like', "%{$watt} W%");
+                });
+            }
+
+            // Tần số quét (refresh rate)
+            if (! empty($intent->specs['refresh_rate'])) {
+                $hz = (int) $intent->specs['refresh_rate'];
+                $query->where(function ($hq) use ($hz) {
+                    $hq->whereHas('specifications', function ($sq) use ($hz) {
+                        $sq->whereHas('definition', fn ($dq) => $dq->where('code', 'display_resolution'))
+                            ->where('value_text', 'like', "%{$hz}Hz%");
+                    })
+                        ->orWhere('products.name', 'like', "%{$hz}Hz%")
+                        ->orWhere('products.description', 'like', "%{$hz}Hz%");
+                });
+            }
+
+            // Vi xử lý (chipset)
+            if (! empty($intent->specs['chipset'])) {
+                $chip = $intent->specs['chipset'];
+                $query->where(function ($cq) use ($chip) {
+                    $cq->whereHas('specifications', function ($sq) use ($chip) {
+                        $sq->whereHas('definition', fn ($dq) => $dq->where('code', 'chipset'))
+                            ->where('value_text', 'like', "%{$chip}%");
+                    })
+                        ->orWhere('products.name', 'like', "%{$chip}%")
+                        ->orWhere('products.description', 'like', "%{$chip}%");
+                });
+            }
+
+            // Cổng kết nối (connector_type)
+            if (! empty($intent->specs['connector_type'])) {
+                $conn = $intent->specs['connector_type'];
+                $query->where(function ($cq) use ($conn) {
+                    $cq->whereHas('specifications', function ($sq) use ($conn) {
+                        $sq->whereHas('definition', fn ($dq) => $dq->where('code', 'connector_type'))
+                            ->where('value_text', 'like', "%{$conn}%");
+                    })
+                        ->orWhere('products.name', 'like', "%{$conn}%")
+                        ->orWhere('products.description', 'like', "%{$conn}%");
+                });
+            }
+
+            // Chiều dài cáp (cable_length)
+            if (! empty($intent->specs['cable_length'])) {
+                $len = $intent->specs['cable_length'];
+                $query->where(function ($lq) use ($len) {
+                    $lq->whereHas('specifications', function ($sq) use ($len) {
+                        $sq->whereHas('definition', fn ($dq) => $dq->where('code', 'cable_length'))
+                            ->where('numeric_value', '>=', $len);
+                    })
+                        ->orWhere('products.name', 'like', "%{$len}m%")
+                        ->orWhere('products.name', 'like', "%{$len} m%")
+                        ->orWhere('products.description', 'like', "%{$len}m%");
+                });
+            }
+        }
+
+        // Lọc nhu cầu sử dụng (Needs / Use Cases)
+        if ($intent && ! empty($intent->intents) && ! in_array('need', $excludeCriteria)) {
+            if (in_array('gaming', $intent->intents)) {
+                $query->where(function ($gq) {
+                    $gq->where('products.name', 'like', '%gaming%')
+                        ->orWhere('products.description', 'like', '%gaming%')
+                        ->orWhere('products.description', 'like', '%chơi game%')
+                        ->orWhereHas('specifications', function ($sq) {
+                            $sq->where(function ($dq) {
+                                $dq->where('value_text', 'like', '%Snapdragon 8%')
+                                    ->orWhere('value_text', 'like', '%A18%')
+                                    ->orWhere('value_text', 'like', '%A17%')
+                                    ->orWhere('value_text', 'like', '%A16%')
+                                    ->orWhere('value_text', 'like', '%120Hz%');
+                            });
+                        });
+                });
+            }
+
+            if (in_array('photography', $intent->intents)) {
+                $query->where(function ($pq) {
+                    $pq->where('products.name', 'like', '%camera%')
+                        ->orWhere('products.name', 'like', '%pro%')
+                        ->orWhere('products.name', 'like', '%ultra%')
+                        ->orWhere('products.description', 'like', '%camera%')
+                        ->orWhere('products.description', 'like', '%chụp ảnh%')
+                        ->orWhereHas('specifications', fn ($sq) => $sq->whereHas('definition', fn ($d) => $d->whereIn('code', ['rear_camera', 'front_camera'])));
+                });
+            }
         }
 
         if (! empty($validated['status'])) {
             $query->where('status', $validated['status']);
+        } else {
+            $user = Auth::guard('sanctum')->user() ?? Auth::user();
+            $isAdmin = $user && (
+                (method_exists($user, 'hasRole') && $user->hasRole('admin')) ||
+                (method_exists($user, 'hasPermission') && ($user->hasPermission('products.manage') || $user->hasPermission('products.view')))
+            );
+
+            if (! $isAdmin) {
+                $query->where('status', 'active');
+            }
         }
 
+        // Biến thể: Giá, RAM, Storage (hợp nhất từ request và search intent)
+        $targetMinPrice = $validated['min_price'] ?? (($intent && ! in_array('price', $excludeCriteria)) ? $intent->minPrice : null);
+        $targetMaxPrice = $validated['max_price'] ?? (($intent && ! in_array('price', $excludeCriteria)) ? $intent->maxPrice : null);
+        $targetRam = $validated['ram'] ?? (($intent && ! in_array('ram', $excludeCriteria)) ? $intent->ram : null);
+        $targetStorage = $validated['storage'] ?? (($intent && ! in_array('storage', $excludeCriteria)) ? $intent->storage : null);
+
         $hasVariantFilters =
-            isset($validated['min_price']) ||
-            isset($validated['max_price']) ||
-            ! empty($validated['ram']) ||
-            ! empty($validated['storage']);
+            isset($targetMinPrice) ||
+            isset($targetMaxPrice) ||
+            ! empty($targetRam) ||
+            ! empty($targetStorage);
 
         if ($hasVariantFilters) {
-            $query->whereHas('variants', function ($variantQuery) use ($validated) {
-                if (isset($validated['min_price'])) {
-                    $variantQuery->where('price', '>=', $validated['min_price']);
+            $query->whereHas('variants', function ($variantQuery) use ($targetMinPrice, $targetMaxPrice, $targetRam, $targetStorage) {
+                if (isset($targetMinPrice)) {
+                    $variantQuery->where('price', '>=', $targetMinPrice);
                 }
 
-                if (isset($validated['max_price'])) {
-                    $variantQuery->where('price', '<=', $validated['max_price']);
+                if (isset($targetMaxPrice)) {
+                    $variantQuery->where('price', '<=', $targetMaxPrice);
                 }
 
-                if (! empty($validated['ram'])) {
-                    $ram = $validated['ram'];
-
-                    $variantQuery->whereHas('attributeValues', function ($valueQuery) use ($ram) {
-                        $valueQuery->where('value', $ram)
+                if (! empty($targetRam)) {
+                    $variantQuery->whereHas('attributeValues', function ($valueQuery) use ($targetRam) {
+                        $valueQuery->where('value', $targetRam)
                             ->whereHas('attribute', function ($attributeQuery) {
                                 $attributeQuery->where('code', 'ram');
                             });
                     });
                 }
 
-                if (! empty($validated['storage'])) {
-                    $storage = $validated['storage'];
-
-                    $variantQuery->whereHas('attributeValues', function ($valueQuery) use ($storage) {
-                        $valueQuery->where('value', $storage)
+                if (! empty($targetStorage)) {
+                    $variantQuery->whereHas('attributeValues', function ($valueQuery) use ($targetStorage) {
+                        $valueQuery->where('value', $targetStorage)
                             ->whereHas('attribute', function ($attributeQuery) {
                                 $attributeQuery->where('code', 'storage');
                             });
@@ -225,8 +580,40 @@ class ProductController extends Controller
         }
 
         // Sắp xếp
-        $sortBy = $validated['sort_by'] ?? 'newest';
+        $sortBy = $validated['sort_by'] ?? (! empty($validated['keyword']) ? 'relevance' : 'newest');
         switch ($sortBy) {
+            case 'relevance':
+                if (! empty($validated['keyword'])) {
+                    $rawKw = trim($validated['keyword']);
+                    $modelAlias = $intent->modelAlias ?? '';
+                    $aliasLower = $modelAlias ? mb_strtolower($modelAlias, 'UTF-8') : '';
+                    $termToRank = $modelAlias ?: ($intent->normalizedQuery ?: $rawKw);
+                    $cleanLower = mb_strtolower($termToRank, 'UTF-8');
+                    $detectedBrandId = $intent->brandId ?? 0;
+
+                    $query->orderByRaw(
+                        'CASE 
+                            WHEN ? != "" AND LOWER(products.name) LIKE ? THEN 150
+                            WHEN LOWER(products.name) = ? THEN 100
+                            WHEN LOWER(products.name) LIKE ? THEN 80
+                            WHEN LOWER(products.name) LIKE ? THEN 60
+                            WHEN ? != 0 AND products.brand_id = ? THEN 40
+                            ELSE 10 
+                        END DESC',
+                        [
+                            $aliasLower,
+                            $aliasLower ? "%{$aliasLower}%" : '',
+                            $cleanLower,
+                            "{$cleanLower}%",
+                            "%{$cleanLower}%",
+                            $detectedBrandId,
+                            $detectedBrandId,
+                        ]
+                    )->latest('products.id');
+                } else {
+                    $query->latest();
+                }
+                break;
             case 'price_asc':
                 $query->orderBy(
                     ProductVariant::selectRaw('COALESCE(MIN(price), 0)')
@@ -270,6 +657,7 @@ class ProductController extends Controller
             'status' => true,
             'message' => 'Lấy danh sách sản phẩm thành công',
             'data' => $products,
+            'intent' => $intent ? $intent->toArray() : null,
         ], 200);
     }
 
@@ -316,6 +704,7 @@ class ProductController extends Controller
         // Bảo toàn thứ tự ID sản phẩm người dùng chọn
         $products = $products->sortBy(function ($p) use ($ids) {
             $idx = array_search($p->id, $ids);
+
             return $idx !== false ? $idx : 999;
         })->values();
 
@@ -324,7 +713,7 @@ class ProductController extends Controller
             return $p->specifications->pluck('specification_definition_id');
         })->filter()->unique()->toArray();
 
-        $comparableDefinitions = \App\Models\ProductSpecificationDefinition::query()
+        $comparableDefinitions = ProductSpecificationDefinition::query()
             ->where('is_active', true)
             ->where(function ($query) use ($defIdsFromProducts) {
                 $query->where('is_comparable', true);
@@ -336,7 +725,7 @@ class ProductController extends Controller
             ->get();
 
         if ($comparableDefinitions->isEmpty()) {
-            $comparableDefinitions = \App\Models\ProductSpecification::query()
+            $comparableDefinitions = ProductSpecification::query()
                 ->select('specification_name')
                 ->distinct()
                 ->whereNotNull('specification_name')
@@ -530,7 +919,7 @@ class ProductController extends Controller
                 $primaryIdx = $request->has('primary_index') ? (int) $request->input('primary_index') : 0;
                 foreach ($files as $idx => $file) {
                     $path = $file->store('products', 'public');
-                    $imageUrl = asset('storage/' . $path);
+                    $imageUrl = asset('storage/'.$path);
                     $product->images()->create([
                         'variant_id' => $variant->id,
                         'image_url' => $imageUrl,
@@ -806,8 +1195,8 @@ class ProductController extends Controller
         return response()->json([
             'status' => true,
             'message' => 'Cập nhật trạng thái cho '
-                . count($validated['ids'])
-                . ' sản phẩm thành công.',
+                .count($validated['ids'])
+                .' sản phẩm thành công.',
         ], 200);
     }
 
@@ -868,9 +1257,9 @@ class ProductController extends Controller
                 'specs.*.sort_order' => 'nullable|integer|min:0',
             ]);
 
-            \Illuminate\Support\Facades\DB::transaction(function () use ($product, $data) {
+            DB::transaction(function () use ($product, $data) {
                 foreach ($data['specs'] as $index => $spec) {
-                    $def = \App\Models\ProductSpecificationDefinition::find($spec['definition_id']);
+                    $def = ProductSpecificationDefinition::find($spec['definition_id']);
                     $payload = [
                         'product_id' => $product->id,
                         'specification_definition_id' => $spec['definition_id'],
@@ -890,7 +1279,7 @@ class ProductController extends Controller
                         }
                     }
 
-                    \App\Models\ProductSpecification::updateOrCreate(
+                    ProductSpecification::updateOrCreate(
                         [
                             'product_id' => $product->id,
                             'specification_definition_id' => $spec['definition_id'],
@@ -927,13 +1316,13 @@ class ProductController extends Controller
             ],
         ]);
 
-        \Illuminate\Support\Facades\DB::transaction(function () use ($product, $validated) {
+        DB::transaction(function () use ($product, $validated) {
             $product->specifications()->delete();
 
             foreach ($validated['specs'] as $index => $spec) {
-                $code = \Illuminate\Support\Str::slug($spec['specification_name']);
-                $def = \App\Models\ProductSpecificationDefinition::firstOrCreate(
-                    ['code' => $code ?: ('spec_' . ($index + 1))],
+                $code = Str::slug($spec['specification_name']);
+                $def = ProductSpecificationDefinition::firstOrCreate(
+                    ['code' => $code ?: ('spec_'.($index + 1))],
                     [
                         'name' => trim($spec['specification_name']),
                         'value_type' => 'text',

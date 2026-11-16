@@ -15,7 +15,6 @@ use App\Models\Role;
 use App\Models\ShippingMethod;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class AdminTrashTest extends TestCase
@@ -23,6 +22,7 @@ class AdminTrashTest extends TestCase
     use RefreshDatabase;
 
     private User $adminUser;
+
     private User $regularUser;
 
     protected function setUp(): void
@@ -199,7 +199,7 @@ class AdminTrashTest extends TestCase
         ]);
         $variant = ProductVariant::create([
             'product_id' => $product->id,
-            'sku' => 'SKU-' . uniqid(),
+            'sku' => 'SKU-'.uniqid(),
             'price' => 100000,
             'original_price' => 100000,
             'is_active' => true,
@@ -210,7 +210,7 @@ class AdminTrashTest extends TestCase
         // Create a mock order item referencing this product
         $shipping = ShippingMethod::create([
             'name' => 'Giao hàng',
-            'code' => 'STD_' . uniqid(),
+            'code' => 'STD_'.uniqid(),
             'fee' => 20000,
             'is_active' => true,
         ]);

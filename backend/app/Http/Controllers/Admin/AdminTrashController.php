@@ -8,8 +8,9 @@ use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Coupon;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Admin Trash (Recycle Bin) Controller
@@ -25,11 +26,11 @@ use Illuminate\Http\Request;
 class AdminTrashController extends Controller
 {
     private const ALLOWED_TYPES = [
-        'products'   => Product::class,
+        'products' => Product::class,
         'categories' => Category::class,
-        'brands'     => Brand::class,
-        'banners'    => Banner::class,
-        'coupons'    => Coupon::class,
+        'brands' => Brand::class,
+        'banners' => Banner::class,
+        'coupons' => Coupon::class,
     ];
 
     /**
@@ -82,8 +83,8 @@ class AdminTrashController extends Controller
         }
 
         return response()->json([
-            'message' => "Khôi phục thành công. Mục này đã được đưa trở lại danh sách hoạt động.",
-            'data'    => $record->fresh(),
+            'message' => 'Khôi phục thành công. Mục này đã được đưa trở lại danh sách hoạt động.',
+            'data' => $record->fresh(),
         ]);
     }
 
@@ -102,7 +103,7 @@ class AdminTrashController extends Controller
         $modelClass::onlyTrashed()->restore();
 
         if ($type === 'products') {
-            \App\Models\ProductVariant::onlyTrashed()->restore();
+            ProductVariant::onlyTrashed()->restore();
         }
 
         return response()->json([
@@ -126,7 +127,7 @@ class AdminTrashController extends Controller
 
         // For products: clean up child relationships before hard-delete
         if ($type === 'products') {
-            $hasOrders = \Illuminate\Support\Facades\DB::table('order_items')
+            $hasOrders = DB::table('order_items')
                 ->where('product_id', $record->id)
                 ->exists();
 
@@ -167,7 +168,7 @@ class AdminTrashController extends Controller
             // Collect trashed product IDs
             $trashedProductIds = $modelClass::onlyTrashed()->pluck('id');
             // Force-delete related trashed variants
-            \App\Models\ProductVariant::onlyTrashed()
+            ProductVariant::onlyTrashed()
                 ->whereIn('product_id', $trashedProductIds)
                 ->forceDelete();
         }

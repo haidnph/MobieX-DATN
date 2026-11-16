@@ -26,8 +26,8 @@ class ProductSampleDataSeeder extends Seeder
 {
     public function run(): void
     {
-        $brands   = Brand::all()->keyBy('slug');
-        $cats     = Category::all()->keyBy('slug');
+        $brands = Brand::all()->keyBy('slug');
+        $cats = Category::all()->keyBy('slug');
 
         // Ensure extra brands exist
         $this->ensureExtraBrands($brands);
@@ -35,7 +35,7 @@ class ProductSampleDataSeeder extends Seeder
 
         // Reload after ensuring
         $brands = Brand::all()->keyBy('slug');
-        $cats   = Category::all()->keyBy('slug');
+        $cats = Category::all()->keyBy('slug');
 
         $this->seedPhones($brands, $cats);
         $this->seedAccessories($brands, $cats);
@@ -63,15 +63,15 @@ class ProductSampleDataSeeder extends Seeder
     private function ensureExtraCategories(object $cats): void
     {
         $phoneCatId = Category::where('slug', 'dien-thoai')->value('id') ?? 1;
-        $accCatId   = Category::where('slug', 'phu-kien')->value('id') ?? 2;
+        $accCatId = Category::where('slug', 'phu-kien')->value('id') ?? 2;
 
         $extra = [
             ['parent_id' => null,       'name' => 'Máy tính bảng', 'slug' => 'may-tinh-bang',    'sort_order' => 3, 'is_active' => true, 'is_featured' => true, 'featured_sort_order' => 3],
             ['parent_id' => null,       'name' => 'Smartwatch',     'slug' => 'smartwatch',       'sort_order' => 4, 'is_active' => true, 'is_featured' => true, 'featured_sort_order' => 4],
             ['parent_id' => $accCatId,  'name' => 'Tai nghe',       'slug' => 'tai-nghe',         'sort_order' => 4, 'is_active' => true, 'is_featured' => false, 'featured_sort_order' => 0],
             ['parent_id' => $accCatId,  'name' => 'Loa bluetooth',  'slug' => 'loa-bluetooth',    'sort_order' => 5, 'is_active' => true, 'is_featured' => false, 'featured_sort_order' => 0],
-            ['parent_id' => $phoneCatId,'name' => 'Samsung Galaxy', 'slug' => 'samsung-galaxy',   'sort_order' => 3, 'is_active' => true, 'is_featured' => false, 'featured_sort_order' => 0],
-            ['parent_id' => $phoneCatId,'name' => 'Xiaomi Mi',      'slug' => 'xiaomi-mi',        'sort_order' => 4, 'is_active' => true, 'is_featured' => false, 'featured_sort_order' => 0],
+            ['parent_id' => $phoneCatId, 'name' => 'Samsung Galaxy', 'slug' => 'samsung-galaxy',   'sort_order' => 3, 'is_active' => true, 'is_featured' => false, 'featured_sort_order' => 0],
+            ['parent_id' => $phoneCatId, 'name' => 'Xiaomi Mi',      'slug' => 'xiaomi-mi',        'sort_order' => 4, 'is_active' => true, 'is_featured' => false, 'featured_sort_order' => 0],
         ];
 
         foreach ($extra as $c) {
@@ -82,22 +82,22 @@ class ProductSampleDataSeeder extends Seeder
     // ── Seed phones ───────────────────────────────────────────────────────────
     private function seedPhones(object $brands, object $cats): void
     {
-        $apple    = $brands->get('apple');
-        $samsung  = $brands->get('samsung');
-        $xiaomi   = $brands->get('xiaomi');
-        $oppo     = $brands->get('oppo');
-        $sony     = $brands->get('sony');
-        $vivo     = $brands->get('vivo');
-        $realme   = $brands->get('realme');
-        $oneplus  = $brands->get('oneplus');
-        $asus     = $brands->get('asus');
+        $apple = $brands->get('apple');
+        $samsung = $brands->get('samsung');
+        $xiaomi = $brands->get('xiaomi');
+        $oppo = $brands->get('oppo');
+        $sony = $brands->get('sony');
+        $vivo = $brands->get('vivo');
+        $realme = $brands->get('realme');
+        $oneplus = $brands->get('oneplus');
+        $asus = $brands->get('asus');
 
-        $iphoneCat  = $cats->get('iphone');
+        $iphoneCat = $cats->get('iphone');
         $androidCat = $cats->get('android');
-        $sgCat      = $cats->get('samsung-galaxy');
-        $xiCat      = $cats->get('xiaomi-mi');
-        $phoneCat   = $cats->get('dien-thoai');
-        $tabletCat  = $cats->get('may-tinh-bang');
+        $sgCat = $cats->get('samsung-galaxy');
+        $xiCat = $cats->get('xiaomi-mi');
+        $phoneCat = $cats->get('dien-thoai');
+        $tabletCat = $cats->get('may-tinh-bang');
 
         $phones = [
             // ── Apple iPhones ──────────────────────────────────────────────
@@ -646,19 +646,19 @@ class ProductSampleDataSeeder extends Seeder
     // ── Seed accessories ──────────────────────────────────────────────────────
     private function seedAccessories(object $brands, object $cats): void
     {
-        $apple   = $brands->get('apple');
+        $apple = $brands->get('apple');
         $samsung = $brands->get('samsung');
-        $anker   = $brands->get('anker');
-        $baseus  = $brands->get('baseus');
-        $sony    = $brands->get('sony');
-        $jbl     = $brands->get('jbl');
+        $anker = $brands->get('anker');
+        $baseus = $brands->get('baseus');
+        $sony = $brands->get('sony');
+        $jbl = $brands->get('jbl');
 
-        $accCat     = $cats->get('phu-kien');
-        $sacCat     = $cats->get('sac');
-        $capCat     = $cats->get('cap-sac');
-        $opCat      = $cats->get('op-lung');
+        $accCat = $cats->get('phu-kien');
+        $sacCat = $cats->get('sac');
+        $capCat = $cats->get('cap-sac');
+        $opCat = $cats->get('op-lung');
         $taiNgheCat = $cats->get('tai-nghe');
-        $loaCat     = $cats->get('loa-bluetooth');
+        $loaCat = $cats->get('loa-bluetooth');
 
         $accessories = [
             // ── Tai nghe ──────────────────────────────────────────────────
@@ -1081,12 +1081,12 @@ class ProductSampleDataSeeder extends Seeder
                     'order_item_id' => $orderItem->id,
                 ],
                 [
-                    'user_id'    => $customer->id,
+                    'user_id' => $customer->id,
                     'product_id' => $product->id,
-                    'rating'  => $r['rating'],
-                    'title'   => $r['title'],
+                    'rating' => $r['rating'],
+                    'title' => $r['title'],
                     'content' => $r['content'],
-                    'status'  => 'approved',
+                    'status' => 'approved',
                 ]
             );
         }
@@ -1095,7 +1095,7 @@ class ProductSampleDataSeeder extends Seeder
     // ── Helper: seed a single product entry ──────────────────────────────────
     private function seedProduct(array $entry): void
     {
-        $pData   = $entry['product'];
+        $pData = $entry['product'];
         $product = Product::firstOrCreate(['slug' => $pData['slug']], $pData);
 
         // Primary image
@@ -1123,12 +1123,12 @@ class ProductSampleDataSeeder extends Seeder
                 ['idempotency_key' => "sample_init_v{$variant->id}"],
                 [
                     'product_variant_id' => $variant->id,
-                    'type'               => 'import',
-                    'quantity_delta'     => $stock,
-                    'reserved_delta'     => 0,
-                    'unit_cost'          => $vData['cost_price'] ?? null,
-                    'note'               => 'Khởi tạo tồn kho mẫu',
-                    'created_at'         => now(),
+                    'type' => 'import',
+                    'quantity_delta' => $stock,
+                    'reserved_delta' => 0,
+                    'unit_cost' => $vData['cost_price'] ?? null,
+                    'note' => 'Khởi tạo tồn kho mẫu',
+                    'created_at' => now(),
                 ]
             );
         }

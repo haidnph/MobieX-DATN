@@ -32,6 +32,7 @@ const PRICE_RANGES = [
 ]
 
 const SORT_OPTIONS = [
+  { value: 'relevance', label: 'Độ liên quan', icon: 'auto_awesome' },
   { value: 'newest', label: 'Mới nhất', icon: 'schedule' },
   { value: 'popular', label: 'Phổ biến / Đánh giá', icon: 'trending_up' },
   { value: 'price_asc', label: 'Giá: Thấp đến Cao', icon: 'arrow_upward' },
@@ -49,8 +50,10 @@ export default function ProductListPage() {
   const categoryIdParam = searchParams.get('category_id') || ''
   const brandIdParam = searchParams.get('brand_id') || ''
   const qParam = searchParams.get('q') || ''
-  const sortByParam = searchParams.get('sort_by') || 'newest'
+  const defaultSort = qParam ? 'relevance' : 'newest'
+  const sortByParam = searchParams.get('sort_by') || defaultSort
   const priceKeyParam = searchParams.get('price_key') || ''
+  const excludeCriteriaParam = searchParams.get('exclude_criteria') || ''
   const pageParam = parseInt(searchParams.get('page') || '1', 10)
 
   const [searchInput, setSearchInput] = useState(qParam)
@@ -62,6 +65,10 @@ export default function ProductListPage() {
   const [selectedPrice, setSelectedPrice] = useState(priceKeyParam)
   const [selectedSort, setSelectedSort] = useState(sortByParam)
   const [selectedCategory, setSelectedCategory] = useState(categoryIdParam)
+  const [excludeCriteria, setExcludeCriteria] = useState(() =>
+    excludeCriteriaParam ? excludeCriteriaParam.split(',').filter(Boolean) : []
+  )
+  const [detectedIntent, setDetectedIntent] = useState(null)
 
   const [brands, setBrands] = useState([])
   const [categories, setCategories] = useState([])
@@ -89,6 +96,21 @@ export default function ProductListPage() {
     setSelectedSort(sortByParam)
   }, [sortByParam])
 
+  useEffect(() => {
+    setSearchInput(qParam)
+  }, [qParam])
+
+  useEffect(() => {
+    setExcludeCriteria(excludeCriteriaParam ? excludeCriteriaParam.split(',').filter(Boolean) : [])
+  }, [excludeCriteriaParam])
+
+  // Sync debounced search to URL
+  useEffect(() => {
+    if (debouncedSearch !== qParam) {
+      updateUrl({ q: debouncedSearch, page: 1, exclude_criteria: '' })
+    }
+  }, [debouncedSearch])
+
   // Fetch brands and categories on mount
   useEffect(() => {
     axiosClient
@@ -106,11 +128,16 @@ export default function ProductListPage() {
 
   // Build query params from state
   const buildParams = useCallback(() => {
-    const params = { per_page: 12, page: pageParam }
+    const params = { per_page: 12, page: pageParam, status: 'active' }
     if (selectedCategory) params.category_id = selectedCategory
     if (selectedBrands.length) params.brand_id = selectedBrands.join(',')
     if (debouncedSearch) params.q = debouncedSearch
-    if (selectedSort && selectedSort !== 'newest') params.sort_by = selectedSort
+    if (excludeCriteria.length > 0) params.exclude_criteria = excludeCriteria.join(',')
+    if (selectedSort && selectedSort !== (debouncedSearch ? 'relevance' : 'newest')) {
+      params.sort_by = selectedSort
+    } else if (selectedSort) {
+      params.sort_by = selectedSort
+    }
 
     const priceRange = PRICE_RANGES.find((r) => r.key === selectedPrice)
     if (priceRange) {
@@ -118,7 +145,7 @@ export default function ProductListPage() {
       if (priceRange.max) params.max_price = priceRange.max
     }
     return params
-  }, [selectedCategory, selectedBrands, debouncedSearch, selectedSort, selectedPrice, pageParam])
+  }, [selectedCategory, selectedBrands, debouncedSearch, excludeCriteria, selectedSort, selectedPrice, pageParam])
 
   // Fetch products when filters change
   useEffect(() => {
@@ -129,6 +156,7 @@ export default function ProductListPage() {
         const pd = data.data ?? data
         setProducts(pd.data ?? pd ?? [])
         setMeta({ total: pd.total ?? 0, last_page: pd.last_page ?? 1 })
+        setDetectedIntent(data.intent || null)
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -142,6 +170,8 @@ export default function ProductListPage() {
       const br = overrides.brand_id !== undefined ? overrides.brand_id : selectedBrands.join(',')
       const q = overrides.q !== undefined ? overrides.q : debouncedSearch
       const pk = overrides.price_key !== undefined ? overrides.price_key : selectedPrice
+      const exc = overrides.exclude_criteria !== undefined ? overrides.exclude_criteria : excludeCriteria.join(',')
+      const defaultSb = q ? 'relevance' : 'newest'
       const sb = overrides.sort_by !== undefined ? overrides.sort_by : selectedSort
       const pg = overrides.page !== undefined ? overrides.page : 1
 
@@ -149,12 +179,13 @@ export default function ProductListPage() {
       if (br) next.brand_id = br
       if (q) next.q = q
       if (pk) next.price_key = pk
-      if (sb && sb !== 'newest') next.sort_by = sb
+      if (exc) next.exclude_criteria = exc
+      if (sb && sb !== defaultSb) next.sort_by = sb
       if (pg > 1) next.page = String(pg)
 
       setSearchParams(next, { replace: true })
     },
-    [selectedCategory, selectedBrands, debouncedSearch, selectedPrice, selectedSort, setSearchParams]
+    [selectedCategory, selectedBrands, debouncedSearch, selectedPrice, excludeCriteria, selectedSort, setSearchParams]
   )
 
   // Filter actions
@@ -189,21 +220,43 @@ export default function ProductListPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+  const handleDismissCriterion = (type) => {
+    const nextExclude = excludeCriteria.includes(type)
+      ? excludeCriteria
+      : [...excludeCriteria, type]
+    setExcludeCriteria(nextExclude)
+    updateUrl({ exclude_criteria: nextExclude.join(','), page: 1 })
+  }
+
+  const handleResetIntentCriteria = () => {
+    setExcludeCriteria([])
+    updateUrl({ exclude_criteria: '', page: 1 })
+  }
+
   const clearAllFilters = () => {
     setSelectedBrands([])
     setSelectedPrice('')
     setSelectedCategory('')
     setSelectedSort('newest')
     setSearchInput('')
+    setExcludeCriteria([])
+    setDetectedIntent(null)
     setSearchParams({})
   }
+
+  const activeCriteria = useMemo(() => {
+    if (!detectedIntent?.criteria) return []
+    return detectedIntent.criteria.filter((c) => !excludeCriteria.includes(c.type))
+  }, [detectedIntent, excludeCriteria])
 
   const hasFilters = Boolean(
     selectedBrands.length > 0 ||
     selectedPrice ||
     debouncedSearch ||
     selectedCategory ||
-    (selectedSort && selectedSort !== 'newest')
+    (selectedSort && selectedSort !== 'newest') ||
+    activeCriteria.length > 0 ||
+    excludeCriteria.length > 0
   )
 
   // Filtered brands for quick search in sidebar
@@ -231,12 +284,20 @@ export default function ProductListPage() {
       {/* ── Page Header ────────────────────────────────────────────────────── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
-          <div className="flex items-center gap-2 text-xs text-on-surface-variant mb-1">
+          <div className="flex items-center gap-2 text-xs text-on-surface-variant mb-1 flex-wrap">
             <Link to="/" className="hover:text-primary transition-colors">
               Trang chủ
             </Link>
             <span className="material-symbols-outlined text-xs">chevron_right</span>
-            <span className="text-on-surface font-medium">Sản phẩm</span>
+            <Link to="/products" onClick={clearAllFilters} className="hover:text-primary transition-colors">
+              Sản phẩm
+            </Link>
+            {debouncedSearch && (
+              <>
+                <span className="material-symbols-outlined text-xs">chevron_right</span>
+                <span className="text-primary font-semibold">Tìm kiếm: &ldquo;{debouncedSearch}&rdquo;</span>
+              </>
+            )}
             {activeCategoryName && (
               <>
                 <span className="material-symbols-outlined text-xs">chevron_right</span>
@@ -245,11 +306,17 @@ export default function ProductListPage() {
             )}
           </div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-on-surface tracking-tight">
-            Khám phá Sản phẩm
+            {debouncedSearch ? (
+              <>
+                Kết quả tìm kiếm cho: &ldquo;<span className="text-primary">{debouncedSearch}</span>&rdquo;
+              </>
+            ) : (
+              'Khám phá Sản phẩm'
+            )}
           </h1>
           {!loading && (
             <p className="text-xs md:text-sm text-on-surface-variant mt-1">
-              Tìm thấy <span className="font-bold text-on-surface">{meta.total}</span> sản phẩm phù hợp
+              Tìm thấy <span className="font-bold text-on-surface">{meta.total}</span> sản phẩm phù hợp {debouncedSearch ? `với từ khóa "${debouncedSearch}"` : ''}
             </p>
           )}
         </div>
@@ -264,11 +331,13 @@ export default function ProductListPage() {
             <input
               type="text"
               value={searchInput}
-              onChange={(e) => {
-                setSearchInput(e.target.value)
-                updateUrl({ q: e.target.value, page: 1 })
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  updateUrl({ q: searchInput, page: 1 })
+                }
               }}
-              placeholder="Tìm theo tên máy..."
+              placeholder="Tìm theo tên máy, hãng, SKU..."
               className="w-full bg-surface-container border border-outline-variant/30 rounded-xl pl-9 pr-8 py-2 text-sm text-on-surface placeholder-on-surface-variant focus:outline-none focus:border-primary transition-colors"
             />
             {searchInput && (
@@ -389,6 +458,104 @@ export default function ProductListPage() {
             <span className="material-symbols-outlined text-xs">restart_alt</span>
             Xóa tất cả bộ lọc
           </button>
+        </div>
+      )}
+
+      {/* ── Typo Recovery Banner (Gợi ý sửa lỗi chính tả) ──────────────────── */}
+      {detectedIntent?.has_typo && detectedIntent?.suggested_query && (
+        <div className="mb-5 p-3.5 rounded-2xl bg-primary/10 border border-primary/25 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs md:text-sm animate-fade-in shadow-sm">
+          <div className="flex items-center gap-2.5 text-on-surface">
+            <span className="material-symbols-outlined text-primary text-xl">auto_fix_high</span>
+            <span>
+              Có phải bạn muốn tìm:{' '}
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchInput(detectedIntent.suggested_query)
+                  updateUrl({ q: detectedIntent.suggested_query, page: 1, exclude_criteria: '' })
+                }}
+                className="font-extrabold text-primary hover:underline cursor-pointer"
+              >
+                &ldquo;{detectedIntent.suggested_query}&rdquo;
+              </button>
+              ?
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setSearchInput(detectedIntent.suggested_query)
+              updateUrl({ q: detectedIntent.suggested_query, page: 1, exclude_criteria: '' })
+            }}
+            className="px-3.5 py-1.5 bg-primary text-on-primary rounded-xl text-xs font-bold hover:bg-primary/90 transition-colors shrink-0 flex items-center gap-1.5 self-start sm:self-auto shadow-sm"
+          >
+            <span>Tìm theo từ khóa gợi ý</span>
+            <span className="material-symbols-outlined text-xs">arrow_forward</span>
+          </button>
+        </div>
+      )}
+
+      {/* ── Model Alias & Detected Intent Criteria Badges ───────────────────── */}
+      {(activeCriteria.length > 0 || detectedIntent?.model_alias) && (
+        <div className="mb-5 p-3 rounded-2xl bg-surface-container-high/60 border border-outline-variant/20 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-bold text-primary flex items-center gap-1.5 mr-1">
+            <span className="material-symbols-outlined text-sm">psychology</span>
+            Ý định tìm kiếm đã nhận diện:
+          </span>
+
+          {detectedIntent?.model_alias && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-primary/15 text-primary border border-primary/30">
+              <span className="material-symbols-outlined text-xs">smartphone</span>
+              <span>Thiết bị: {detectedIntent.model_alias}</span>
+            </span>
+          )}
+
+          {activeCriteria.map((crit, idx) => {
+            if (crit.type === 'alias') return null
+            const icon =
+              crit.type === 'brand'
+                ? 'apartment'
+                : crit.type === 'category'
+                ? 'category'
+                : crit.type === 'price'
+                ? 'payments'
+                : crit.type === 'ram' || crit.type === 'storage'
+                ? 'memory'
+                : crit.type === 'need'
+                ? 'sports_esports'
+                : 'tune'
+
+            return (
+              <span
+                key={`${crit.type}-${idx}`}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-surface-container-highest text-on-surface border border-outline-variant/30 hover:border-primary/50 transition-colors"
+              >
+                <span className="material-symbols-outlined text-xs text-primary">{icon}</span>
+                <span className="text-on-surface-variant font-normal">{crit.label}:</span>
+                <span className="font-semibold text-on-surface">{crit.value}</span>
+                <button
+                  type="button"
+                  onClick={() => handleDismissCriterion(crit.type)}
+                  className="hover:text-error transition-colors p-0.5 ml-0.5"
+                  title={`Bỏ tiêu chí ${crit.label}`}
+                  aria-label={`Bỏ tiêu chí ${crit.label}`}
+                >
+                  <span className="material-symbols-outlined text-xs">close</span>
+                </button>
+              </span>
+            )
+          })}
+
+          {excludeCriteria.length > 0 && (
+            <button
+              type="button"
+              onClick={handleResetIntentCriteria}
+              className="text-[11px] font-semibold text-primary hover:underline ml-auto flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-xs">restart_alt</span>
+              Khôi phục tất cả tiêu chí
+            </button>
+          )}
         </div>
       )}
 
@@ -684,17 +851,48 @@ export default function ProductListPage() {
             </div>
           ) : products.length === 0 ? (
             /* Empty State */
-            <div className="flex flex-col items-center justify-center py-20 px-4 rounded-3xl bg-surface-container/40 border border-outline-variant/15 text-center">
+            <div className="flex flex-col items-center justify-center py-16 px-4 rounded-3xl bg-surface-container/40 border border-outline-variant/15 text-center">
               <div className="w-16 h-16 rounded-2xl bg-surface-container-high flex items-center justify-center text-outline mb-4">
                 <span className="material-symbols-outlined text-4xl">search_off</span>
               </div>
               <h3 className="text-lg font-bold text-on-surface mb-1">
-                Không tìm thấy sản phẩm phù hợp
+                {debouncedSearch
+                  ? `Không tìm thấy sản phẩm nào khớp với "${debouncedSearch}"`
+                  : 'Không tìm thấy sản phẩm phù hợp'}
               </h3>
-              <p className="text-xs md:text-sm text-on-surface-variant max-w-md mb-6 leading-relaxed">
-                Rất tiếc, không có sản phẩm nào khớp với tiêu chí tìm kiếm hoặc bộ lọc hiện tại của bạn.
-                Hãy thử nới lỏng các điều kiện lọc hoặc tìm kiếm bằng từ khóa khác.
+              <p className="text-xs md:text-sm text-on-surface-variant max-w-md mb-4 leading-relaxed">
+                {debouncedSearch ? (
+                  <>
+                    Hãy kiểm tra lỗi chính tả của từ khóa, thử từ khóa khái quát hơn hoặc tìm kiếm theo thương hiệu / danh mục.
+                  </>
+                ) : (
+                  <>
+                    Rất tiếc, không có sản phẩm nào khớp với tiêu chí tìm kiếm hoặc bộ lọc hiện tại của bạn.
+                    Hãy thử nới lỏng các điều kiện lọc hoặc tìm kiếm bằng từ khóa khác.
+                  </>
+                )}
               </p>
+
+              {/* Gợi ý từ khóa phổ biến khi tìm kiếm rỗng */}
+              {debouncedSearch && (
+                <div className="mb-6 flex flex-wrap justify-center items-center gap-2 max-w-lg">
+                  <span className="text-xs text-on-surface-variant font-medium">Gợi ý từ khóa:</span>
+                  {['iPhone 16', 'Galaxy S24', 'Tai nghe', 'Củ sạc', 'Anker', 'Xiaomi'].map((kw) => (
+                    <button
+                      key={kw}
+                      type="button"
+                      onClick={() => {
+                        setSearchInput(kw)
+                        updateUrl({ q: kw, page: 1 })
+                      }}
+                      className="px-3 py-1 rounded-full text-xs font-semibold bg-surface-container-high hover:bg-primary hover:text-on-primary text-on-surface-variant transition-colors"
+                    >
+                      {kw}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {hasFilters && (
                 <button
                   type="button"
@@ -702,7 +900,7 @@ export default function ProductListPage() {
                   className="inline-flex items-center gap-2 bg-primary hover:bg-primary-hover text-on-primary font-bold text-sm px-5 py-2.5 rounded-xl shadow-lg transition-all"
                 >
                   <span className="material-symbols-outlined text-base">restart_alt</span>
-                  Đặt lại toàn bộ bộ lọc
+                  {debouncedSearch ? 'Xóa từ khóa & Xem tất cả sản phẩm' : 'Đặt lại toàn bộ bộ lọc'}
                 </button>
               )}
             </div>

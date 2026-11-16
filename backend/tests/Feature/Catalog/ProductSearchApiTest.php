@@ -14,8 +14,11 @@ class ProductSearchApiTest extends TestCase
     use RefreshDatabase;
 
     private Product $phone1;
+
     private Product $phone2;
+
     private Brand $brand1;
+
     private Brand $brand2;
 
     protected function setUp(): void
@@ -107,7 +110,7 @@ class ProductSearchApiTest extends TestCase
 
     public function test_can_filter_by_multiple_brands_comma_separated(): void
     {
-        $response = $this->getJson('/api/products?brand_id=' . $this->brand1->id . ',' . $this->brand2->id);
+        $response = $this->getJson('/api/products?brand_id='.$this->brand1->id.','.$this->brand2->id);
 
         $response->assertStatus(200);
         $data = $response->json('data.data') ?? $response->json('data') ?? $response->json();
@@ -162,10 +165,78 @@ class ProductSearchApiTest extends TestCase
             'is_active' => true,
         ]);
 
-        $response = $this->getJson('/api/products?category_id=' . $root->id);
+        $response = $this->getJson('/api/products?category_id='.$root->id);
         $response->assertStatus(200);
         $data = $response->json('data.data') ?? $response->json('data');
         $ids = array_column($data, 'id');
         $this->assertContains($productInGrandchild->id, $ids);
+    }
+
+    public function test_can_search_by_brand_name(): void
+    {
+        // phone1 is "iPhone 16 Pro Max", phone1's brand is "Apple"
+        $response = $this->getJson('/api/products?keyword=Apple');
+        $response->assertStatus(200);
+        $data = $response->json('data.data') ?? $response->json('data');
+        $ids = array_column($data, 'id');
+        $this->assertContains($this->phone1->id, $ids);
+    }
+
+    public function test_can_search_multi_token_words(): void
+    {
+        // "samsung s24" should match "Samsung Galaxy S24 Ultra"
+        $response = $this->getJson('/api/products?keyword=samsung+s24');
+        $response->assertStatus(200);
+        $data = $response->json('data.data') ?? $response->json('data');
+        $ids = array_column($data, 'id');
+        $this->assertContains($this->phone2->id, $ids);
+    }
+
+    public function test_can_search_by_variant_sku(): void
+    {
+        // phone1 variant SKU is "IP16PM-TEST"
+        $response = $this->getJson('/api/products?keyword=IP16PM-TEST');
+        $response->assertStatus(200);
+        $data = $response->json('data.data') ?? $response->json('data');
+        $this->assertNotEmpty($data);
+        $this->assertEquals($this->phone1->id, $data[0]['id']);
+    }
+
+    public function test_can_get_search_suggestions(): void
+    {
+        $response = $this->getJson('/api/products?keyword=Sam&suggest=1');
+        $response->assertStatus(200);
+        $response->assertJsonStructure([
+            'status',
+            'message',
+            'data' => [
+                'keyword',
+                'products',
+                'brands',
+                'categories',
+                'total',
+            ],
+        ]);
+        $this->assertNotEmpty($response->json('data.brands'));
+        $this->assertEquals('Samsung', $response->json('data.brands.0.name'));
+    }
+
+    public function test_inactive_products_are_hidden_from_storefront_search(): void
+    {
+        $inactive = Product::create([
+            'name' => 'iPhone Hidden Edition',
+            'slug' => 'iphone-hidden-edition',
+            'category_id' => $this->phone1->category_id,
+            'brand_id' => $this->brand1->id,
+            'product_type' => 'phone',
+            'status' => 'inactive',
+            'base_price' => 10000000,
+        ]);
+
+        $response = $this->getJson('/api/products?keyword=Hidden');
+        $response->assertStatus(200);
+        $data = $response->json('data.data') ?? $response->json('data');
+        $ids = array_column($data, 'id');
+        $this->assertNotContains($inactive->id, $ids);
     }
 }

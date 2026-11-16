@@ -139,7 +139,7 @@ class ZaloPayService
      * Verify Checksum received from ZaloPay Return URL.
      * Checksum formula: HMAC-SHA256(key2, appid|apptransid|pmcid|bankcode|amount|discountamount|status)
      *
-     * @param array<string, mixed> $params
+     * @param  array<string, mixed>  $params
      */
     public function verifyReturnChecksum(array $params): bool
     {
@@ -165,9 +165,6 @@ class ZaloPayService
     /**
      * Verify Callback (Webhook) from ZaloPay.
      * MAC formula: HMAC-SHA256(data, key2)
-     *
-     * @param string $dataJson
-     * @param string $mac
      */
     public function verifyCallback(string $dataJson, string $mac): bool
     {

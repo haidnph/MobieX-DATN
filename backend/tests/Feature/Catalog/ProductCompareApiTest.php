@@ -15,6 +15,7 @@ class ProductCompareApiTest extends TestCase
     use RefreshDatabase;
 
     private Category $category;
+
     private Brand $brand;
 
     protected function setUp(): void
