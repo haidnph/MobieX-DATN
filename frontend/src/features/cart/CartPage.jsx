@@ -318,9 +318,9 @@ export default function CartPage() {
                 </div>
               )}
 
-              <div className="flex justify-between text-on-surface-variant">
+              <div className="flex justify-between text-on-surface-variant text-xs">
                 <span>Phí vận chuyển</span>
-                <span className="text-secondary font-medium">Miễn phí</span>
+                <span className="text-outline">Tính ở bước thanh toán</span>
               </div>
 
               <div className="pt-3 border-t border-outline-variant/10 flex justify-between items-baseline">

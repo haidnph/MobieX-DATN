@@ -84,6 +84,7 @@ export default function OrderInvoicePage() {
   const items = order.items || []
   const subtotal = Number(order.subtotal_amount ?? order.subtotal ?? 0)
   const discount = Number(order.discount_amount ?? order.discount ?? 0)
+  const shippingFee = Number(order.shipping_fee ?? order.shipping_amount ?? 0)
   const total = Number(order.total_amount ?? order.total ?? order.grand_total ?? 0)
 
   return (
@@ -231,8 +232,10 @@ export default function OrderInvoicePage() {
               </div>
             )}
             <div className="flex justify-between text-neutral-600">
-              <span>Cước phí vận chuyển:</span>
-              <span className="font-mono font-semibold text-neutral-900">0 đ (Miễn phí)</span>
+              <span>Cước phí vận chuyển{order.shipping_method_name ? ` (${order.shipping_method_name})` : ''}:</span>
+              <span className="font-mono font-semibold text-neutral-900">
+                {shippingFee > 0 ? formatCurrencyVND(shippingFee) : '0 đ (Miễn phí)'}
+              </span>
             </div>
             <div className="flex justify-between text-sm font-extrabold text-neutral-900 border-t border-neutral-300 pt-2">
               <span>TỔNG TIỀN THANH TOÁN:</span>

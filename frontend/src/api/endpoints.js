@@ -45,6 +45,9 @@ const EP = {
   ORDER_CANCEL: (id) => `/orders/${id}/cancel`,
   ORDER_INVOICE: (id) => `/orders/${id}/invoice`,
 
+  // ── Shipping ──────────────────────────────────────────
+  SHIPPING_METHODS: '/shipping-methods',
+
   // ── Payments ──────────────────────────────────────────
   PAYMENT_VNPAY_CREATE: '/payments/vnpay/create',
   PAYMENT_VNPAY_RETURN: '/payments/vnpay/return',

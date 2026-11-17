@@ -11,7 +11,6 @@ import EP from '../../api/endpoints'
 import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
 import Button from '../../components/common/Button'
 import Input from '../../components/common/Input'
-
 export default function CheckoutPage() {
   const { cartItems, cartSummary, fetchCart, applyCoupon, clearCoupon } = useCart()
   const { user } = useAuth()
@@ -24,7 +23,7 @@ export default function CheckoutPage() {
     shipping_address: '',
     city: 'Hà Nội',
     note: '',
-    payment_method: 'vnpay', // 'vnpay' or 'cod' (default to vnpay for seamless online payment)
+    payment_method: 'vnpay',
   })
   const [savedAddresses, setSavedAddresses] = useState([])
   const [selectedAddressId, setSelectedAddressId] = useState(null)
@@ -33,6 +32,11 @@ export default function CheckoutPage() {
   const [errors, setErrors] = useState({})
   const [couponInput, setCouponInput] = useState('')
   const [applyingCoupon, setApplyingCoupon] = useState(false)
+
+  // Shipping methods state
+  const [shippingMethods, setShippingMethods] = useState([])
+  const [selectedShippingId, setSelectedShippingId] = useState(null)
+  const [shippingFee, setShippingFee] = useState(0)
 
   // ── Fetch saved addresses ──────────────────────────────────────────────────
   useEffect(() => {
@@ -64,6 +68,25 @@ export default function CheckoutPage() {
         setUseCustomAddress(true)
       })
   }, [user])
+
+  // ── Fetch shipping methods ─────────────────────────────────────────────────
+  useEffect(() => {
+    axiosClient
+      .get(EP.SHIPPING_METHODS)
+      .then(({ data }) => {
+        const methods = data.data ?? []
+        setShippingMethods(methods)
+        if (methods.length > 0) {
+          // Default: select cheapest (first after ordering by fee asc)
+          setSelectedShippingId(methods[0].id)
+          setShippingFee(parseFloat(methods[0].fee) || 0)
+        }
+      })
+      .catch(() => {
+        // Fallback: free shipping if API unavailable
+        setShippingFee(0)
+      })
+  }, [])
 
   const handleSelectSavedAddress = (addr) => {
     setSelectedAddressId(addr.id)
@@ -134,6 +157,7 @@ export default function CheckoutPage() {
         note: form.note || undefined,
         payment_method: form.payment_method,
         coupon_code: cartSummary.couponCode || undefined,
+        shipping_method_id: selectedShippingId || undefined,
       }
 
       const { data } = await axiosClient.post(EP.ORDERS, payload)
@@ -336,6 +360,58 @@ export default function CheckoutPage() {
               </div>
             </div>
           </div>
+
+          {/* Shipping Method Selector */}
+          {shippingMethods.length > 0 && (
+            <div className="bg-surface-container rounded-2xl border border-outline-variant/20 p-6 space-y-4">
+              <div className="flex items-center gap-2 text-base font-bold text-on-surface">
+                <span className="material-symbols-outlined text-primary text-xl">local_shipping</span>
+                Phương thức vận chuyển
+              </div>
+              <div className="space-y-2">
+                {shippingMethods.map((method) => {
+                  const isSelected = selectedShippingId === method.id
+                  return (
+                    <div
+                      key={method.id}
+                      onClick={() => {
+                        setSelectedShippingId(method.id)
+                        setShippingFee(parseFloat(method.fee) || 0)
+                      }}
+                      className={[
+                        'flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all',
+                        isSelected
+                          ? 'border-primary bg-primary/5 ring-2 ring-primary/20 shadow-sm'
+                          : 'border-outline-variant/30 bg-surface-container-low hover:border-outline',
+                      ].join(' ')}
+                    >
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="radio"
+                          name="shipping_method"
+                          checked={isSelected}
+                          onChange={() => {
+                            setSelectedShippingId(method.id)
+                            setShippingFee(parseFloat(method.fee) || 0)
+                          }}
+                          className="text-primary focus:ring-primary w-4 h-4"
+                        />
+                        <div>
+                          <p className="text-sm font-semibold text-on-surface">{method.name}</p>
+                          {method.estimated_days && (
+                            <p className="text-xs text-on-surface-variant">Dự kiến: {method.estimated_days}</p>
+                          )}
+                        </div>
+                      </div>
+                      <span className={`text-sm font-bold ${isSelected ? 'text-primary' : 'text-on-surface'}`}>
+                        {parseFloat(method.fee) > 0 ? formatCurrencyVND(method.fee) : 'Miễn phí'}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Payment Method */}
           <div className="bg-surface-container rounded-2xl border border-outline-variant/20 p-6 space-y-4">
@@ -681,14 +757,16 @@ export default function CheckoutPage() {
               )}
 
               <div className="flex justify-between text-on-surface-variant">
-                <span>Vận chuyển</span>
-                <span className="text-secondary font-medium">Miễn phí</span>
+                <span>Vận chuyển ({shippingMethods.find((m) => m.id === selectedShippingId)?.name || 'Tiêu chuẩn'})</span>
+                <span className={shippingFee > 0 ? 'text-on-surface font-medium' : 'text-secondary font-medium'}>
+                  {shippingFee > 0 ? formatCurrencyVND(shippingFee) : 'Miễn phí'}
+                </span>
               </div>
 
               <div className="pt-3 border-t border-outline-variant/10 flex justify-between items-baseline">
                 <span className="text-base font-bold text-on-surface">Tổng thanh toán</span>
                 <span className="text-2xl font-extrabold text-primary">
-                  {formatCurrencyVND(cartSummary.total || Math.max(0, cartSummary.subtotal - cartSummary.discount))}
+                  {formatCurrencyVND(Math.max(0, (cartSummary.subtotal || 0) - (cartSummary.discount || 0)) + shippingFee)}
                 </span>
               </div>
             </div>

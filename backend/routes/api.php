@@ -37,6 +37,7 @@ use App\Http\Controllers\Catalog\CategoryController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductVariantController;
 use App\Http\Controllers\Profile\ProfileController;
+use App\Models\ShippingMethod;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/health', function () {
@@ -211,6 +212,22 @@ Route::post(
     '/orders/lookup',
     [OrderController::class, 'lookup'],
 )->name('api.orders.lookup');
+
+/*
+|--------------------------------------------------------------------------
+| Public Shipping Methods
+|--------------------------------------------------------------------------
+*/
+Route::get('/shipping-methods', function () {
+    $methods = ShippingMethod::where('is_active', true)
+        ->orderBy('fee')
+        ->get(['id', 'name', 'code', 'fee', 'estimated_days', 'description']);
+
+    return response()->json([
+        'status' => true,
+        'data' => $methods,
+    ]);
+})->name('api.shipping-methods.index');
 
 /*
 |--------------------------------------------------------------------------

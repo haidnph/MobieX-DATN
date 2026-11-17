@@ -328,8 +328,10 @@ export default function OrderDetailPage() {
               </div>
             )}
             <div className="flex justify-between text-on-surface-variant">
-              <span>Phí vận chuyển:</span>
-              <span className="text-secondary">Miễn phí</span>
+              <span>Phí vận chuyển{order.shipping_method_name ? ` (${order.shipping_method_name})` : ''}:</span>
+              <span className={Number(order.shipping_fee) > 0 ? 'text-on-surface font-medium' : 'text-secondary'}>
+                {Number(order.shipping_fee) > 0 ? formatCurrencyVND(order.shipping_fee) : 'Miễn phí'}
+              </span>
             </div>
             <div className="flex justify-between text-base font-extrabold text-on-surface pt-2 border-t border-outline-variant/10">
               <span>Tổng thanh toán:</span>

@@ -17,6 +17,7 @@ describe('API Endpoints Definition', () => {
   it('generates dynamic order endpoints correctly', () => {
     expect(EP.ORDER_DETAIL(101)).toBe('/orders/101')
     expect(EP.ORDER_CANCEL(101)).toBe('/orders/101/cancel')
+    expect(EP.SHIPPING_METHODS).toBe('/shipping-methods')
   })
 
   it('generates dynamic admin detail endpoints correctly', () => {
