@@ -20,18 +20,18 @@ export default function RevenueAreaChart({
 
   // Metrics extraction
   const maxRevenueRaw = Math.max(...safeData.map((d) => Number(d.revenue) || 0), 1000000)
-  const maxRevenue = Math.ceil(maxRevenueRaw * 1.1) // 10% headroom
+  const maxRevenue = Math.ceil(maxRevenueRaw * 1.15) // 15% headroom for aesthetic spacing
 
   const maxOrdersRaw = Math.max(...safeData.map((d) => Number(d.orders) || 0), 5)
-  const maxOrders = Math.ceil(maxOrdersRaw * 1.2) // headroom
+  const maxOrders = Math.ceil(maxOrdersRaw * 1.25) // headroom
 
-  // Dimensions
-  const svgWidth = 840
-  const svgHeight = 280
+  // Dimensions - Broad and spacious canvas
+  const svgWidth = 900
+  const svgHeight = 300
   const padLeft = 70
-  const padRight = 30
-  const padTop = 30
-  const padBottom = 40
+  const padRight = 35
+  const padTop = 25
+  const padBottom = 42
   const plotWidth = svgWidth - padLeft - padRight
   const plotHeight = svgHeight - padTop - padBottom
 
@@ -60,7 +60,7 @@ export default function RevenueAreaChart({
       const p0 = i > 0 ? points[i - 1] : points[i]
       const p1 = points[i]
       const p2 = points[i + 1]
-      const p3 = i != points.length - 2 ? points[i + 2] : p2
+      const p3 = i !== points.length - 2 ? points[i + 2] : p2
 
       const cp1x = p1.x + (p2.x - p0.x) / 6
       const cp1y = p1.y + (p2.y - p0.y) / 6
@@ -78,8 +78,6 @@ export default function RevenueAreaChart({
       ? `${revenueLinePath} L ${revenuePoints[revenuePoints.length - 1].x} ${padTop + plotHeight} L ${revenuePoints[0].x} ${padTop + plotHeight} Z`
       : ''
 
-  const orderLinePath = buildSmoothPath(orderPoints)
-
   // Y-axis label formatter
   const formatYAxis = (val, isOrders = false) => {
     if (isOrders) return Math.round(val)
@@ -95,7 +93,7 @@ export default function RevenueAreaChart({
     const rect = e.currentTarget.getBoundingClientRect()
     const mouseX = ((e.clientX - rect.left) / rect.width) * svgWidth
     const clampedX = Math.max(padLeft, Math.min(svgWidth - padRight, mouseX))
-    const ratio = (clampedX - padLeft) / plotWidth
+    const ratio = (clampedX - padLeft) / (plotWidth || 1)
     const idx = Math.round(ratio * (safeData.length - 1))
     setHoverIndex(Math.max(0, Math.min(safeData.length - 1, idx)))
   }
@@ -105,111 +103,176 @@ export default function RevenueAreaChart({
   const activeOrdPoint = hoverIndex !== null ? orderPoints[hoverIndex] : null
 
   return (
-    <div className="bg-surface-container rounded-2xl border border-outline-variant/20 p-6 flex flex-col justify-between relative shadow-sm">
-      {/* Top Header & Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-outline-variant/15">
-        <div>
-          <div className="flex items-center gap-2">
-            <h3 className="text-base font-bold text-on-surface">
-              Phân tích Biến động Doanh số & Đơn hàng
-            </h3>
-            {loading && (
-              <span className="inline-block w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+    <div className="bg-surface-container rounded-2xl border border-outline-variant/20 p-5 md:p-6 flex flex-col justify-between shadow-xs h-full">
+      {/* ── Top Header & Filter Controls ── */}
+      <div className="space-y-4 pb-4 border-b border-outline-variant/15">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          {/* Section Title */}
+          <div>
+            <div className="flex items-center gap-2.5">
+              <span className="w-1.5 h-6 bg-primary rounded-full" />
+              <h3 className="text-base md:text-lg font-bold text-on-surface">
+                Phân tích Biến động Doanh số & Đơn hàng
+              </h3>
+              {loading && (
+                <span className="inline-block w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              )}
+            </div>
+            <p className="text-xs text-on-surface-variant mt-1 pl-4">
+              Dữ liệu chuỗi thời gian thống kê chuẩn theo thời điểm giao dịch thực tế
+            </p>
+          </div>
+
+          {/* Controls: Mode Switcher & Days Filter */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* View Mode Switcher */}
+            <div className="bg-surface-container-high rounded-xl p-1 flex items-center border border-outline-variant/20 text-xs shadow-2xs">
+              <button
+                type="button"
+                onClick={() => setActiveMode('revenue')}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all ${
+                  activeMode === 'revenue'
+                    ? 'bg-primary text-on-primary font-bold shadow-xs'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                <span className="material-symbols-outlined text-sm">trending_up</span>
+                Doanh thu
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveMode('orders')}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all ${
+                  activeMode === 'orders'
+                    ? 'bg-secondary text-on-secondary font-bold shadow-xs'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                <span className="material-symbols-outlined text-sm">bar_chart</span>
+                Số đơn
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveMode('dual')}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all ${
+                  activeMode === 'dual'
+                    ? 'bg-primary-container text-on-primary-container font-bold shadow-xs'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                <span className="material-symbols-outlined text-sm">stacked_line_chart</span>
+                Cả hai
+              </button>
+            </div>
+
+            {/* Timeframe Filter */}
+            {onDaysChange && (
+              <div className="flex items-center bg-surface-container-high rounded-xl p-1 border border-outline-variant/20 text-xs shadow-2xs">
+                {[7, 14, 30, 90].map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => onDaysChange(d)}
+                    className={`px-2.5 py-1.5 rounded-lg font-medium transition-all ${
+                      days === d
+                        ? 'bg-surface-bright text-primary font-bold shadow-xs'
+                        : 'text-on-surface-variant hover:text-on-surface'
+                    }`}
+                  >
+                    {d} ngày
+                  </button>
+                ))}
+              </div>
             )}
           </div>
-          <p className="text-xs text-on-surface-variant mt-0.5">
-            Dữ liệu thống kê chuẩn theo thời gian giao dịch thực tế
-          </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Mode Switcher */}
-          <div className="bg-surface-container-high rounded-xl p-1 flex items-center border border-outline-variant/20 text-xs">
-            <button
-              type="button"
-              onClick={() => setActiveMode('revenue')}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
-                activeMode === 'revenue'
-                  ? 'bg-primary text-on-primary shadow-sm'
-                  : 'text-on-surface-variant hover:text-on-surface'
-              }`}
-            >
-              Doanh thu
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveMode('orders')}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
-                activeMode === 'orders'
-                  ? 'bg-secondary text-on-secondary shadow-sm'
-                  : 'text-on-surface-variant hover:text-on-surface'
-              }`}
-            >
-              Số đơn
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveMode('dual')}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
-                activeMode === 'dual'
-                  ? 'bg-primary-container text-on-primary-container font-bold shadow-sm'
-                  : 'text-on-surface-variant hover:text-on-surface'
-              }`}
-            >
-              Cả hai
-            </button>
-          </div>
-
-          {/* Timeframe Filter */}
-          {onDaysChange && (
-            <div className="flex items-center gap-1 bg-surface-container-high rounded-xl p-1 border border-outline-variant/20 text-xs">
-              {[7, 14, 30, 90].map((d) => (
-                <button
-                  key={d}
-                  type="button"
-                  onClick={() => onDaysChange(d)}
-                  className={`px-2.5 py-1.5 rounded-lg font-medium transition-all ${
-                    days === d
-                      ? 'bg-surface-bright text-primary font-bold shadow-xs'
-                      : 'text-on-surface-variant hover:text-on-surface'
-                  }`}
-                >
-                  {d} ngày
-                </button>
-              ))}
+        {/* ── KPI Summary Cards Ribbon ── */}
+        {summary && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+            {/* Card 1: Period Revenue */}
+            <div className="bg-surface-container-low p-3.5 rounded-xl border border-outline-variant/20 flex items-center justify-between hover:border-primary/40 transition-colors">
+              <div className="space-y-0.5">
+                <span className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider block">
+                  Doanh số trong kỳ ({days} ngày)
+                </span>
+                <span className="text-base sm:text-lg md:text-xl font-black font-mono tracking-tight text-on-surface">
+                  {formatCurrencyVND(summary.total_revenue || 0)}
+                </span>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-xl">payments</span>
+              </div>
             </div>
-          )}
-        </div>
+
+            {/* Card 2: Period Orders */}
+            <div className="bg-surface-container-low p-3.5 rounded-xl border border-outline-variant/20 flex items-center justify-between hover:border-secondary/40 transition-colors">
+              <div className="space-y-0.5">
+                <span className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider block">
+                  Đơn hàng hoàn tất
+                </span>
+                <span className="text-base sm:text-lg md:text-xl font-black font-mono tracking-tight text-secondary">
+                  {summary.total_orders || 0} <span className="text-xs font-normal text-outline">đơn</span>
+                </span>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-xl">shopping_cart_checkout</span>
+              </div>
+            </div>
+
+            {/* Card 3: Peak Revenue Day */}
+            <div className="bg-surface-container-low p-3.5 rounded-xl border border-outline-variant/20 flex items-center justify-between hover:border-amber-500/40 transition-colors">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider">
+                    Đỉnh doanh thu ngày
+                  </span>
+                  {summary.peak_date && (
+                    <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                      {summary.peak_date}
+                    </span>
+                  )}
+                </div>
+                <span className="text-base sm:text-lg md:text-xl font-black font-mono tracking-tight text-amber-500">
+                  {formatCurrencyVND(summary.peak_revenue || 0)}
+                </span>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-xl">hotel_class</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* SVG Canvas Area */}
-      <div className="relative mt-4">
+      {/* ── SVG Chart Canvas Area ── */}
+      <div className="relative mt-4 flex-1 flex flex-col justify-center min-h-[260px]">
         {safeData.length === 0 ? (
-          <div className="h-64 flex flex-col items-center justify-center text-sm text-on-surface-variant gap-2">
-            <span className="material-symbols-outlined text-4xl text-outline">query_stats</span>
-            <span>Không có dữ liệu giao dịch trong khoảng thời gian đã chọn.</span>
+          <div className="h-64 flex flex-col items-center justify-center text-sm text-on-surface-variant gap-2.5">
+            <span className="material-symbols-outlined text-5xl text-outline">query_stats</span>
+            <span className="font-medium">Không có dữ liệu giao dịch trong khoảng thời gian đã chọn.</span>
           </div>
         ) : (
           <div
-            className="w-full cursor-crosshair relative"
+            className="w-full cursor-crosshair relative select-none"
             onMouseMove={handleMouseMove}
             onMouseLeave={() => setHoverIndex(null)}
           >
             <svg
               viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-              className="w-full h-auto overflow-visible select-none"
+              className="w-full h-auto overflow-visible"
             >
               <defs>
                 {/* Gradient for Revenue Area */}
                 <linearGradient id={`${gradId}-rev`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.38" />
-                  <stop offset="85%" stopColor="#3b82f6" stopOpacity="0.02" />
+                  <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.32" />
+                  <stop offset="70%" stopColor="#3b82f6" stopOpacity="0.04" />
                   <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.0" />
                 </linearGradient>
 
                 {/* Gradient for Orders Bars */}
                 <linearGradient id={`${gradId}-bar`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#10b981" stopOpacity="0.85" />
+                  <stop offset="0%" stopColor="#10b981" stopOpacity="0.9" />
                   <stop offset="100%" stopColor="#059669" stopOpacity="0.4" />
                 </linearGradient>
               </defs>
@@ -236,7 +299,7 @@ export default function RevenueAreaChart({
                         x={padLeft - 10}
                         y={y + 4}
                         textAnchor="end"
-                        className="text-[10px] font-mono fill-current text-outline"
+                        className="text-[10px] font-mono fill-current text-outline font-medium"
                       >
                         {formatYAxis(revVal, false)}
                       </text>
@@ -247,7 +310,7 @@ export default function RevenueAreaChart({
                         x={svgWidth - padRight + 10}
                         y={y + 4}
                         textAnchor="start"
-                        className="text-[10px] font-mono fill-current text-secondary"
+                        className="text-[10px] font-mono fill-current text-secondary font-medium"
                       >
                         {formatYAxis(ordVal, true)}
                       </text>
@@ -258,7 +321,6 @@ export default function RevenueAreaChart({
 
               {/* X-Axis Ticks & Labels */}
               {safeData.map((d, i) => {
-                // To avoid label crowding on 30d/90d:
                 const step = safeData.length > 30 ? 6 : safeData.length > 14 ? 3 : 1
                 if (i % step !== 0 && i !== safeData.length - 1) return null
                 const x = padLeft + (safeData.length === 1 ? plotWidth / 2 : (i / (safeData.length - 1)) * plotWidth)
@@ -287,7 +349,7 @@ export default function RevenueAreaChart({
               {/* Order Bars (when in 'orders' or 'dual' mode) */}
               {(activeMode === 'orders' || activeMode === 'dual') &&
                 orderPoints.map((p, i) => {
-                  const barWidth = Math.max(3, Math.min(22, (plotWidth / safeData.length) * 0.55))
+                  const barWidth = Math.max(4, Math.min(22, (plotWidth / safeData.length) * 0.55))
                   const barHeight = (p.val / (maxOrders || 1)) * plotHeight
                   const barY = padTop + plotHeight - barHeight
                   const isHovered = hoverIndex === i
@@ -319,7 +381,7 @@ export default function RevenueAreaChart({
                     d={revenueLinePath}
                     fill="none"
                     stroke="#3b82f6"
-                    strokeWidth="2.75"
+                    strokeWidth="2.5"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     className="drop-shadow-[0_2px_8px_rgba(59,130,246,0.35)]"
@@ -377,24 +439,24 @@ export default function RevenueAreaChart({
               )}
             </svg>
 
-            {/* Floating Glassmorphism Tooltip */}
+            {/* Floating Glassmorphic Tooltip */}
             {hoverIndex !== null && activeItem && (
               <div
                 style={{
                   left: `${(activeRevPoint.x / svgWidth) * 100}%`,
-                  transform: 'translate(-50%, -120%)',
+                  transform: 'translate(-50%, -125%)',
                   top: `${(Math.min(activeRevPoint.y, activeOrdPoint?.y || 200) / svgHeight) * 100}%`,
                 }}
-                className="absolute pointer-events-none z-30 bg-surface-container-highest/95 backdrop-blur-md px-3.5 py-2.5 rounded-xl shadow-2xl border border-outline-variant/30 text-xs min-w-[140px]"
+                className="absolute pointer-events-none z-30 bg-surface-container-highest/95 backdrop-blur-md px-4 py-2.5 rounded-xl shadow-xl border border-outline-variant/30 text-xs min-w-[150px]"
               >
-                <div className="font-bold text-on-surface text-[11px] pb-1 border-b border-outline-variant/20 mb-1.5 flex items-center justify-between">
+                <div className="font-bold text-on-surface text-[11px] pb-1.5 border-b border-outline-variant/20 mb-1.5 flex items-center justify-between">
                   <span>{activeItem.date || activeItem.label}</span>
                   <span className="text-[10px] text-outline font-normal">Chi tiết</span>
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   <div className="flex items-center justify-between gap-3 text-on-surface">
                     <span className="flex items-center gap-1.5 text-primary text-[11px] font-medium">
-                      <span className="w-2 h-2 rounded-full bg-primary" />
+                      <span className="w-2 h-2 rounded-full bg-primary shrink-0" />
                       Doanh thu:
                     </span>
                     <span className="font-extrabold font-mono text-primary">
@@ -403,7 +465,7 @@ export default function RevenueAreaChart({
                   </div>
                   <div className="flex items-center justify-between gap-3 text-on-surface">
                     <span className="flex items-center gap-1.5 text-secondary text-[11px] font-medium">
-                      <span className="w-2 h-2 rounded-full bg-secondary" />
+                      <span className="w-2 h-2 rounded-full bg-secondary shrink-0" />
                       Số đơn hàng:
                     </span>
                     <span className="font-bold font-mono text-secondary">
@@ -416,47 +478,6 @@ export default function RevenueAreaChart({
           </div>
         )}
       </div>
-
-      {/* Summary Footer Ribbon */}
-      {summary && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 mt-3 border-t border-outline-variant/15 text-xs">
-          <div className="flex items-center gap-2.5">
-            <span className="p-2 rounded-xl bg-primary/10 text-primary material-symbols-outlined text-lg">
-              account_balance_wallet
-            </span>
-            <div>
-              <p className="text-[11px] text-on-surface-variant">Tổng doanh số trong kỳ</p>
-              <p className="text-sm font-extrabold text-on-surface">
-                {formatCurrencyVND(summary.total_revenue || 0)}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2.5">
-            <span className="p-2 rounded-xl bg-secondary/10 text-secondary material-symbols-outlined text-lg">
-              shopping_cart_checkout
-            </span>
-            <div>
-              <p className="text-[11px] text-on-surface-variant">Tổng số đơn hoàn tất</p>
-              <p className="text-sm font-extrabold text-on-surface">
-                {summary.total_orders || 0} đơn
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2.5">
-            <span className="p-2 rounded-xl bg-amber-500/10 text-amber-500 material-symbols-outlined text-lg">
-              hotel_class
-            </span>
-            <div>
-              <p className="text-[11px] text-on-surface-variant">Đỉnh doanh thu ngày ({summary.peak_date || '—'})</p>
-              <p className="text-sm font-extrabold text-amber-500">
-                {formatCurrencyVND(summary.peak_revenue || 0)}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

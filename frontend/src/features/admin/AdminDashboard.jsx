@@ -219,9 +219,9 @@ export default function AdminDashboard() {
       </div>
 
       {/* Primary Analytics Section (Area/Bar Chart + Donut Status Breakdown) */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-stretch">
         {/* Revenue & Volume Area Chart */}
-        <div className="xl:col-span-8">
+        <div className="xl:col-span-8 flex flex-col">
           <RevenueAreaChart
             data={revenueChart}
             days={days}
@@ -232,7 +232,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Order Status Donut Chart */}
-        <div className="xl:col-span-4">
+        <div className="xl:col-span-4 flex flex-col">
           <OrderStatusDonutChart
             distribution={stats?.order_status_distribution}
             totalOrders={stats?.total_orders_count ?? 0}
