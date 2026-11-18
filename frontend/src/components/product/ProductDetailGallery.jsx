@@ -136,11 +136,20 @@ export default function ProductDetailGallery({
       {/* ── Main Hero Image ──────────────────────────────────────────────── */}
       <div
         ref={imageContainerRef}
+        role="button"
+        tabIndex={0}
+        aria-label="Phóng to ảnh sản phẩm"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            openLightbox(currentIndex)
+          }
+        }}
         onMouseEnter={() => setIsZooming(true)}
         onMouseLeave={() => setIsZooming(false)}
         onMouseMove={handleMouseMove}
         onClick={() => openLightbox(currentIndex)}
-        className="relative aspect-square bg-surface-container rounded-2xl overflow-hidden border border-outline-variant/20 flex items-center justify-center p-6 cursor-zoom-in group shadow-xs hover:shadow-md transition-shadow"
+        className="relative aspect-square bg-surface-container rounded-2xl overflow-hidden border border-outline-variant/20 flex items-center justify-center p-6 cursor-zoom-in group shadow-xs hover:shadow-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
         {activeImage ? (
           <img
@@ -182,7 +191,8 @@ export default function ProductDetailGallery({
               openLightbox(currentIndex)
             }}
             title="Xem ảnh toàn màn hình"
-            className="absolute top-3 right-3 w-9 h-9 rounded-full bg-surface-container-high/90 hover:bg-surface-bright text-on-surface shadow-md flex items-center justify-center transition-all opacity-80 group-hover:opacity-100 hover:scale-110"
+            aria-label="Xem ảnh toàn màn hình"
+            className="absolute top-3 right-3 w-9 h-9 rounded-full bg-surface-container-high/90 hover:bg-surface-bright text-on-surface shadow-md flex items-center justify-center transition-all opacity-80 group-hover:opacity-100 hover:scale-110 active:scale-95 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             <span className="material-symbols-outlined text-base">fullscreen</span>
           </button>
@@ -214,8 +224,9 @@ export default function ProductDetailGallery({
             <button
               type="button"
               onClick={() => scrollThumbs('left')}
-              className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-2 z-10 w-7 h-7 rounded-full bg-surface-container-high/95 text-on-surface shadow-md flex items-center justify-center opacity-0 group-hover/thumbs:opacity-100 transition-opacity hover:scale-110 border border-outline-variant/30"
+              className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-2 z-10 w-7 h-7 rounded-full bg-surface-container-high/95 text-on-surface shadow-md flex items-center justify-center opacity-0 group-hover/thumbs:opacity-100 transition-all hover:scale-110 active:scale-95 cursor-pointer border border-outline-variant/30 focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
               title="Cuộn sang trái"
+              aria-label="Cuộn sang trái"
             >
               <span className="material-symbols-outlined text-sm leading-none">chevron_left</span>
             </button>
@@ -261,8 +272,9 @@ export default function ProductDetailGallery({
             <button
               type="button"
               onClick={() => scrollThumbs('right')}
-              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-2 z-10 w-7 h-7 rounded-full bg-surface-container-high/95 text-on-surface shadow-md flex items-center justify-center opacity-0 group-hover/thumbs:opacity-100 transition-opacity hover:scale-110 border border-outline-variant/30"
+              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-2 z-10 w-7 h-7 rounded-full bg-surface-container-high/95 text-on-surface shadow-md flex items-center justify-center opacity-0 group-hover/thumbs:opacity-100 transition-all hover:scale-110 active:scale-95 cursor-pointer border border-outline-variant/30 focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
               title="Cuộn sang phải"
+              aria-label="Cuộn sang phải"
             >
               <span className="material-symbols-outlined text-sm leading-none">chevron_right</span>
             </button>
@@ -277,12 +289,12 @@ export default function ProductDetailGallery({
           aria-modal="true"
           aria-label="Xem ảnh sản phẩm toàn màn hình"
           onClick={closeLightbox}
-          className="fixed inset-0 z-[999] bg-black/92 backdrop-blur-md flex flex-col justify-between p-4 sm:p-6 animate-fade-in"
+          className="fixed inset-0 z-[999] bg-black/92 backdrop-blur-md flex flex-col justify-between p-4 sm:p-6 animate-fade-in cursor-pointer"
         >
           {/* Header */}
           <div
             onClick={(e) => e.stopPropagation()}
-            className="flex items-center justify-between text-white/90 z-20 max-w-6xl mx-auto w-full"
+            className="flex items-center justify-between text-white/90 z-20 max-w-6xl mx-auto w-full cursor-default"
           >
             <div className="flex items-center gap-3">
               <span className="bg-white/10 text-white text-xs font-bold px-3 py-1 rounded-full border border-white/20">
@@ -301,7 +313,8 @@ export default function ProductDetailGallery({
                 type="button"
                 onClick={closeLightbox}
                 title="Đóng (ESC)"
-                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/25 text-white flex items-center justify-center transition-all hover:scale-110"
+                aria-label="Đóng (ESC)"
+                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/25 active:scale-95 text-white flex items-center justify-center transition-all hover:scale-110 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
                 <span className="material-symbols-outlined text-xl">close</span>
               </button>
@@ -314,7 +327,7 @@ export default function ProductDetailGallery({
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
-            className="relative flex-1 flex items-center justify-center my-2 max-w-5xl mx-auto w-full select-none"
+            className="relative flex-1 flex items-center justify-center my-2 max-w-5xl mx-auto w-full select-none cursor-default"
           >
             {/* Prev Button */}
             {galleryList.length > 1 && (
@@ -322,7 +335,8 @@ export default function ProductDetailGallery({
                 type="button"
                 onClick={prevImage}
                 title="Ảnh trước (Mũi tên trái)"
-                className="absolute left-2 sm:left-4 z-20 w-12 h-12 rounded-full bg-white/15 hover:bg-white/30 text-white flex items-center justify-center transition-all hover:scale-110 backdrop-blur-xs border border-white/20 shadow-xl"
+                aria-label="Ảnh trước"
+                className="absolute left-2 sm:left-4 z-20 w-12 h-12 rounded-full bg-white/15 hover:bg-white/30 active:scale-95 text-white flex items-center justify-center transition-all hover:scale-110 backdrop-blur-xs border border-white/20 shadow-xl cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
                 <span className="material-symbols-outlined text-2xl">chevron_left</span>
               </button>
@@ -347,7 +361,8 @@ export default function ProductDetailGallery({
                 type="button"
                 onClick={nextImage}
                 title="Ảnh tiếp theo (Mũi tên phải)"
-                className="absolute right-2 sm:right-4 z-20 w-12 h-12 rounded-full bg-white/15 hover:bg-white/30 text-white flex items-center justify-center transition-all hover:scale-110 backdrop-blur-xs border border-white/20 shadow-xl"
+                aria-label="Ảnh tiếp theo"
+                className="absolute right-2 sm:right-4 z-20 w-12 h-12 rounded-full bg-white/15 hover:bg-white/30 active:scale-95 text-white flex items-center justify-center transition-all hover:scale-110 backdrop-blur-xs border border-white/20 shadow-xl cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
                 <span className="material-symbols-outlined text-2xl">chevron_right</span>
               </button>
@@ -358,7 +373,7 @@ export default function ProductDetailGallery({
           {galleryList.length > 1 && (
             <div
               onClick={(e) => e.stopPropagation()}
-              className="flex justify-center gap-2 overflow-x-auto py-2 z-20 max-w-3xl mx-auto w-full"
+              className="flex justify-center gap-2 overflow-x-auto py-2 z-20 max-w-3xl mx-auto w-full cursor-default"
             >
               {galleryList.map((imgSrc, idx) => (
                 <button

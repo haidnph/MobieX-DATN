@@ -245,9 +245,18 @@ export default function CheckoutPage() {
                     return (
                       <div
                         key={addr.id}
+                        role="radio"
+                        aria-checked={isSelected}
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            handleSelectSavedAddress(addr)
+                          }
+                        }}
                         onClick={() => handleSelectSavedAddress(addr)}
                         className={[
-                          'p-3.5 rounded-xl border text-xs cursor-pointer transition-all flex flex-col justify-between relative',
+                          'p-3.5 rounded-xl border text-xs cursor-pointer transition-all flex flex-col justify-between relative active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary',
                           isSelected
                             ? 'bg-primary/5 border-primary ring-2 ring-primary/20 shadow-sm'
                             : 'bg-surface-container-low border-outline-variant/30 hover:border-outline',
@@ -374,12 +383,22 @@ export default function CheckoutPage() {
                   return (
                     <div
                       key={method.id}
+                      role="radio"
+                      aria-checked={isSelected}
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          setSelectedShippingId(method.id)
+                          setShippingFee(parseFloat(method.fee) || 0)
+                        }
+                      }}
                       onClick={() => {
                         setSelectedShippingId(method.id)
                         setShippingFee(parseFloat(method.fee) || 0)
                       }}
                       className={[
-                        'flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all',
+                        'flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary',
                         isSelected
                           ? 'border-primary bg-primary/5 ring-2 ring-primary/20 shadow-sm'
                           : 'border-outline-variant/30 bg-surface-container-low hover:border-outline',
@@ -426,9 +445,18 @@ export default function CheckoutPage() {
             <div className="space-y-3">
               {/* Option 1: VNPay Gateway (Featured / Recommended) */}
               <div
+                role="radio"
+                aria-checked={form.payment_method === 'vnpay'}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setForm((prev) => ({ ...prev, payment_method: 'vnpay' }))
+                  }
+                }}
                 onClick={() => setForm((prev) => ({ ...prev, payment_method: 'vnpay' }))}
                 className={[
-                  'p-4 rounded-2xl border cursor-pointer transition-all space-y-3',
+                  'p-4 rounded-2xl border cursor-pointer transition-all space-y-3 active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary',
                   form.payment_method === 'vnpay'
                     ? 'border-primary bg-primary/5 ring-2 ring-primary/20 shadow-md'
                     : 'border-outline-variant/30 bg-surface-container-low hover:border-outline',
@@ -493,9 +521,18 @@ export default function CheckoutPage() {
 
               {/* Option 2: ZaloPay Gateway */}
               <div
+                role="radio"
+                aria-checked={form.payment_method === 'zalopay'}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setForm((prev) => ({ ...prev, payment_method: 'zalopay' }))
+                  }
+                }}
                 onClick={() => setForm((prev) => ({ ...prev, payment_method: 'zalopay' }))}
                 className={[
-                  'p-4 rounded-2xl border cursor-pointer transition-all space-y-3',
+                  'p-4 rounded-2xl border cursor-pointer transition-all space-y-3 active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500',
                   form.payment_method === 'zalopay'
                     ? 'border-[#009f73] bg-[#009f73]/5 ring-2 ring-[#009f73]/20 shadow-md'
                     : 'border-outline-variant/30 bg-surface-container-low hover:border-outline',
@@ -555,9 +592,18 @@ export default function CheckoutPage() {
 
               {/* Option 3: MoMo Gateway */}
               <div
+                role="radio"
+                aria-checked={form.payment_method === 'momo'}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setForm((prev) => ({ ...prev, payment_method: 'momo' }))
+                  }
+                }}
                 onClick={() => setForm((prev) => ({ ...prev, payment_method: 'momo' }))}
                 className={[
-                  'p-4 rounded-2xl border cursor-pointer transition-all space-y-3',
+                  'p-4 rounded-2xl border cursor-pointer transition-all space-y-3 active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-500',
                   form.payment_method === 'momo'
                     ? 'border-[#a50064] bg-[#a50064]/5 ring-2 ring-[#a50064]/20 shadow-md'
                     : 'border-outline-variant/30 bg-surface-container-low hover:border-outline',
@@ -615,11 +661,20 @@ export default function CheckoutPage() {
                 )}
               </div>
 
-              {/* Option 3: Cash On Delivery (COD) */}
+              {/* Option 4: Cash On Delivery (COD) */}
               <div
+                role="radio"
+                aria-checked={form.payment_method === 'cod'}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setForm((prev) => ({ ...prev, payment_method: 'cod' }))
+                  }
+                }}
                 onClick={() => setForm((prev) => ({ ...prev, payment_method: 'cod' }))}
                 className={[
-                  'p-4 rounded-2xl border cursor-pointer transition-all space-y-2',
+                  'p-4 rounded-2xl border cursor-pointer transition-all space-y-2 active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary',
                   form.payment_method === 'cod'
                     ? 'border-primary bg-primary/5 ring-2 ring-primary/20 shadow-md'
                     : 'border-outline-variant/30 bg-surface-container-low hover:border-outline',
@@ -708,7 +763,7 @@ export default function CheckoutPage() {
                   <button
                     type="button"
                     onClick={handleClearCoupon}
-                    className="text-xs text-outline hover:text-error transition-colors font-medium"
+                    className="text-xs text-outline hover:text-error active:scale-95 cursor-pointer transition-all font-medium focus:outline-none focus-visible:ring-1 focus-visible:ring-error rounded"
                   >
                     Bỏ mã
                   </button>

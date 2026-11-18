@@ -263,7 +263,7 @@ export default function ProductForm({
                   <button
                     type="button"
                     onClick={handleRegenerateSlug}
-                    className="text-xs text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                    className="text-xs text-primary hover:underline flex items-center gap-1 cursor-pointer active:scale-95 focus-visible:outline-none"
                   >
                     <span className="material-symbols-outlined text-xs">sync</span>
                     Tạo lại từ tên
@@ -322,7 +322,7 @@ export default function ProductForm({
                   <button
                     type="button"
                     onClick={() => setGalleryView('general')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer active:scale-95 focus-visible:outline-none ${
                       galleryView === 'general'
                         ? 'bg-primary text-on-primary shadow-xs'
                         : 'text-on-surface-variant hover:text-on-surface'
@@ -334,7 +334,7 @@ export default function ProductForm({
                   <button
                     type="button"
                     onClick={() => setGalleryView('variants')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer active:scale-95 focus-visible:outline-none ${
                       galleryView === 'variants'
                         ? 'bg-primary text-on-primary shadow-xs'
                         : 'text-on-surface-variant hover:text-on-surface'

@@ -93,9 +93,9 @@ export default function AdminLayout() {
               end={end}
               className={({ isActive }) =>
                 [
-                  'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors',
+                  'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium cursor-pointer transition-all active:scale-[0.99] select-none',
                   isActive
-                    ? 'bg-primary-container/20 text-primary'
+                    ? 'bg-primary-container/20 text-primary font-semibold shadow-2xs'
                     : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface',
                 ].join(' ')
               }
@@ -118,8 +118,9 @@ export default function AdminLayout() {
         {/* Collapse toggle */}
         <div className="p-2 border-t border-outline-variant/20">
           <button
+            type="button"
             onClick={() => setCollapsed((v) => !v)}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-on-surface-variant hover:bg-surface-container-high transition-colors text-sm"
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-on-surface-variant hover:bg-surface-container-high active:scale-95 cursor-pointer transition-all text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
             aria-label={collapsed ? 'Mở rộng' : 'Thu gọn'}
           >
             <span className="material-symbols-outlined text-xl">
@@ -135,7 +136,7 @@ export default function AdminLayout() {
         {/* Top bar */}
         <header className="sticky top-0 z-30 h-16 flex items-center justify-between px-6 bg-surface-container-low/90 backdrop-blur-sm border-b border-outline-variant/20 gap-4">
           <div className="flex items-center gap-3">
-            <Link to="/" target="_blank" className="flex items-center gap-2 text-sm text-on-surface-variant hover:text-on-surface transition-colors shrink-0">
+            <Link to="/" target="_blank" className="flex items-center gap-2 text-sm text-on-surface-variant hover:text-on-surface active:scale-95 cursor-pointer transition-all shrink-0">
               <span className="material-symbols-outlined text-base">open_in_new</span>
               <span className="hidden sm:inline">Xem cửa hàng</span>
             </Link>
@@ -145,7 +146,7 @@ export default function AdminLayout() {
           <button
             type="button"
             onClick={() => setOmnisearchOpen(true)}
-            className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-surface-container-high/60 hover:bg-surface-container-high text-on-surface-variant text-xs border border-outline-variant/30 transition-all hover:border-primary/40 shadow-xs w-full max-w-xs md:max-w-md justify-between"
+            className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-surface-container-high/60 hover:bg-surface-container-high active:scale-[0.99] cursor-pointer text-on-surface-variant text-xs border border-outline-variant/30 transition-all hover:border-primary/40 shadow-xs w-full max-w-xs md:max-w-md justify-between"
           >
             <div className="flex items-center gap-2 truncate">
               <span className="material-symbols-outlined text-base text-primary">search</span>
@@ -164,8 +165,9 @@ export default function AdminLayout() {
               </span>
             </div>
             <button
+              type="button"
               onClick={handleLogout}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-error hover:bg-error-container/20 transition-colors text-sm font-medium"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-error hover:bg-error-container/20 active:scale-95 cursor-pointer transition-all text-sm font-medium focus:outline-none focus-visible:ring-1 focus-visible:ring-error"
               title="Đăng xuất khỏi Admin"
             >
               <span className="material-symbols-outlined text-base">logout</span>

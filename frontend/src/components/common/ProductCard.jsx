@@ -70,7 +70,7 @@ function ProductCard({ product }) {
     <Link
       to={`/products/${product.id}`}
       aria-label={`Chi tiết sản phẩm ${product.name}`}
-      className={`group flex flex-col bg-surface-container rounded-2xl overflow-hidden border border-outline-variant/15 hover:border-primary/40 hover:shadow-[0_8px_30px_rgba(77,142,255,0.12)] transition-all duration-300 focus-visible:outline-2 focus-visible:outline-primary ${
+      className={`group flex flex-col bg-surface-container rounded-2xl overflow-hidden border border-outline-variant/15 hover:border-primary/40 hover:shadow-[0_12px_32px_rgba(77,142,255,0.14)] hover:-translate-y-1 transition-all duration-300 cursor-pointer focus-visible:outline-2 focus-visible:outline-primary ${
         isDiscontinued ? 'opacity-70 grayscale-50' : isOutOfStock ? 'opacity-85' : ''
       }`}
     >
@@ -126,7 +126,7 @@ function ProductCard({ product }) {
         </div>
 
         {/* Quick Action Buttons (Wishlist & Compare) */}
-        <div className="absolute top-2.5 right-2.5 flex flex-col gap-1.5 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        <div className="absolute top-2.5 right-2.5 flex flex-col gap-1.5 z-20 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200">
           <button
             type="button"
             title={isFavorited ? 'Bỏ yêu thích' : 'Thêm vào yêu thích'}
@@ -136,7 +136,7 @@ function ProductCard({ product }) {
               e.stopPropagation()
               toggleWishlist(product)
             }}
-            className={`w-8 h-8 rounded-full flex items-center justify-center transition-transform hover:scale-110 shadow-md ${
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150 hover:scale-110 active:scale-95 cursor-pointer shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
               isFavorited
                 ? 'bg-error text-white'
                 : 'bg-surface-container/90 text-on-surface-variant hover:text-error hover:bg-surface-container-highest'
@@ -159,7 +159,7 @@ function ProductCard({ product }) {
               e.stopPropagation()
               toggleCompare(product)
             }}
-            className={`w-8 h-8 rounded-full flex items-center justify-center transition-transform hover:scale-110 shadow-md ${
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150 hover:scale-110 active:scale-95 cursor-pointer shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
               isCompared
                 ? 'bg-primary text-on-primary'
                 : 'bg-surface-container/90 text-on-surface-variant hover:text-primary hover:bg-surface-container-highest'

@@ -619,6 +619,14 @@ export default function ProductImageGallery({
             {/* "+ Thêm ảnh" slot tile in the grid when totalCount < 10 */}
             {totalCount < 10 && (
               <div
+                role="button"
+                tabIndex={uploading ? -1 : 0}
+                onKeyDown={(e) => {
+                  if (!uploading && (e.key === 'Enter' || e.key === ' ')) {
+                    e.preventDefault()
+                    addMoreInputRef.current?.click()
+                  }
+                }}
                 onClick={() => !uploading && addMoreInputRef.current?.click()}
                 onDragOver={(e) => {
                   e.preventDefault()
@@ -627,11 +635,11 @@ export default function ProductImageGallery({
                 onDragLeave={() => setSlotDragOver(false)}
                 onDrop={handleSlotDrop}
                 className={[
-                  'relative aspect-square rounded-2xl border-2 border-dashed flex flex-col items-center justify-center p-3 text-center cursor-pointer transition-all duration-200 select-none group',
+                  'relative aspect-square rounded-2xl border-2 border-dashed flex flex-col items-center justify-center p-3 text-center cursor-pointer transition-all duration-200 select-none group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary',
                   slotDragOver
                     ? 'border-primary bg-primary/10 scale-[1.02]'
                     : 'border-outline-variant/60 hover:border-primary hover:bg-surface-container-high/60 bg-surface-container-lowest/50',
-                  uploading ? 'opacity-50 cursor-not-allowed' : '',
+                  uploading ? 'opacity-50 cursor-not-allowed pointer-events-none' : '',
                 ].join(' ')}
               >
                 <span className="material-symbols-outlined text-3xl text-primary group-hover:scale-110 transition-transform mb-1">

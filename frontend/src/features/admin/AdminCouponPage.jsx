@@ -68,7 +68,7 @@ export default function AdminCouponPage() {
         </div>
         <Link
           to="/admin/coupons/create"
-          className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-on-primary rounded-xl font-semibold text-sm hover:opacity-90 shadow-sm transition-all"
+          className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-on-primary rounded-xl font-semibold text-sm hover:opacity-90 shadow-sm transition-all cursor-pointer active:scale-95 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
         >
           <span className="material-symbols-outlined text-base">add</span>
           Tạo mã mới
@@ -153,7 +153,7 @@ export default function AdminCouponPage() {
                       <td className="px-5 py-4 text-right space-x-2">
                         <Link
                           to={`/admin/coupons/${c.id}/edit`}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-surface-container-high hover:bg-primary hover:text-on-primary rounded-lg text-xs font-semibold text-on-surface transition-colors"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-surface-container-high hover:bg-primary hover:text-on-primary rounded-lg text-xs font-semibold text-on-surface transition-colors cursor-pointer active:scale-95 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
                         >
                           <span className="material-symbols-outlined text-xs">edit</span>
                           Sửa
@@ -161,7 +161,7 @@ export default function AdminCouponPage() {
                         <button
                           type="button"
                           onClick={() => setDeleteTarget(c)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-error-container/20 hover:bg-error-container/40 rounded-lg text-xs font-semibold text-error transition-colors"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-error-container/20 hover:bg-error-container/40 rounded-lg text-xs font-semibold text-error transition-colors cursor-pointer active:scale-95 focus-visible:ring-2 focus-visible:ring-error focus-visible:outline-none"
                         >
                           <span className="material-symbols-outlined text-xs">delete</span>
                           Xóa

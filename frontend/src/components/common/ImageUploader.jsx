@@ -55,17 +55,25 @@ export default function ImageUploader({ onUpload, disabled = false, maxFiles = M
   return (
     <div className={`space-y-2 ${className}`}>
       <div
+        role="button"
+        tabIndex={disabled ? -1 : 0}
+        onKeyDown={(e) => {
+          if (!disabled && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault()
+            inputRef.current?.click()
+          }
+        }}
         onDragOver={(e) => { e.preventDefault(); if (!disabled) setDragOver(true) }}
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
         onClick={() => !disabled && inputRef.current?.click()}
         className={[
           'relative flex flex-col items-center justify-center gap-2',
-          'border-2 border-dashed rounded-xl p-6 cursor-pointer transition-all',
+          'border-2 border-dashed rounded-xl p-6 cursor-pointer transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary',
           dragOver
             ? 'border-primary bg-primary/5 scale-[1.01]'
-            : 'border-outline-variant hover:border-primary/60 hover:bg-surface-container-low',
-          disabled ? 'opacity-50 cursor-not-allowed' : '',
+            : 'border-outline-variant hover:border-primary/60 hover:bg-surface-container-low active:scale-[0.99]',
+          disabled ? 'opacity-50 cursor-not-allowed pointer-events-none' : '',
         ].join(' ')}
       >
         <span className="material-symbols-outlined text-4xl text-outline">cloud_upload</span>

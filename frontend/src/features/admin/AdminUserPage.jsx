@@ -291,7 +291,8 @@ export default function AdminUserPage() {
                             type="button"
                             onClick={() => setRoleModalUser(u)}
                             title="Phân quyền vai trò"
-                            className="p-1.5 rounded-lg hover:bg-surface-container-high text-on-surface-variant hover:text-primary transition-colors"
+                            aria-label={`Phân quyền vai trò cho ${u.name}`}
+                            className="p-1.5 rounded-lg hover:bg-surface-container-high text-on-surface-variant hover:text-primary transition-all cursor-pointer active:scale-90 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
                           >
                             <span className="material-symbols-outlined text-lg">admin_panel_settings</span>
                           </button>
@@ -301,13 +302,14 @@ export default function AdminUserPage() {
                             onClick={() => setStatusTarget(u)}
                             disabled={isCurrentAuth}
                             title={isCurrentAuth ? 'Không thể khóa tài khoản của chính bạn' : isActive ? 'Khóa tài khoản' : 'Mở khóa tài khoản'}
+                            aria-label={isCurrentAuth ? 'Không thể khóa tài khoản của chính bạn' : isActive ? `Khóa tài khoản ${u.name}` : `Mở khóa tài khoản ${u.name}`}
                             className={[
-                              'p-1.5 rounded-lg transition-colors',
+                              'p-1.5 rounded-lg transition-all focus-visible:outline-none',
                               isCurrentAuth
                                 ? 'opacity-30 cursor-not-allowed text-outline'
                                 : isActive
-                                  ? 'hover:bg-error/10 text-on-surface-variant hover:text-error'
-                                  : 'hover:bg-secondary/10 text-on-surface-variant hover:text-secondary',
+                                  ? 'cursor-pointer hover:bg-error/10 text-on-surface-variant hover:text-error active:scale-90 focus-visible:ring-2 focus-visible:ring-error'
+                                  : 'cursor-pointer hover:bg-secondary/10 text-on-surface-variant hover:text-secondary active:scale-90 focus-visible:ring-2 focus-visible:ring-secondary',
                             ].join(' ')}
                           >
                             <span className="material-symbols-outlined text-lg">
@@ -376,7 +378,8 @@ export default function AdminUserPage() {
                             type="button"
                             onClick={() => handleRevokeRole(roleModalUser, r.slug)}
                             title="Gỡ quyền này"
-                            className="hover:text-error ml-1 font-bold"
+                            aria-label={`Gỡ quyền ${ROLE_CONFIG[r.slug]?.label || r.name}`}
+                            className="hover:text-error ml-1 font-bold cursor-pointer active:scale-90"
                           >
                             ×
                           </button>

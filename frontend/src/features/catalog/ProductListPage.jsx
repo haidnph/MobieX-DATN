@@ -390,7 +390,8 @@ export default function ProductListPage() {
               <button
                 type="button"
                 onClick={() => handleCategorySelect(selectedCategory)}
-                className="hover:text-error transition-colors"
+                className="hover:text-error active:scale-90 cursor-pointer transition-all rounded"
+                aria-label="Xóa bộ lọc danh mục"
               >
                 <span className="material-symbols-outlined text-xs">close</span>
               </button>
@@ -410,7 +411,8 @@ export default function ProductListPage() {
                 <button
                   type="button"
                   onClick={() => handleBrandToggle(bId)}
-                  className="hover:text-error transition-colors"
+                  className="hover:text-error active:scale-90 cursor-pointer transition-all rounded"
+                  aria-label={`Xóa bộ lọc thương hiệu ${br.name}`}
                 >
                   <span className="material-symbols-outlined text-xs">close</span>
                 </button>
@@ -425,7 +427,8 @@ export default function ProductListPage() {
               <button
                 type="button"
                 onClick={() => handlePriceToggle(selectedPrice)}
-                className="hover:text-error transition-colors"
+                className="hover:text-error active:scale-90 cursor-pointer transition-all rounded"
+                aria-label="Xóa bộ lọc giá"
               >
                 <span className="material-symbols-outlined text-xs">close</span>
               </button>
@@ -442,7 +445,8 @@ export default function ProductListPage() {
                   setSearchInput('')
                   updateUrl({ q: '', page: 1 })
                 }}
-                className="hover:text-error transition-colors"
+                className="hover:text-error active:scale-90 cursor-pointer transition-all rounded"
+                aria-label="Xóa từ khóa tìm kiếm"
               >
                 <span className="material-symbols-outlined text-xs">close</span>
               </button>
@@ -453,7 +457,7 @@ export default function ProductListPage() {
           <button
             type="button"
             onClick={clearAllFilters}
-            className="text-xs font-bold text-error hover:text-white hover:bg-error px-3 py-1 rounded-full transition-colors ml-auto flex items-center gap-1 border border-error/30"
+            className="text-xs font-bold text-error hover:text-white hover:bg-error active:scale-95 cursor-pointer px-3 py-1 rounded-full transition-all ml-auto flex items-center gap-1 border border-error/30"
           >
             <span className="material-symbols-outlined text-xs">restart_alt</span>
             Xóa tất cả bộ lọc
@@ -799,7 +803,7 @@ export default function ProductListPage() {
                 key={cat.id}
                 type="button"
                 onClick={() => handleCategorySelect(cat.id)}
-                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border cursor-pointer active:scale-95 transition-all ${
                   selectedCategory === String(cat.id)
                     ? 'bg-primary text-on-primary border-primary shadow-sm'
                     : 'bg-surface-container text-on-surface-variant border-outline-variant/20 hover:border-primary/40'
@@ -815,7 +819,7 @@ export default function ProductListPage() {
                 key={brand.id}
                 type="button"
                 onClick={() => handleBrandToggle(brand.id)}
-                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border cursor-pointer active:scale-95 transition-all ${
                   selectedBrands.includes(String(brand.id))
                     ? 'bg-secondary-container text-on-secondary-container border-secondary/40'
                     : 'bg-surface-container text-on-surface-variant border-outline-variant/20 hover:border-primary/40'
@@ -831,7 +835,7 @@ export default function ProductListPage() {
                 key={range.key}
                 type="button"
                 onClick={() => handlePriceToggle(range.key)}
-                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border cursor-pointer active:scale-95 transition-all ${
                   selectedPrice === range.key
                     ? 'bg-tertiary-container text-on-tertiary-container border-tertiary/40'
                     : 'bg-surface-container text-on-surface-variant border-outline-variant/20 hover:border-primary/40'
@@ -897,7 +901,7 @@ export default function ProductListPage() {
                 <button
                   type="button"
                   onClick={clearAllFilters}
-                  className="inline-flex items-center gap-2 bg-primary hover:bg-primary-hover text-on-primary font-bold text-sm px-5 py-2.5 rounded-xl shadow-lg transition-all"
+                  className="inline-flex items-center gap-2 bg-primary hover:bg-primary-hover text-on-primary font-bold text-sm px-5 py-2.5 rounded-xl shadow-lg active:scale-95 cursor-pointer transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 >
                   <span className="material-symbols-outlined text-base">restart_alt</span>
                   {debouncedSearch ? 'Xóa từ khóa & Xem tất cả sản phẩm' : 'Đặt lại toàn bộ bộ lọc'}

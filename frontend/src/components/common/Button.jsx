@@ -19,10 +19,11 @@ export default function Button({
   disabled = false,
   className = '',
   children,
+  type = 'button',
   ...rest
 }) {
   const base =
-    'inline-flex items-center justify-center gap-2 font-semibold rounded-lg transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed'
+    'inline-flex items-center justify-center gap-2 font-semibold rounded-lg transition-all duration-200 cursor-pointer active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 disabled:pointer-events-none'
 
   const variants = {
     primary:   'bg-primary-container text-on-primary-container hover:bg-primary hover:text-on-primary shadow-lg',
@@ -39,6 +40,7 @@ export default function Button({
 
   return (
     <button
+      type={type}
       className={[base, variants[variant] ?? variants.primary, sizes[size] ?? sizes.md, className].join(' ')}
       disabled={disabled || loading}
       {...rest}

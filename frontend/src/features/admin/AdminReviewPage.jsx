@@ -75,9 +75,10 @@ export default function AdminReviewPage() {
         ].map((tab) => (
           <button
             key={tab.key}
+            type="button"
             onClick={() => setFilterStatus(tab.key)}
             className={[
-              'px-4 py-2 rounded-xl text-sm font-medium transition-all',
+              'px-4 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer active:scale-95 focus-visible:outline-none',
               filterStatus === tab.key
                 ? 'bg-primary-container text-on-primary-container font-semibold shadow'
                 : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface',
@@ -152,18 +153,20 @@ export default function AdminReviewPage() {
                       <td className="px-5 py-4 text-right space-x-2 whitespace-nowrap">
                         {rev.status !== 'approved' && (
                           <button
+                            type="button"
                             onClick={() => handleUpdateStatus(rev.id, 'approved')}
                             disabled={isBusy}
-                            className="px-2.5 py-1 bg-secondary-container/20 hover:bg-secondary-container/40 rounded-lg text-xs font-semibold text-secondary transition-colors disabled:opacity-50"
+                            className="px-2.5 py-1 bg-secondary-container/20 hover:bg-secondary-container/40 rounded-lg text-xs font-semibold text-secondary transition-all cursor-pointer active:scale-95 focus-visible:ring-2 focus-visible:ring-secondary focus-visible:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             Duyệt
                           </button>
                         )}
                         {rev.status !== 'hidden' && (
                           <button
+                            type="button"
                             onClick={() => handleUpdateStatus(rev.id, 'hidden')}
                             disabled={isBusy}
-                            className="px-2.5 py-1 bg-error-container/20 hover:bg-error-container/40 rounded-lg text-xs font-semibold text-error transition-colors disabled:opacity-50"
+                            className="px-2.5 py-1 bg-error-container/20 hover:bg-error-container/40 rounded-lg text-xs font-semibold text-error transition-all cursor-pointer active:scale-95 focus-visible:ring-2 focus-visible:ring-error focus-visible:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             Ẩn
                           </button>

@@ -115,11 +115,11 @@ export default function AdminOmnisearchModal({ open, onClose }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-12 sm:pt-20 p-4 bg-scrim/60 backdrop-blur-xs animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-12 sm:pt-20 p-4 bg-scrim/60 backdrop-blur-xs animate-in fade-in duration-150 cursor-pointer"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl bg-surface-container rounded-2xl shadow-2xl border border-outline-variant/30 flex flex-col max-h-[80vh] overflow-hidden animate-in zoom-in-95 duration-150"
+        className="w-full max-w-2xl bg-surface-container rounded-2xl shadow-2xl border border-outline-variant/30 flex flex-col max-h-[80vh] overflow-hidden animate-in zoom-in-95 duration-150 cursor-default"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >
@@ -134,17 +134,19 @@ export default function AdminOmnisearchModal({ open, onClose }) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Tìm đơn hàng (mã/sđt), sản phẩm, khách hàng, thao tác nhanh..."
-            className="flex-1 bg-transparent text-on-surface placeholder:text-outline text-base focus:outline-none"
+            className="flex-1 bg-transparent text-on-surface placeholder:text-outline text-base focus:outline-none cursor-text"
           />
           {query && (
             <button
+              type="button"
               onClick={() => setQuery('')}
-              className="p-1 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors"
+              className="p-1 rounded-lg text-on-surface-variant hover:bg-surface-container-high active:scale-95 cursor-pointer transition-all focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+              aria-label="Xóa từ khóa tìm kiếm"
             >
               <span className="material-symbols-outlined text-lg">close</span>
             </button>
           )}
-          <kbd className="hidden sm:inline-flex items-center gap-0.5 px-2 py-1 rounded bg-surface-container-highest text-[10px] font-mono text-on-surface-variant border border-outline-variant/30">
+          <kbd className="hidden sm:inline-flex items-center gap-0.5 px-2 py-1 rounded bg-surface-container-highest text-[10px] font-mono text-on-surface-variant border border-outline-variant/30 select-none">
             ESC
           </kbd>
         </div>
@@ -194,10 +196,19 @@ export default function AdminOmnisearchModal({ open, onClose }) {
                         return (
                           <div
                             key={item.id || item.title}
+                            role="option"
+                            aria-selected={isSelected}
+                            tabIndex={0}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault()
+                                handleSelect(item)
+                              }
+                            }}
                             data-active={isSelected ? 'true' : 'false'}
                             onClick={() => handleSelect(item)}
                             className={[
-                              'flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-colors',
+                              'flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary',
                               isSelected
                                 ? 'bg-primary-container/30 text-on-surface'
                                 : 'hover:bg-surface-container-high/60 text-on-surface',

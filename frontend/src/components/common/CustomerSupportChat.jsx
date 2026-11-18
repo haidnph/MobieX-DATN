@@ -118,7 +118,7 @@ export default function CustomerSupportChat() {
         <button
           type="button"
           onClick={() => setIsOpen(true)}
-          className="group relative flex items-center gap-2.5 px-4 py-3 bg-primary text-on-primary rounded-full shadow-[0_8px_30px_rgba(77,142,255,0.4)] hover:shadow-[0_12px_40px_rgba(77,142,255,0.6)] hover:scale-105 transition-all duration-300"
+          className="group relative flex items-center gap-2.5 px-4 py-3 bg-primary text-on-primary rounded-full shadow-[0_8px_30px_rgba(77,142,255,0.4)] hover:shadow-[0_12px_40px_rgba(77,142,255,0.6)] hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
           aria-label="Mở cửa sổ hỗ trợ"
         >
           <div className="relative">
@@ -160,7 +160,7 @@ export default function CustomerSupportChat() {
             <button
               type="button"
               onClick={() => setIsOpen(false)}
-              className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-black/10 transition-colors"
+              className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-black/10 active:scale-90 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-on-primary focus-visible:outline-none"
               aria-label="Đóng cửa sổ chat"
             >
               <span className="material-symbols-outlined text-xl">close</span>
@@ -205,7 +205,7 @@ export default function CustomerSupportChat() {
                 key={idx}
                 type="button"
                 onClick={() => handleSendMessage(chip.prompt)}
-                className="whitespace-nowrap px-2.5 py-1 rounded-full bg-surface-container-high hover:bg-primary hover:text-on-primary text-[11px] font-medium text-on-surface-variant transition-colors border border-outline-variant/30 shrink-0"
+                className="whitespace-nowrap px-2.5 py-1 rounded-full bg-surface-container-high hover:bg-primary hover:text-on-primary text-[11px] font-medium text-on-surface-variant transition-all border border-outline-variant/30 shrink-0 cursor-pointer active:scale-95 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
               >
                 {chip.label}
               </button>
@@ -227,7 +227,7 @@ export default function CustomerSupportChat() {
             <button
               type="submit"
               disabled={!inputValue.trim()}
-              className="p-2.5 rounded-xl bg-primary text-on-primary disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary-fixed transition-colors flex items-center justify-center shrink-0"
+              className="p-2.5 rounded-xl bg-primary text-on-primary disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary-fixed transition-all flex items-center justify-center shrink-0 cursor-pointer active:scale-95 disabled:active:scale-100 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
               aria-label="Gửi tin nhắn"
             >
               <span className="material-symbols-outlined text-base">send</span>

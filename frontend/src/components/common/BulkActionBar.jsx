@@ -35,7 +35,7 @@ export default function BulkActionBar({
           <button
             type="button"
             onClick={onClear}
-            className="text-xs text-outline hover:text-primary transition-colors underline"
+            className="text-xs text-outline hover:text-primary transition-colors underline cursor-pointer active:scale-95 focus:outline-none focus-visible:ring-1 focus-visible:ring-primary rounded"
           >
             Bỏ chọn
           </button>

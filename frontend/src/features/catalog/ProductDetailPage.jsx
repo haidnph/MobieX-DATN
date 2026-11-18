@@ -297,9 +297,10 @@ export default function ProductDetailPage() {
                   return (
                     <button
                       key={v.id}
+                      type="button"
                       onClick={() => handleVariantSelect(v)}
                       className={[
-                        'px-4 py-2.5 rounded-xl text-sm font-medium border transition-all text-left flex flex-col gap-0.5',
+                        'px-4 py-2.5 rounded-xl text-sm font-medium border transition-all text-left flex flex-col gap-0.5 cursor-pointer active:scale-[0.98]',
                         isSelected
                           ? 'border-primary bg-primary/10 text-primary shadow-[0_0_15px_rgba(77,142,255,0.2)]'
                           : 'border-outline-variant/30 bg-surface-container text-on-surface-variant hover:border-outline hover:text-on-surface',
@@ -339,18 +340,20 @@ export default function ProductDetailPage() {
                   type="button"
                   onClick={() => setQuantity((q) => Math.max(1, q - 1))}
                   disabled={quantity <= 1 || isSelectedVariantOutOfStock}
-                  className="px-3 py-2 text-on-surface hover:bg-surface-container-high transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="px-3 py-2 text-on-surface hover:bg-surface-container-high active:scale-90 cursor-pointer transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:active:scale-100"
+                  aria-label="Giảm số lượng"
                 >
                   <span className="material-symbols-outlined text-base">remove</span>
                 </button>
-                <span className="px-4 py-2 text-sm font-semibold text-on-surface min-w-[2.5rem] text-center">
+                <span className="px-4 py-2 text-sm font-semibold text-on-surface min-w-[2.5rem] text-center select-none">
                   {quantity}
                 </span>
                 <button
                   type="button"
                   onClick={() => setQuantity((q) => Math.min(availableStock || 1, q + 1))}
                   disabled={quantity >= availableStock || isSelectedVariantOutOfStock}
-                  className="px-3 py-2 text-on-surface hover:bg-surface-container-high transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="px-3 py-2 text-on-surface hover:bg-surface-container-high active:scale-90 cursor-pointer transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:active:scale-100"
+                  aria-label="Tăng số lượng"
                 >
                   <span className="material-symbols-outlined text-base">add</span>
                 </button>

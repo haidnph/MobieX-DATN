@@ -146,7 +146,7 @@ export default function CartPage() {
           <button
             type="button"
             onClick={() => setClearDialogOpen(true)}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-error hover:bg-error-container/20 px-3 py-1.5 rounded-xl border border-error/30 transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-error hover:bg-error-container/20 active:scale-95 cursor-pointer px-3 py-1.5 rounded-xl border border-error/30 transition-all focus:outline-none focus-visible:ring-1 focus-visible:ring-error"
           >
             <span className="material-symbols-outlined text-base">delete_sweep</span>
             Xóa toàn bộ giỏ hàng
@@ -201,12 +201,13 @@ export default function CartPage() {
                   </div>
 
                   {/* Quantity control */}
-                  <div className="flex items-center border border-outline-variant/40 rounded-xl overflow-hidden bg-surface-container-low shrink-0">
+                  <div className="flex items-center border border-outline-variant/40 rounded-xl overflow-hidden bg-surface-container-low shrink-0 select-none">
                     <button
                       type="button"
                       onClick={() => handleQuantity(item.id, item.quantity, -1, maxStock)}
                       disabled={item.quantity <= 1 || updatingId === item.id}
-                      className="px-2.5 py-1.5 text-on-surface hover:bg-surface-container-high transition-colors disabled:opacity-30"
+                      className="px-2.5 py-1.5 text-on-surface hover:bg-surface-container-high active:scale-90 cursor-pointer transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:active:scale-100 focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                      aria-label="Giảm số lượng"
                     >
                       <span className="material-symbols-outlined text-sm">remove</span>
                     </button>
@@ -217,7 +218,8 @@ export default function CartPage() {
                       type="button"
                       onClick={() => handleQuantity(item.id, item.quantity, 1, maxStock)}
                       disabled={item.quantity >= maxStock || updatingId === item.id}
-                      className="px-2.5 py-1.5 text-on-surface hover:bg-surface-container-high transition-colors disabled:opacity-30"
+                      className="px-2.5 py-1.5 text-on-surface hover:bg-surface-container-high active:scale-90 cursor-pointer transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:active:scale-100 focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                      aria-label="Tăng số lượng"
                     >
                       <span className="material-symbols-outlined text-sm">add</span>
                     </button>
@@ -232,10 +234,12 @@ export default function CartPage() {
 
                   {/* Remove */}
                   <button
+                    type="button"
                     onClick={() => handleRemove(item.id)}
                     disabled={updatingId === item.id}
-                    className="p-2 text-outline hover:text-error transition-colors rounded-lg hover:bg-surface-container-high shrink-0"
+                    className="p-2 text-outline hover:text-error active:scale-90 cursor-pointer transition-all rounded-lg hover:bg-surface-container-high shrink-0 disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-1 focus-visible:ring-error"
                     title="Xóa khỏi giỏ"
+                    aria-label="Xóa khỏi giỏ hàng"
                   >
                     <span className="material-symbols-outlined text-lg">delete</span>
                   </button>
@@ -287,7 +291,7 @@ export default function CartPage() {
                   <button
                     type="button"
                     onClick={handleClearCoupon}
-                    className="text-xs text-outline hover:text-error transition-colors"
+                    className="text-xs text-outline hover:text-error active:scale-95 cursor-pointer transition-all"
                   >
                     Bỏ mã
                   </button>

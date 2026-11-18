@@ -236,11 +236,12 @@ export default function AdminProductPage() {
           return (
             <button
               key={tab.key}
+              type="button"
               onClick={() => {
                 setStatusFilter(tab.key)
                 setPage(1)
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer active:scale-95 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none ${
                 isSelected
                   ? 'bg-primary text-on-primary shadow-xs'
                   : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
@@ -349,11 +350,12 @@ export default function AdminProductPage() {
                 className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs bg-surface-container text-on-surface-variant border border-outline-variant/30"
               >
                 {f.label}
-                <button
-                  type="button"
-                  onClick={() => removeProductFilter(f.key)}
-                  className="hover:text-error cursor-pointer"
-                >
+                  <button
+                    type="button"
+                    onClick={() => removeProductFilter(f.key)}
+                    className="hover:text-error cursor-pointer active:scale-90 focus-visible:outline-none"
+                    aria-label={`Xóa bộ lọc ${f.label}`}
+                  >
                   <span className="material-symbols-outlined text-[13px] leading-none">close</span>
                 </button>
               </span>
@@ -496,13 +498,14 @@ export default function AdminProductPage() {
                       <td className="px-5 py-3 text-right space-x-2 whitespace-nowrap">
                         <Link
                           to={`/admin/products/${p.id}/edit`}
-                          className="inline-flex items-center px-2.5 py-1 bg-surface-container-high hover:bg-surface-bright rounded-lg text-xs font-semibold text-on-surface transition-colors cursor-pointer"
+                          className="inline-flex items-center px-2.5 py-1 bg-surface-container-high hover:bg-surface-bright rounded-lg text-xs font-semibold text-on-surface transition-colors cursor-pointer active:scale-95 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
                         >
                           Sửa
                         </Link>
                         <button
+                          type="button"
                           onClick={() => setDeleteTarget(p)}
-                          className="px-2.5 py-1 bg-error-container/20 hover:bg-error-container/40 rounded-lg text-xs font-semibold text-error transition-colors cursor-pointer"
+                          className="px-2.5 py-1 bg-error-container/20 hover:bg-error-container/40 rounded-lg text-xs font-semibold text-error transition-colors cursor-pointer active:scale-95 focus-visible:ring-2 focus-visible:ring-error focus-visible:outline-none"
                         >
                           Xóa
                         </button>

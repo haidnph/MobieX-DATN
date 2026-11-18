@@ -53,8 +53,9 @@ export default function CompareDock() {
     return (
       <aside aria-label="Khay so sánh sản phẩm" className="fixed bottom-6 right-6 z-40 animate-bounce-in">
         <button
+          type="button"
           onClick={() => setMinimized(false)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-primary text-on-primary font-bold shadow-2xl hover:bg-primary/90 hover:scale-105 active:scale-95 transition-all text-xs"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-primary text-on-primary font-bold shadow-2xl hover:bg-primary/90 hover:scale-105 active:scale-95 cursor-pointer transition-all text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           title={t.expand}
         >
           <span className="material-symbols-outlined text-lg">compare_arrows</span>
@@ -94,8 +95,9 @@ export default function CompareDock() {
                   <button
                     type="button"
                     onClick={() => removeFromCompare(item.id)}
-                    className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-error text-white text-[10px] flex items-center justify-center shadow-md hover:scale-110 transition-transform opacity-90 hover:opacity-100"
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-error text-white text-[10px] flex items-center justify-center shadow-md hover:scale-110 active:scale-90 cursor-pointer transition-transform opacity-90 hover:opacity-100 focus:outline-none focus-visible:ring-1 focus-visible:ring-error"
                     title={`Bỏ ${item.name}`}
+                    aria-label={`Bỏ ${item.name}`}
                   >
                     <span className="material-symbols-outlined text-[12px]">close</span>
                   </button>
@@ -106,7 +108,7 @@ export default function CompareDock() {
             return (
               <div
                 key={`empty-${idx}`}
-                className="shrink-0 w-12 h-12 md:w-14 md:h-14 rounded-xl border border-dashed border-outline-variant/40 bg-surface-container-low/40 flex flex-col items-center justify-center text-[10px] text-on-surface-variant/60"
+                className="shrink-0 w-12 h-12 md:w-14 md:h-14 rounded-xl border border-dashed border-outline-variant/40 bg-surface-container-low/40 flex flex-col items-center justify-center text-[10px] text-on-surface-variant/60 select-none"
               >
                 <span className="material-symbols-outlined text-sm opacity-50">add</span>
                 <span className="text-[9px] font-mono leading-none">{idx + 1}</span>
@@ -120,7 +122,7 @@ export default function CompareDock() {
           <button
             type="button"
             onClick={clearCompare}
-            className="text-[11px] font-medium text-error hover:bg-error/10 px-2 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+            className="text-[11px] font-medium text-error hover:bg-error/10 active:scale-95 cursor-pointer px-2 py-1.5 rounded-lg transition-all flex items-center gap-1 focus:outline-none focus-visible:ring-1 focus-visible:ring-error"
           >
             <span className="material-symbols-outlined text-sm">delete_sweep</span>
             <span className="hidden md:inline">{t.clearAll}</span>
@@ -129,15 +131,16 @@ export default function CompareDock() {
           <button
             type="button"
             onClick={() => setMinimized(true)}
-            className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-highest transition-colors"
+            className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-highest active:scale-95 cursor-pointer transition-all focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
             title={t.collapse}
+            aria-label={t.collapse}
           >
             <span className="material-symbols-outlined text-base">expand_more</span>
           </button>
 
           <Link
             to="/compare"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-on-primary font-bold text-xs shadow-md hover:bg-primary/90 hover:scale-[1.02] active:scale-[0.98] transition-all"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-on-primary font-bold text-xs shadow-md hover:bg-primary/90 hover:scale-[1.02] active:scale-[0.98] cursor-pointer transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             <span className="material-symbols-outlined text-base">compare_arrows</span>
             <span>

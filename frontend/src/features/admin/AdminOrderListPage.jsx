@@ -216,9 +216,10 @@ export default function AdminOrderListPage() {
           return (
             <button
               key={tab.key}
+              type="button"
               onClick={() => handleStatusFilter(tab.key)}
               className={[
-                'px-4 py-2.5 rounded-xl text-sm font-medium transition-all shrink-0 flex items-center gap-2',
+                'px-4 py-2.5 rounded-xl text-sm font-medium cursor-pointer active:scale-95 transition-all shrink-0 flex items-center gap-2 select-none',
                 isActive
                   ? 'bg-primary text-on-primary shadow-xs font-semibold'
                   : 'bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface',
@@ -264,7 +265,7 @@ export default function AdminOrderListPage() {
               type="button"
               onClick={() => setShowAdvanced((v) => !v)}
               className={[
-                'flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all',
+                'flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border cursor-pointer active:scale-95 transition-all select-none',
                 showAdvanced || activeFilters.length > 0
                   ? 'bg-primary-container/20 border-primary/40 text-primary'
                   : 'bg-surface-container-low border-outline-variant/40 text-on-surface-variant hover:text-on-surface',
@@ -341,7 +342,8 @@ export default function AdminOrderListPage() {
                 <button
                   type="button"
                   onClick={() => removeFilter(f.key)}
-                  className="hover:text-error transition-colors"
+                  className="hover:text-error active:scale-90 cursor-pointer transition-all rounded"
+                  aria-label={`Xóa bộ lọc ${f.label}`}
                 >
                   <span className="material-symbols-outlined text-xs">close</span>
                 </button>
@@ -350,7 +352,7 @@ export default function AdminOrderListPage() {
             <button
               type="button"
               onClick={handleResetFilters}
-              className="text-xs text-primary hover:underline font-medium ml-1"
+              className="text-xs text-primary hover:underline font-medium ml-1 cursor-pointer active:scale-95"
             >
               Xóa tất cả bộ lọc
             </button>

@@ -74,7 +74,7 @@ export default function Modal({
     >
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-background/80 backdrop-blur-sm transition-opacity"
+        className="absolute inset-0 bg-background/80 backdrop-blur-sm transition-opacity cursor-pointer"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -96,7 +96,7 @@ export default function Modal({
             <button
               onClick={onClose}
               type="button"
-              className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
+              className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-all active:scale-95 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               aria-label="Đóng"
             >
               <span className="material-symbols-outlined text-xl">close</span>

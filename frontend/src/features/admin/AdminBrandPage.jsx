@@ -268,16 +268,20 @@ export default function AdminBrandPage() {
                       <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <button
+                            type="button"
                             onClick={() => handleOpenEdit(b)}
                             title="Chỉnh sửa"
-                            className="p-1.5 rounded-lg hover:bg-surface-container-high text-on-surface-variant hover:text-primary transition-colors"
+                            aria-label={`Chỉnh sửa thương hiệu ${b.name}`}
+                            className="p-1.5 rounded-lg hover:bg-surface-container-high text-on-surface-variant hover:text-primary transition-all cursor-pointer active:scale-90 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
                           >
                             <span className="material-symbols-outlined text-lg">edit</span>
                           </button>
                           <button
+                            type="button"
                             onClick={() => setDeleteTarget(b)}
                             title="Xóa thương hiệu"
-                            className="p-1.5 rounded-lg hover:bg-error/10 text-on-surface-variant hover:text-error transition-colors"
+                            aria-label={`Xóa thương hiệu ${b.name}`}
+                            className="p-1.5 rounded-lg hover:bg-error/10 text-on-surface-variant hover:text-error transition-all cursor-pointer active:scale-90 focus-visible:ring-2 focus-visible:ring-error focus-visible:outline-none"
                           >
                             <span className="material-symbols-outlined text-lg">delete</span>
                           </button>

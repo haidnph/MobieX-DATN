@@ -118,9 +118,11 @@ export default function WishlistPage() {
 
                   {/* Remove Button */}
                   <button
+                    type="button"
                     onClick={() => removeFromWishlist(item.id)}
                     title="Bỏ khỏi yêu thích"
-                    className="absolute top-3 right-3 w-8 h-8 rounded-full bg-surface-container/80 text-error hover:bg-error/15 flex items-center justify-center transition-colors"
+                    aria-label={`Bỏ ${item.name} khỏi danh sách yêu thích`}
+                    className="absolute top-3 right-3 w-8 h-8 rounded-full bg-surface-container/80 text-error hover:bg-error/15 active:scale-90 cursor-pointer flex items-center justify-center transition-all focus:outline-none focus-visible:ring-1 focus-visible:ring-error"
                   >
                     <span className="material-symbols-outlined text-lg">favorite</span>
                   </button>

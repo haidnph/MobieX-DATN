@@ -194,12 +194,13 @@ export default function AdminTrashPage() {
           return (
             <button
               key={type.key}
+              type="button"
               onClick={() => {
                 setActiveType(type.key)
                 setSearch('')
               }}
               className={[
-                'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all shrink-0',
+                'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all shrink-0 cursor-pointer active:scale-95 focus-visible:outline-none',
                 isActive
                   ? 'bg-primary text-on-primary shadow-sm'
                   : 'bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface',
@@ -347,17 +348,21 @@ export default function AdminTrashPage() {
                       <td className="px-5 py-4 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
                           <button
+                            type="button"
                             onClick={() => setRestoreTarget(item)}
                             title="Khôi phục lại mục này"
-                            className="p-1.5 rounded-lg text-primary hover:bg-primary-container/30 transition-colors flex items-center gap-1 text-xs font-medium px-2.5"
+                            aria-label={`Khôi phục ${title}`}
+                            className="p-1.5 rounded-lg text-primary hover:bg-primary-container/30 transition-all cursor-pointer active:scale-95 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none flex items-center gap-1 text-xs font-medium px-2.5"
                           >
                             <span className="material-symbols-outlined text-base">restore</span>
                             <span>Khôi phục</span>
                           </button>
                           <button
+                            type="button"
                             onClick={() => setDeleteTarget(item)}
                             title="Xóa vĩnh viễn không thể khôi phục"
-                            className="p-1.5 rounded-lg text-error hover:bg-error-container/30 transition-colors flex items-center gap-1 text-xs font-medium px-2.5"
+                            aria-label={`Xóa vĩnh viễn ${title}`}
+                            className="p-1.5 rounded-lg text-error hover:bg-error-container/30 transition-all cursor-pointer active:scale-95 focus-visible:ring-2 focus-visible:ring-error focus-visible:outline-none flex items-center gap-1 text-xs font-medium px-2.5"
                           >
                             <span className="material-symbols-outlined text-base">delete_forever</span>
                             <span>Xóa vĩnh viễn</span>

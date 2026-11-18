@@ -179,7 +179,7 @@ export default function OrderStatusDonutChart({
               to={`/admin/orders?status=${seg.key}`}
               onMouseEnter={() => setHoveredKey(seg.key)}
               onMouseLeave={() => setHoveredKey(null)}
-              className={`block p-2.5 rounded-xl border transition-all ${
+              className={`block p-2.5 rounded-xl border cursor-pointer active:scale-[0.99] transition-all ${
                 isHovered
                   ? 'bg-surface-container-high border-outline-variant/50 ring-1 ring-outline-variant/30 shadow-xs'
                   : 'bg-surface-container-low border-outline-variant/20 hover:border-outline-variant/40'
@@ -231,7 +231,7 @@ export default function OrderStatusDonutChart({
         <span>Bấm vào để lọc đơn hàng</span>
         <Link
           to="/admin/orders"
-          className="text-primary font-bold hover:underline inline-flex items-center gap-0.5"
+          className="text-primary font-bold hover:underline inline-flex items-center gap-0.5 cursor-pointer"
         >
           <span>Tất cả đơn</span>
           <span className="material-symbols-outlined text-sm">arrow_forward</span>

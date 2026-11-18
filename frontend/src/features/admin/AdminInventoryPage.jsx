@@ -268,9 +268,10 @@ export default function AdminInventoryPage() {
       {/* Tabs */}
       <div className="flex border-b border-outline-variant/20 gap-6">
         <button
+          type="button"
           onClick={() => setActiveTab('inventory')}
           className={[
-            'pb-3 text-sm font-semibold transition-all relative flex items-center gap-2',
+            'pb-3 text-sm font-semibold transition-all relative flex items-center gap-2 cursor-pointer active:scale-95 focus-visible:outline-none',
             activeTab === 'inventory'
               ? 'text-primary border-b-2 border-primary'
               : 'text-outline hover:text-on-surface',
@@ -280,9 +281,10 @@ export default function AdminInventoryPage() {
           Bảng Tồn Kho Biến Thể
         </button>
         <button
+          type="button"
           onClick={() => setActiveTab('transactions')}
           className={[
-            'pb-3 text-sm font-semibold transition-all relative flex items-center gap-2',
+            'pb-3 text-sm font-semibold transition-all relative flex items-center gap-2 cursor-pointer active:scale-95 focus-visible:outline-none',
             activeTab === 'transactions'
               ? 'text-primary border-b-2 border-primary'
               : 'text-outline hover:text-on-surface',
@@ -313,9 +315,10 @@ export default function AdminInventoryPage() {
 
             <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
               <button
+                type="button"
                 onClick={() => setLowStockOnly(!lowStockOnly)}
                 className={[
-                  'px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors border',
+                  'px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all border cursor-pointer active:scale-95 focus-visible:outline-none',
                   lowStockOnly
                     ? 'bg-error text-on-error border-error'
                     : 'bg-surface-container-low text-on-surface-variant border-outline-variant/30 hover:bg-surface-container-high',

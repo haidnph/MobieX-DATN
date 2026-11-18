@@ -292,9 +292,18 @@ export default function CouponForm({
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div
+                  role="radio"
+                  aria-checked={form.discount_type === 'fixed'}
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      handleFieldChange('discount_type', 'fixed')
+                    }
+                  }}
                   onClick={() => handleFieldChange('discount_type', 'fixed')}
                   className={[
-                    'p-4 rounded-xl border cursor-pointer transition-all flex items-start gap-3.5',
+                    'p-4 rounded-xl border cursor-pointer transition-all flex items-start gap-3.5 active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary',
                     form.discount_type === 'fixed'
                       ? 'border-primary bg-primary/5 ring-2 ring-primary/20 shadow-sm'
                       : 'border-outline-variant/30 bg-surface-container-low hover:border-outline',
@@ -319,9 +328,18 @@ export default function CouponForm({
                 </div>
 
                 <div
+                  role="radio"
+                  aria-checked={form.discount_type === 'percent'}
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      handleFieldChange('discount_type', 'percent')
+                    }
+                  }}
                   onClick={() => handleFieldChange('discount_type', 'percent')}
                   className={[
-                    'p-4 rounded-xl border cursor-pointer transition-all flex items-start gap-3.5',
+                    'p-4 rounded-xl border cursor-pointer transition-all flex items-start gap-3.5 active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary',
                     form.discount_type === 'percent'
                       ? 'border-primary bg-primary/5 ring-2 ring-primary/20 shadow-sm'
                       : 'border-outline-variant/30 bg-surface-container-low hover:border-outline',
@@ -539,9 +557,18 @@ export default function CouponForm({
             </h3>
 
             <div
+              role="switch"
+              aria-checked={form.is_active}
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  handleFieldChange('is_active', !form.is_active)
+                }
+              }}
               onClick={() => handleFieldChange('is_active', !form.is_active)}
               className={[
-                'p-4 rounded-xl border cursor-pointer transition-all flex items-center justify-between',
+                'p-4 rounded-xl border cursor-pointer transition-all flex items-center justify-between active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500',
                 form.is_active
                   ? 'border-emerald-500/40 bg-emerald-500/10'
                   : 'border-outline-variant/40 bg-surface-container-low',

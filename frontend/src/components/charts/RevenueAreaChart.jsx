@@ -130,7 +130,7 @@ export default function RevenueAreaChart({
               <button
                 type="button"
                 onClick={() => setActiveMode('revenue')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium cursor-pointer active:scale-95 transition-all focus:outline-none focus-visible:ring-1 focus-visible:ring-primary ${
                   activeMode === 'revenue'
                     ? 'bg-primary text-on-primary font-bold shadow-xs'
                     : 'text-on-surface-variant hover:text-on-surface'
@@ -142,7 +142,7 @@ export default function RevenueAreaChart({
               <button
                 type="button"
                 onClick={() => setActiveMode('orders')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium cursor-pointer active:scale-95 transition-all focus:outline-none focus-visible:ring-1 focus-visible:ring-secondary ${
                   activeMode === 'orders'
                     ? 'bg-secondary text-on-secondary font-bold shadow-xs'
                     : 'text-on-surface-variant hover:text-on-surface'
@@ -154,7 +154,7 @@ export default function RevenueAreaChart({
               <button
                 type="button"
                 onClick={() => setActiveMode('dual')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium cursor-pointer active:scale-95 transition-all focus:outline-none focus-visible:ring-1 focus-visible:ring-primary ${
                   activeMode === 'dual'
                     ? 'bg-primary-container text-on-primary-container font-bold shadow-xs'
                     : 'text-on-surface-variant hover:text-on-surface'
@@ -173,7 +173,7 @@ export default function RevenueAreaChart({
                     key={d}
                     type="button"
                     onClick={() => onDaysChange(d)}
-                    className={`px-2.5 py-1.5 rounded-lg font-medium transition-all ${
+                    className={`px-2.5 py-1.5 rounded-lg font-medium cursor-pointer active:scale-95 transition-all focus:outline-none focus-visible:ring-1 focus-visible:ring-primary ${
                       days === d
                         ? 'bg-surface-bright text-primary font-bold shadow-xs'
                         : 'text-on-surface-variant hover:text-on-surface'

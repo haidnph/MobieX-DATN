@@ -211,14 +211,16 @@ export default function AdminBannerPage() {
                     </td>
                     <td className="px-5 py-3 text-right space-x-2">
                       <button
+                        type="button"
                         onClick={() => handleOpenEdit(b)}
-                        className="px-2.5 py-1 bg-surface-container-high hover:bg-surface-bright rounded-lg text-xs font-semibold text-on-surface transition-colors"
+                        className="px-2.5 py-1 bg-surface-container-high hover:bg-surface-bright rounded-lg text-xs font-semibold text-on-surface transition-all cursor-pointer active:scale-95 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
                       >
                         Sửa
                       </button>
                       <button
+                        type="button"
                         onClick={() => setDeleteTarget(b)}
-                        className="px-2.5 py-1 bg-error-container/20 hover:bg-error-container/40 rounded-lg text-xs font-semibold text-error transition-colors"
+                        className="px-2.5 py-1 bg-error-container/20 hover:bg-error-container/40 rounded-lg text-xs font-semibold text-error transition-all cursor-pointer active:scale-95 focus-visible:ring-2 focus-visible:ring-error focus-visible:outline-none"
                       >
                         Xóa
                       </button>

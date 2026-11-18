@@ -282,23 +282,29 @@ export default function AdminCategoryPage() {
                       <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <button
+                            type="button"
                             onClick={() => handleOpenCreate(cat.id)}
                             title="Thêm danh mục con"
-                            className="p-1.5 rounded-lg hover:bg-surface-container-high text-on-surface-variant hover:text-primary transition-colors"
+                            aria-label={`Thêm danh mục con cho ${cat.name}`}
+                            className="p-1.5 rounded-lg hover:bg-surface-container-high text-on-surface-variant hover:text-primary transition-all cursor-pointer active:scale-90 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
                           >
                             <span className="material-symbols-outlined text-lg">add_circle</span>
                           </button>
                           <button
+                            type="button"
                             onClick={() => handleOpenEdit(cat)}
                             title="Chỉnh sửa"
-                            className="p-1.5 rounded-lg hover:bg-surface-container-high text-on-surface-variant hover:text-primary transition-colors"
+                            aria-label={`Chỉnh sửa danh mục ${cat.name}`}
+                            className="p-1.5 rounded-lg hover:bg-surface-container-high text-on-surface-variant hover:text-primary transition-all cursor-pointer active:scale-90 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
                           >
                             <span className="material-symbols-outlined text-lg">edit</span>
                           </button>
                           <button
+                            type="button"
                             onClick={() => setDeleteTarget(cat)}
                             title="Xóa danh mục"
-                            className="p-1.5 rounded-lg hover:bg-error/10 text-on-surface-variant hover:text-error transition-colors"
+                            aria-label={`Xóa danh mục ${cat.name}`}
+                            className="p-1.5 rounded-lg hover:bg-error/10 text-on-surface-variant hover:text-error transition-all cursor-pointer active:scale-90 focus-visible:ring-2 focus-visible:ring-error focus-visible:outline-none"
                           >
                             <span className="material-symbols-outlined text-lg">delete</span>
                           </button>

@@ -94,7 +94,7 @@ function SearchDropdownPanel({
                       <button
                         type="button"
                         onClick={() => onSelectSearch(item)}
-                        className="flex items-center gap-2 flex-1 text-left min-w-0"
+                        className="flex items-center gap-2 flex-1 text-left min-w-0 cursor-pointer"
                       >
                         <span className="material-symbols-outlined text-sm text-outline group-hover:text-primary">
                           history
@@ -107,7 +107,7 @@ function SearchDropdownPanel({
                           e.stopPropagation()
                           onRemoveHistory(item)
                         }}
-                        className="p-1 text-outline hover:text-error opacity-60 group-hover:opacity-100 transition-opacity"
+                        className="p-1 text-outline hover:text-error active:scale-90 cursor-pointer opacity-60 group-hover:opacity-100 transition-all rounded"
                         aria-label={`Xóa ${item} khỏi lịch sử`}
                       >
                         <span className="material-symbols-outlined text-xs">close</span>
@@ -121,7 +121,7 @@ function SearchDropdownPanel({
 
           {/* Popular searches section */}
           <div>
-            <div className="flex items-center gap-1.5 text-xs text-on-surface-variant font-bold mb-2.5 px-1">
+            <div className="flex items-center gap-1.5 text-xs text-on-surface-variant font-bold mb-2.5 px-1 select-none">
               <span className="material-symbols-outlined text-sm text-tertiary">trending_up</span>
               <span>{lang === 'zh-CN' ? '热门搜索' : lang === 'en' ? 'Trending Searches' : 'Xu hướng tìm kiếm'}</span>
             </div>
@@ -131,7 +131,7 @@ function SearchDropdownPanel({
                   key={tag}
                   type="button"
                   onClick={() => onSelectSearch(tag)}
-                  className="px-3 py-1 rounded-full text-xs font-semibold bg-surface-container hover:bg-primary hover:text-on-primary text-on-surface-variant border border-outline-variant/20 transition-all flex items-center gap-1"
+                  className="px-3 py-1 rounded-full text-xs font-semibold bg-surface-container hover:bg-primary hover:text-on-primary active:scale-95 cursor-pointer text-on-surface-variant border border-outline-variant/20 transition-all flex items-center gap-1"
                 >
                   <span>{tag}</span>
                 </button>
@@ -194,7 +194,7 @@ function SearchDropdownPanel({
                   key={`brand-${b.id}`}
                   type="button"
                   onClick={() => onSelectBrand(b)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-secondary-container/70 text-on-secondary-container hover:bg-secondary-container transition-colors border border-secondary/20"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-secondary-container/70 text-on-secondary-container hover:bg-secondary-container active:scale-95 cursor-pointer transition-all border border-secondary/20"
                 >
                   <span className="material-symbols-outlined text-xs">verified</span>
                   <span>{b.name}</span>
@@ -205,7 +205,7 @@ function SearchDropdownPanel({
                   key={`cat-${c.id}`}
                   type="button"
                   onClick={() => onSelectCategory(c)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-tertiary-container/70 text-on-tertiary-container hover:bg-tertiary-container transition-colors border border-tertiary/20"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-tertiary-container/70 text-on-tertiary-container hover:bg-tertiary-container active:scale-95 cursor-pointer transition-all border border-tertiary/20"
                 >
                   <span className="material-symbols-outlined text-xs">category</span>
                   <span>{c.name}</span>
@@ -268,7 +268,7 @@ function SearchDropdownPanel({
                       addRecentSearch(item.name)
                       onClose()
                     }}
-                    className={`flex items-center gap-3 px-4 py-2.5 transition-colors group ${
+                    className={`flex items-center gap-3 px-4 py-2.5 transition-colors group cursor-pointer ${
                       isHighlighted ? 'bg-primary/10 ring-1 ring-primary/30' : 'hover:bg-surface-bright'
                     }`}
                   >
@@ -316,7 +316,7 @@ function SearchDropdownPanel({
           <button
             type="button"
             onClick={() => onSelectSearch(searchQuery)}
-            className={`w-full px-4 py-2.5 text-xs text-primary font-bold text-center border-t border-outline-variant/20 transition-colors flex items-center justify-center gap-1.5 ${
+            className={`w-full px-4 py-2.5 text-xs text-primary font-bold text-center border-t border-outline-variant/20 transition-all cursor-pointer active:scale-[0.99] flex items-center justify-center gap-1.5 ${
               selectedIndex === products.length
                 ? 'bg-primary text-on-primary'
                 : 'bg-surface-container-low hover:bg-surface-container'
@@ -715,7 +715,7 @@ export default function Header() {
                       setSearchSuggestions({ products: [], brands: [], categories: [], total: 0 })
                       setSelectedIndex(-1)
                     }}
-                    className="text-outline hover:text-on-surface text-sm ml-1 p-0.5 rounded-md transition-colors"
+                    className="text-outline hover:text-on-surface text-sm ml-1 p-0.5 rounded-md transition-all active:scale-90 cursor-pointer"
                     aria-label="Xóa từ khóa tìm kiếm"
                   >
                     <span className="material-symbols-outlined text-base">
@@ -733,7 +733,7 @@ export default function Header() {
                       ? 'Đang lắng nghe... Bấm để dừng'
                       : 'Tìm kiếm bằng giọng nói'
                   }
-                  className={`p-1.5 ml-1 rounded-xl transition-all flex items-center justify-center ${
+                  className={`p-1.5 ml-1 rounded-xl transition-all flex items-center justify-center cursor-pointer active:scale-95 ${
                     isListening
                       ? 'text-error animate-pulse bg-error-container/20 ring-2 ring-error/50'
                       : 'text-outline hover:text-primary hover:bg-surface-container-high'
@@ -795,7 +795,7 @@ export default function Header() {
           {/* 4. Products Navigation Link */}
           <Link
             to="/products"
-            className="px-3 py-2 rounded-xl text-xs xl:text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors shrink-0 whitespace-nowrap"
+            className="px-3 py-2 rounded-xl text-xs xl:text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-container active:scale-95 cursor-pointer transition-all shrink-0 whitespace-nowrap"
           >
             {ui.categoryTitle ? (lang === 'zh-CN' ? '全部商品' : lang === 'en' ? 'Products' : 'Sản phẩm') : 'Sản phẩm'}
           </Link>
@@ -805,7 +805,7 @@ export default function Header() {
             to="/tracking"
             aria-label={lang === 'zh-CN' ? '查询订单' : lang === 'en' ? 'Track Order' : 'Tra cứu đơn hàng'}
             title={lang === 'zh-CN' ? '查询订单' : lang === 'en' ? 'Track Order' : 'Tra cứu đơn hàng'}
-            className="h-9 w-9 rounded-xl flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors shrink-0 focus-visible:outline-2 focus-visible:outline-primary"
+            className="h-9 w-9 rounded-xl flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-surface-container active:scale-95 cursor-pointer transition-all shrink-0 focus-visible:outline-2 focus-visible:outline-primary"
           >
             <span className="material-symbols-outlined text-xl">
               local_shipping
@@ -832,7 +832,7 @@ export default function Header() {
                 ? 'Chuyển sang giao diện sáng'
                 : 'Chuyển sang giao diện tối'
             }
-            className="h-9 w-9 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-primary transition-colors flex items-center justify-center shrink-0 focus-visible:outline-2 focus-visible:outline-primary"
+            className="h-9 w-9 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-primary active:scale-95 cursor-pointer transition-all flex items-center justify-center shrink-0 focus-visible:outline-2 focus-visible:outline-primary"
           >
             <span className="material-symbols-outlined text-xl">
               {isDark ? 'light_mode' : 'dark_mode'}
@@ -844,13 +844,13 @@ export default function Header() {
             to="/compare"
             aria-label="So sánh sản phẩm"
             title="So sánh sản phẩm"
-            className="relative h-9 w-9 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-primary transition-colors flex items-center justify-center shrink-0 focus-visible:outline-2 focus-visible:outline-primary"
+            className="relative h-9 w-9 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-primary active:scale-95 cursor-pointer transition-all flex items-center justify-center shrink-0 focus-visible:outline-2 focus-visible:outline-primary"
           >
             <span className="material-symbols-outlined text-xl">
               compare_arrows
             </span>
             {compareCount > 0 && (
-              <span translate="no" className="absolute -top-1 -right-1 flex min-w-[1.125rem] h-[1.125rem] px-1 items-center justify-center rounded-full bg-primary text-on-primary text-[10px] font-bold shadow-sm notranslate">
+              <span translate="no" className="absolute -top-1 -right-1 flex min-w-[1.125rem] h-[1.125rem] px-1 items-center justify-center rounded-full bg-primary text-on-primary text-[10px] font-bold shadow-sm notranslate select-none">
                 {compareCount}
               </span>
             )}
@@ -861,13 +861,13 @@ export default function Header() {
             to="/wishlist"
             aria-label="Danh sách yêu thích"
             title="Danh sách yêu thích"
-            className="relative h-9 w-9 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-primary transition-colors flex items-center justify-center shrink-0 focus-visible:outline-2 focus-visible:outline-primary"
+            className="relative h-9 w-9 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-primary active:scale-95 cursor-pointer transition-all flex items-center justify-center shrink-0 focus-visible:outline-2 focus-visible:outline-primary"
           >
             <span className="material-symbols-outlined text-xl">
               favorite_border
             </span>
             {wishlistCount > 0 && (
-              <span translate="no" className="absolute -top-1 -right-1 flex min-w-[1.125rem] h-[1.125rem] px-1 items-center justify-center rounded-full bg-[#ef4444] text-white text-[10px] font-bold shadow-sm animate-in zoom-in-75 notranslate">
+              <span translate="no" className="absolute -top-1 -right-1 flex min-w-[1.125rem] h-[1.125rem] px-1 items-center justify-center rounded-full bg-[#ef4444] text-white text-[10px] font-bold shadow-sm animate-in zoom-in-75 notranslate select-none">
                 {wishlistCount}
               </span>
             )}
@@ -878,7 +878,7 @@ export default function Header() {
             to="/cart"
             aria-label="Giỏ hàng"
             title="Giỏ hàng"
-            className="relative h-9 w-9 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-primary transition-colors flex items-center justify-center shrink-0 focus-visible:outline-2 focus-visible:outline-primary"
+            className="relative h-9 w-9 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-primary active:scale-95 cursor-pointer transition-all flex items-center justify-center shrink-0 focus-visible:outline-2 focus-visible:outline-primary"
           >
             <span className="material-symbols-outlined text-xl">
               shopping_bag
@@ -896,7 +896,7 @@ export default function Header() {
               <button
                 type="button"
                 onClick={() => setUserMenuOpen((v) => !v)}
-                className={`h-9 flex items-center gap-1.5 rounded-xl px-2.5 transition-all border ${
+                className={`h-9 flex items-center gap-1.5 rounded-xl px-2.5 active:scale-95 cursor-pointer transition-all border ${
                   userMenuOpen
                     ? 'bg-surface-container text-primary border-primary/30 ring-2 ring-primary/20'
                     : 'hover:bg-surface-container text-on-surface border-transparent'
@@ -921,7 +921,7 @@ export default function Header() {
 
               {userMenuOpen && (
                 <div className="absolute right-0 top-full mt-2 w-52 bg-surface-container-high/95 backdrop-blur-xl rounded-2xl p-1.5 shadow-2xl border border-outline-variant/30 z-50 animate-in fade-in zoom-in-95 duration-150">
-                  <div className="px-3 py-2 border-b border-outline-variant/15 mb-1">
+                  <div className="px-3 py-2 border-b border-outline-variant/15 mb-1 select-none">
                     <p className="text-xs font-bold text-on-surface truncate">
                       {user.name}
                     </p>
@@ -932,7 +932,7 @@ export default function Header() {
                   <Link
                     to="/account/profile"
                     onClick={() => setUserMenuOpen(false)}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-on-surface-variant hover:bg-surface-bright hover:text-on-surface transition-colors text-xs font-medium"
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-on-surface-variant hover:bg-surface-bright hover:text-on-surface cursor-pointer transition-colors text-xs font-medium"
                   >
                     <span className="material-symbols-outlined text-base">
                       manage_accounts
@@ -942,7 +942,7 @@ export default function Header() {
                   <Link
                     to="/account/addresses"
                     onClick={() => setUserMenuOpen(false)}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-on-surface-variant hover:bg-surface-bright hover:text-on-surface transition-colors text-xs font-medium"
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-on-surface-variant hover:bg-surface-bright hover:text-on-surface cursor-pointer transition-colors text-xs font-medium"
                   >
                     <span className="material-symbols-outlined text-base">
                       pin_drop
@@ -952,7 +952,7 @@ export default function Header() {
                   <Link
                     to="/orders"
                     onClick={() => setUserMenuOpen(false)}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-on-surface-variant hover:bg-surface-bright hover:text-on-surface transition-colors text-xs font-medium"
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-on-surface-variant hover:bg-surface-bright hover:text-on-surface cursor-pointer transition-colors text-xs font-medium"
                   >
                     <span className="material-symbols-outlined text-base">
                       receipt_long
@@ -963,7 +963,7 @@ export default function Header() {
                     <Link
                       to="/admin"
                       onClick={() => setUserMenuOpen(false)}
-                      className="flex items-center gap-2 px-3 py-2 rounded-xl text-primary hover:bg-primary/10 transition-colors text-xs font-bold"
+                      className="flex items-center gap-2 px-3 py-2 rounded-xl text-primary hover:bg-primary/10 cursor-pointer transition-colors text-xs font-bold"
                     >
                       <span className="material-symbols-outlined text-base">
                         admin_panel_settings
@@ -974,7 +974,7 @@ export default function Header() {
                   <button
                     type="button"
                     onClick={handleLogout}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-error hover:bg-error-container/20 transition-colors text-xs font-semibold mt-1"
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-error hover:bg-error-container/20 active:scale-95 cursor-pointer transition-all text-xs font-semibold mt-1"
                   >
                     <span className="material-symbols-outlined text-base">
                       logout
@@ -987,7 +987,7 @@ export default function Header() {
           ) : (
             <Link
               to="/login"
-              className="h-9 px-3.5 rounded-xl bg-primary-container text-on-primary-container text-xs font-bold hover:bg-primary hover:text-on-primary transition-all flex items-center justify-center shadow-sm"
+              className="h-9 px-3.5 rounded-xl bg-primary-container text-on-primary-container text-xs font-bold hover:bg-primary hover:text-on-primary active:scale-95 cursor-pointer transition-all flex items-center justify-center shadow-sm"
             >
               Đăng nhập
             </Link>

@@ -19,14 +19,15 @@ export default function Pagination({ currentPage, lastPage, totalPages, onPageCh
   )
 
   const btnBase =
-    'h-9 w-9 flex items-center justify-center rounded-lg text-sm font-medium transition-colors'
+    'h-9 w-9 flex items-center justify-center rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:active:scale-100 disabled:opacity-30'
 
   return (
     <nav className="flex items-center gap-1" aria-label="Phân trang">
       <button
+        type="button"
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
-        className={`${btnBase} bg-surface-container-high text-on-surface-variant hover:bg-surface-bright disabled:opacity-30`}
+        className={`${btnBase} bg-surface-container-high text-on-surface-variant hover:bg-surface-bright`}
         aria-label="Trang trước"
       >
         <span className="material-symbols-outlined text-base">chevron_left</span>
@@ -38,11 +39,12 @@ export default function Pagination({ currentPage, lastPage, totalPages, onPageCh
         return (
           <span key={p} className="flex items-center gap-1">
             {showEllipsis && (
-              <span className="h-9 w-6 flex items-center justify-center text-on-surface-variant text-sm">
+              <span className="h-9 w-6 flex items-center justify-center text-on-surface-variant text-sm select-none">
                 …
               </span>
             )}
             <button
+              type="button"
               onClick={() => onPageChange(p)}
               className={[
                 btnBase,
@@ -59,9 +61,10 @@ export default function Pagination({ currentPage, lastPage, totalPages, onPageCh
       })}
 
       <button
+        type="button"
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === total}
-        className={`${btnBase} bg-surface-container-high text-on-surface-variant hover:bg-surface-bright disabled:opacity-30`}
+        className={`${btnBase} bg-surface-container-high text-on-surface-variant hover:bg-surface-bright`}
         aria-label="Trang sau"
       >
         <span className="material-symbols-outlined text-base">chevron_right</span>

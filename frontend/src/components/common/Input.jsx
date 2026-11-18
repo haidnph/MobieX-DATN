@@ -14,7 +14,7 @@ export default function Input({ label, error, icon, className = '', ...rest }) {
   return (
     <div className={['flex flex-col gap-1', className].join(' ')}>
       {label && (
-        <label className="text-sm font-medium text-on-surface-variant" htmlFor={rest.id}>
+        <label className="text-sm font-medium text-on-surface-variant cursor-pointer select-none" htmlFor={rest.id}>
           {label}
         </label>
       )}
@@ -29,7 +29,7 @@ export default function Input({ label, error, icon, className = '', ...rest }) {
             'w-full bg-surface-container-low text-on-surface placeholder:text-outline',
             'rounded-xl px-4 py-2.5 text-sm border border-outline-variant/50',
             'focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent',
-            'disabled:opacity-50 transition-all',
+            'disabled:opacity-50 disabled:cursor-not-allowed cursor-text transition-all',
             icon ? 'pl-10' : '',
             error ? 'border-error focus:ring-error' : '',
           ].join(' ')}

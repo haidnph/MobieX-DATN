@@ -1044,7 +1044,8 @@ export default function ProductComparePage() {
                       type="button"
                       onClick={() => removeFromCompare(p.id)}
                       title="Bỏ khỏi so sánh"
-                      className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-surface-container-highest/80 text-on-surface-variant hover:text-error hover:bg-error/15 flex items-center justify-center transition-all z-10 print:hidden"
+                      aria-label={`Bỏ ${p.name} khỏi so sánh`}
+                      className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-surface-container-highest/80 text-on-surface-variant hover:text-error hover:bg-error/15 active:scale-90 cursor-pointer flex items-center justify-center transition-all z-10 print:hidden focus:outline-none focus-visible:ring-1 focus-visible:ring-error"
                     >
                       <span className="material-symbols-outlined text-base">close</span>
                     </button>
@@ -1100,7 +1101,7 @@ export default function ProductComparePage() {
                   <button
                     type="button"
                     onClick={() => setShowSearchModal(true)}
-                    className="w-full py-10 border-2 border-dashed border-outline-variant/50 hover:border-primary rounded-2xl flex flex-col items-center justify-center gap-2 text-on-surface-variant hover:text-primary transition-all group hover:bg-primary/[0.03]"
+                    className="w-full py-10 border-2 border-dashed border-outline-variant/50 hover:border-primary rounded-2xl flex flex-col items-center justify-center gap-2 text-on-surface-variant hover:text-primary active:scale-[0.99] cursor-pointer transition-all group hover:bg-primary/[0.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   >
                     <div className="w-10 h-10 rounded-full bg-primary/10 group-hover:bg-primary/20 flex items-center justify-center text-primary transition-colors">
                       <span className="material-symbols-outlined text-xl">add</span>
@@ -1329,7 +1330,8 @@ export default function ProductComparePage() {
               <button
                 type="button"
                 onClick={() => setShowSearchModal(false)}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest active:scale-95 cursor-pointer transition-all"
+                aria-label="Đóng tìm kiếm"
               >
                 <span className="material-symbols-outlined text-base">close</span>
               </button>
@@ -1346,13 +1348,14 @@ export default function ProductComparePage() {
                 placeholder={t.searchPlaceholder}
                 value={searchKeyword}
                 onChange={(e) => setSearchKeyword(e.target.value)}
-                className="w-full pl-10 pr-10 py-2.5 rounded-2xl border border-outline-variant/30 bg-surface-container-high text-on-surface placeholder:text-outline focus:outline-none focus:border-primary text-sm shadow-xs"
+                className="w-full pl-10 pr-10 py-2.5 rounded-2xl border border-outline-variant/30 bg-surface-container-high text-on-surface placeholder:text-outline focus:outline-none focus:border-primary text-sm shadow-xs cursor-text"
               />
               {searchKeyword && (
                 <button
                   type="button"
                   onClick={() => setSearchKeyword('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface active:scale-90 cursor-pointer transition-all"
+                  aria-label="Xóa từ khóa"
                 >
                   <span className="material-symbols-outlined text-sm">cancel</span>
                 </button>

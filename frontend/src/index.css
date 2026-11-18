@@ -94,6 +94,51 @@
     flex-direction: column;
   }
 
+  /* Interactive Elements Cursor & Accessibility Resets */
+  button,
+  [role="button"],
+  select,
+  summary,
+  [type="button"],
+  [type="reset"],
+  [type="submit"] {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [role="button"][aria-disabled="true"],
+  [type="button"]:disabled,
+  [type="reset"]:disabled,
+  [type="submit"]:disabled,
+  select:disabled {
+    cursor: not-allowed;
+  }
+
+  input[type="checkbox"],
+  input[type="radio"] {
+    cursor: pointer;
+  }
+
+  input[type="checkbox"]:disabled,
+  input[type="radio"]:disabled {
+    cursor: not-allowed;
+  }
+
+  input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="image"]),
+  textarea {
+    cursor: text;
+  }
+
+  input:disabled,
+  textarea:disabled {
+    cursor: not-allowed;
+  }
+
+  label:has(input),
+  label[for] {
+    cursor: pointer;
+  }
+
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
