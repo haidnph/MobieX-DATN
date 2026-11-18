@@ -822,6 +822,25 @@ Route::prefix('admin')
         )
             ->whereNumber('user')
             ->name('users.status.update');
+
+        Route::post(
+            '/users',
+            [UserController::class, 'store'],
+        )->name('users.store');
+
+        Route::patch(
+            '/users/{user}',
+            [UserController::class, 'update'],
+        )
+            ->whereNumber('user')
+            ->name('users.update');
+
+        Route::patch(
+            '/users/{user}/password',
+            [UserController::class, 'resetPassword'],
+        )
+            ->whereNumber('user')
+            ->name('users.password.reset');
     });
 
 /*

@@ -27,6 +27,23 @@ axiosClient.interceptors.request.use(
   (error) => Promise.reject(error),
 )
 
+const ERROR_TRANSLATIONS = {
+  'You cannot remove your own admin role.': 'Bạn không thể gỡ vai trò quản trị của chính mình.',
+  'Cannot remove the admin role from the last active administrator.': 'Không thể gỡ vai trò của quản trị viên duy nhất đang hoạt động trong hệ thống.',
+  'You cannot deactivate your own account.': 'Bạn không thể vô hiệu hóa tài khoản của chính mình.',
+  'Cannot deactivate the last active administrator.': 'Không thể vô hiệu hóa quản trị viên duy nhất đang hoạt động. Hãy đảm bảo hệ thống có ít nhất một quản trị viên khác.',
+  'Role not found.': 'Vai trò được chọn không tồn tại trong hệ thống.',
+  'User not found.': 'Không tìm thấy thông tin tài khoản người dùng.',
+  'The given data was invalid.': 'Dữ liệu cung cấp không hợp lệ. Vui lòng kiểm tra lại.',
+  'Unauthenticated.': 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
+  'This action is unauthorized.': 'Bạn không có quyền thực hiện hành động này.',
+}
+
+function translateMessage(rawMessage, fallback) {
+  if (!rawMessage || typeof rawMessage !== 'string') return fallback
+  return ERROR_TRANSLATIONS[rawMessage.trim()] || rawMessage
+}
+
 // ── Response Interceptor ───────────────────────────────────────────────────
 // 401 → auto-logout and redirect to /login.
 // 422 → flatten Laravel validation errors into a single readable message.
@@ -72,24 +89,36 @@ axiosClient.interceptors.response.use(
       const messages = Object.values(errors).flat()
       const message = messages.length > 0
         ? messages.join(' ')
-        : (data?.message ?? 'Dữ liệu không hợp lệ.')
+        : translateMessage(data?.message, 'Dữ liệu không hợp lệ. Vui lòng kiểm tra lại các trường thông tin.')
       const flatError = new Error(message)
       flatError.validationErrors = errors
       flatError.status = 422
+      flatError.response = error.response
       return Promise.reject(flatError)
     }
 
     if (status === 403) {
-      return Promise.reject(new Error(data?.message ?? 'Bạn không có quyền thực hiện hành động này.'))
+      return Promise.reject(new Error(translateMessage(data?.message, 'Bạn không có quyền thực hiện hành động này.')))
     }
 
     if (status === 404) {
-      return Promise.reject(new Error(data?.message ?? 'Không tìm thấy tài nguyên yêu cầu.'))
+      return Promise.reject(new Error(translateMessage(data?.message, 'Không tìm thấy tài nguyên yêu cầu.')))
     }
 
-    // Generic server error
-    const message = data?.message ?? `Đã xảy ra lỗi (${status}). Vui lòng thử lại.`
-    return Promise.reject(new Error(message))
+    if (status === 409) {
+      return Promise.reject(new Error(translateMessage(data?.message, 'Thao tác xung đột với trạng thái hiện tại của hệ thống.')))
+    }
+
+    if (status >= 500) {
+      return Promise.reject(new Error('Máy chủ gặp sự cố nội bộ. Vui lòng thử lại sau ít phút.'))
+    }
+
+    // Generic client error
+    const message = translateMessage(data?.message, `Đã xảy ra lỗi (${status}). Vui lòng thử lại.`)
+    const finalErr = new Error(message)
+    finalErr.response = error.response
+    finalErr.status = status
+    return Promise.reject(finalErr)
   },
 )
 

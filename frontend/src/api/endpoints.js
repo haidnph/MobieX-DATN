@@ -93,9 +93,14 @@ const EP = {
   // ── Admin: Users & Roles ──────────────────────────────
   ADMIN_USERS: '/admin/users',
   ADMIN_USER_DETAIL: (id) => `/admin/users/${id}`,
+  ADMIN_USER_CREATE: '/admin/users',
+  ADMIN_USER_UPDATE: (id) => `/admin/users/${id}`,
+  ADMIN_USER_PASSWORD_RESET: (id) => `/admin/users/${id}/password`,
   ADMIN_USER_STATUS: (id) => `/admin/users/${id}/status`,
   ADMIN_USER_ROLES: (id) => `/admin/users/${id}/roles`,
   ADMIN_USER_ROLE_DELETE: (id, roleSlug) => `/admin/users/${id}/roles/${roleSlug}`,
+  ADMIN_ROLES: '/admin/roles',
+  ADMIN_PERMISSIONS: '/admin/permissions',
 
   // ── Admin: Spec Definitions ───────────────────────────
   SPEC_DEFINITIONS: '/admin/spec-definitions',
