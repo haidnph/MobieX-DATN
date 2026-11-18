@@ -57,6 +57,7 @@ describe('API Endpoints Definition', () => {
     expect(EP.ADMIN_USER_ROLES(7)).toBe('/admin/users/7/roles')
     expect(EP.ADMIN_USER_ROLE_DELETE(7, 'admin')).toBe('/admin/users/7/roles/admin')
     expect(EP.ADMIN_ROLES).toBe('/admin/roles')
+    expect(EP.ADMIN_ROLE_PERMISSIONS_SYNC(1)).toBe('/admin/roles/1/permissions')
     expect(EP.ADMIN_PERMISSIONS).toBe('/admin/permissions')
   })
 

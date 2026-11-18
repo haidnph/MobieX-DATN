@@ -29,6 +29,7 @@ describe('Admin User Management & RBAC Config', () => {
     expect(EP.ADMIN_USER_ROLES(99)).toBe('/admin/users/99/roles')
     expect(EP.ADMIN_USER_ROLE_DELETE(99, 'sales')).toBe('/admin/users/99/roles/sales')
     expect(EP.ADMIN_ROLES).toBe('/admin/roles')
+    expect(EP.ADMIN_ROLE_PERMISSIONS_SYNC(1)).toBe('/admin/roles/1/permissions')
     expect(EP.ADMIN_PERMISSIONS).toBe('/admin/permissions')
   })
 })

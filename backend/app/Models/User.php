@@ -22,7 +22,6 @@ use LogicException;
     'email',
     'phone',
     'password',
-    'is_active',
 ])]
 #[Hidden([
     'password',

@@ -46,17 +46,17 @@ class UserRoleController extends Controller
 
         $currentUser = $request->user();
 
-        if ($roleSlug === 'admin' && $currentUser && (int) $currentUser->getKey() === (int) $user->getKey()) {
+        if (in_array($roleSlug, ['admin', 'super-admin'], true) && $currentUser && (int) $currentUser->getKey() === (int) $user->getKey()) {
             return response()->json([
                 'message' => 'You cannot remove your own admin role.',
             ], 409);
         }
 
-        if ($roleSlug === 'admin' && $user->is_active && $user->hasRole('admin')) {
+        if (in_array($roleSlug, ['admin', 'super-admin'], true) && $user->is_active && $user->hasRole($roleSlug)) {
             $activeAdminCount = User::query()
                 ->where('is_active', true)
-                ->whereHas('roles', static function ($query): void {
-                    $query->where('slug', 'admin');
+                ->whereHas('roles', static function ($query) use ($roleSlug): void {
+                    $query->where('slug', $roleSlug);
                 })
                 ->count();
 

@@ -63,6 +63,15 @@ class CustomerUserSeeder extends Seeder
         $admin->roles()->syncWithoutDetaching([$adminRole->id]);
 
         // 3. Super Admin Account
+        $superAdminRole = Role::firstOrCreate(
+            ['slug' => 'super-admin'],
+            [
+                'name' => 'Quản trị cấp cao',
+                'description' => 'Toàn quyền tối cao và quản trị hệ thống',
+                'is_system' => true,
+            ]
+        );
+
         $superAdmin = User::updateOrCreate(
             ['email' => 'superadmin@gmail.com'],
             [
@@ -73,6 +82,6 @@ class CustomerUserSeeder extends Seeder
             ]
         );
 
-        $superAdmin->roles()->syncWithoutDetaching([$adminRole->id]);
+        $superAdmin->roles()->syncWithoutDetaching([$superAdminRole->id, $adminRole->id]);
     }
 }

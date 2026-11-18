@@ -116,8 +116,8 @@ class UserController extends Controller
             'email'     => $validated['email'],
             'phone'     => $validated['phone'] ?? null,
             'password'  => Hash::make($validated['password']),
-            'is_active' => true,
         ]);
+        $user->forceFill(['is_active' => true])->save();
 
         if (! empty($validated['role'])) {
             $user->assignRole($validated['role']);

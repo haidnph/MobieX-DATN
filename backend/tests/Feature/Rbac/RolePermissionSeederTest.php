@@ -17,8 +17,13 @@ class RolePermissionSeederTest extends TestCase
     {
         $this->seed(RolePermissionSeeder::class);
 
-        $this->assertDatabaseCount('roles', 5);
+        $this->assertDatabaseCount('roles', 6);
         $this->assertDatabaseCount('permissions', 35);
+
+        $this->assertDatabaseHas('roles', [
+            'name' => 'Quản trị cấp cao',
+            'slug' => 'super-admin',
+        ]);
 
         $this->assertDatabaseHas('roles', [
             'name' => 'Quản trị viên',
@@ -67,7 +72,7 @@ class RolePermissionSeederTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
 
         $expectedMatrix = [
-            'admin' => [
+            'super-admin' => [
                 'addresses.manage-own',
                 'attributes.manage',
                 'banners.manage',
@@ -99,6 +104,42 @@ class RolePermissionSeederTest extends TestCase
                 'reviews.moderate',
                 'reviews.view',
                 'roles.manage',
+                'shipping_methods.manage',
+                'shipping_methods.view',
+                'users.manage',
+                'users.view',
+            ],
+            'admin' => [
+                'addresses.manage-own',
+                'attributes.manage',
+                'banners.manage',
+                'banners.view',
+                'brands.manage',
+                'brands.view',
+                'categories.manage',
+                'categories.view',
+                'coupons.manage',
+                'coupons.view',
+                'dashboard.view',
+                'flash_sales.manage',
+                'flash_sales.view',
+                'inventory.adjust',
+                'inventory.import',
+                'inventory.view',
+                'orders.cancel-own',
+                'orders.manage',
+                'orders.update-status',
+                'orders.view',
+                'orders.view-own',
+                'payments.view',
+                'products.manage',
+                'products.publish',
+                'products.view',
+                'profile.update-own',
+                'reports.view',
+                'reviews.create-own',
+                'reviews.moderate',
+                'reviews.view',
                 'shipping_methods.manage',
                 'shipping_methods.view',
                 'users.manage',
@@ -189,9 +230,9 @@ class RolePermissionSeederTest extends TestCase
         $this->assertSame($firstSnapshot, $secondSnapshot);
 
         $this->assertSame([
-            'roles' => 5,
+            'roles' => 6,
             'permissions' => 35,
-            'permission_role' => 69,
+            'permission_role' => 103,
         ], $secondSnapshot);
     }
 

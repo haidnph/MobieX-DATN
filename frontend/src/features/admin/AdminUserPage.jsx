@@ -1,8 +1,8 @@
 // src/features/admin/AdminUserPage.jsx
 // Full-featured Admin User Management: Search, Filter, Sort, Pagination, User CRUD,
-// RBAC Roles Assignment, Status Toggle, Password Reset, Detail Drawer/Modal, and RBAC Matrix.
+// RBAC Roles Assignment, Status Toggle, Password Reset, Detail Drawer/Modal, and Interactive RBAC Matrix.
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import axiosClient from '../../api/axiosClient'
 import EP from '../../api/endpoints'
 import { formatDate } from '../../utils/formatDate'
@@ -17,12 +17,62 @@ import Badge from '../../components/common/Badge'
 import Pagination from '../../components/common/Pagination'
 
 export const ROLE_CONFIG = {
-  admin:      { label: 'Quản trị viên', variant: 'primary',  icon: 'shield_person', color: 'text-primary bg-primary/10 border-primary/20' },
-  super_admin:{ label: 'Super Admin',   variant: 'primary',  icon: 'verified_user', color: 'text-primary bg-primary/10 border-primary/20' },
-  accountant: { label: 'Kế toán',       variant: 'info',     icon: 'calculate',     color: 'text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/40 border-sky-200 dark:border-sky-800/40' },
-  warehouse:  { label: 'Thủ kho',       variant: 'warning',  icon: 'warehouse',     color: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/40' },
-  sales:      { label: 'Bán hàng',      variant: 'success',  icon: 'storefront',    color: 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/40' },
-  customer:   { label: 'Khách hàng',    variant: 'neutral',  icon: 'person',        color: 'text-outline bg-surface-container-high border-outline-variant/30' },
+  'super-admin': {
+    label: 'Super Admin',
+    sublabel: 'Quản trị cấp cao',
+    variant: 'primary',
+    icon: 'verified_user',
+    badgeClass: 'text-purple-700 dark:text-purple-300 bg-purple-100/80 dark:bg-purple-950/50 border border-purple-300 dark:border-purple-800/60',
+    description: 'Toàn quyền tối cao và quản trị hệ thống, quản lý phân quyền vai trò (RBAC).',
+  },
+  super_admin: {
+    label: 'Super Admin',
+    sublabel: 'Quản trị cấp cao',
+    variant: 'primary',
+    icon: 'verified_user',
+    badgeClass: 'text-purple-700 dark:text-purple-300 bg-purple-100/80 dark:bg-purple-950/50 border border-purple-300 dark:border-purple-800/60',
+    description: 'Toàn quyền tối cao và quản trị hệ thống, quản lý phân quyền vai trò (RBAC).',
+  },
+  admin: {
+    label: 'Quản trị viên',
+    sublabel: 'Admin vận hành',
+    variant: 'primary',
+    icon: 'shield_person',
+    badgeClass: 'text-primary bg-primary/10 border border-primary/20',
+    description: 'Quản trị vận hành kinh doanh, sản phẩm, đơn hàng, khách hàng, nội dung.',
+  },
+  accountant: {
+    label: 'Kế toán',
+    sublabel: 'Tài chính & Thanh toán',
+    variant: 'info',
+    icon: 'calculate',
+    badgeClass: 'text-sky-700 dark:text-sky-300 bg-sky-100/80 dark:bg-sky-950/50 border border-sky-300 dark:border-sky-800/60',
+    description: 'Theo dõi thanh toán, doanh thu và báo cáo tài chính.',
+  },
+  warehouse: {
+    label: 'Thủ kho',
+    sublabel: 'Kho & Vận chuyển',
+    variant: 'warning',
+    icon: 'warehouse',
+    badgeClass: 'text-amber-700 dark:text-amber-300 bg-amber-100/80 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-800/60',
+    description: 'Quản lý tồn kho, nhập/xuất kho và cập nhật vận chuyển.',
+  },
+  sales: {
+    label: 'Bán hàng',
+    sublabel: 'Kinh doanh & Khuyến mãi',
+    variant: 'success',
+    icon: 'storefront',
+    badgeClass: 'text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-800/60',
+    description: 'Quản lý đơn hàng, khách hàng, chiến dịch flash sale và mã giảm giá.',
+  },
+  customer: {
+    label: 'Khách hàng',
+    sublabel: 'Người mua hàng',
+    variant: 'neutral',
+    icon: 'person',
+    badgeClass: 'text-outline bg-surface-container-high border border-outline-variant/30',
+    description: 'Tài khoản người mua hàng, quản lý đơn hàng và đánh giá cá nhân.',
+  },
 }
 
 const ORDER_STATUS_LABELS = {
@@ -37,8 +87,29 @@ const ORDER_STATUS_LABELS = {
   returned:         { label: 'Đã hoàn trả',      variant: 'neutral' },
 }
 
+const PERMISSION_MODULES = [
+  { prefix: 'dashboard',        label: 'Tổng quan & Dashboard',      icon: 'dashboard' },
+  { prefix: 'users',            label: 'Quản lý Người dùng',         icon: 'group' },
+  { prefix: 'roles',            label: 'Phân quyền & Vai trò',       icon: 'security' },
+  { prefix: 'categories',       label: 'Danh mục Sản phẩm',          icon: 'category' },
+  { prefix: 'brands',           label: 'Thương hiệu',                icon: 'branding_watermark' },
+  { prefix: 'attributes',       label: 'Thuộc tính Kỹ thuật',        icon: 'tune' },
+  { prefix: 'products',         label: 'Sản phẩm & Biến thể',        icon: 'inventory_2' },
+  { prefix: 'inventory',        label: 'Kho & Tồn kho',              icon: 'warehouse' },
+  { prefix: 'orders',           label: 'Đơn hàng & Xử lý đơn',       icon: 'shopping_cart' },
+  { prefix: 'payments',         label: 'Thanh toán & Giao dịch',     icon: 'payments' },
+  { prefix: 'coupons',          label: 'Mã giảm giá (Coupon)',       icon: 'confirmation_number' },
+  { prefix: 'flash_sales',      label: 'Flash Sale & Khuyến mãi',    icon: 'bolt' },
+  { prefix: 'banners',          label: 'Banner & Quảng cáo',         icon: 'ad_units' },
+  { prefix: 'shipping_methods', label: 'Phương thức Vận chuyển',     icon: 'local_shipping' },
+  { prefix: 'reviews',          label: 'Đánh giá & Kiểm duyệt',      icon: 'rate_review' },
+  { prefix: 'reports',          label: 'Báo cáo & Thống kê',         icon: 'analytics' },
+  { prefix: 'profile',          label: 'Hồ sơ Cá nhân',              icon: 'badge' },
+  { prefix: 'addresses',        label: 'Địa chỉ Khách hàng',         icon: 'location_on' },
+]
+
 export default function AdminUserPage() {
-  const { user: currentAuthUser } = useAuth()
+  const { user: currentAuthUser, hasPermission } = useAuth()
   const { showToast } = useToast()
 
   // Tabs: 'users' | 'matrix'
@@ -56,6 +127,7 @@ export default function AdminUserPage() {
   const [roles, setRoles] = useState([])
   const [permissions, setPermissions] = useState([])
   const [loadingRoles, setLoadingRoles] = useState(false)
+  const [rolesError, setRolesError] = useState(null)
 
   // Filters & Sorting
   const [searchInput, setSearchInput] = useState('')
@@ -65,6 +137,12 @@ export default function AdminUserPage() {
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
   const [sortOption, setSortOption] = useState('id-desc')
+
+  // RBAC Matrix Editing state
+  const [isEditingMatrix, setIsEditingMatrix] = useState(false)
+  const [matrixDraft, setMatrixDraft] = useState({}) // { [roleSlug]: Set<string> }
+  const [savingMatrix, setSavingMatrix] = useState(false)
+  const [showSaveMatrixConfirm, setShowSaveMatrixConfirm] = useState(false)
 
   // Modals state
   const [statusTarget, setStatusTarget] = useState(null)
@@ -92,6 +170,9 @@ export default function AdminUserPage() {
   const [newPassword, setNewPassword] = useState('')
   const [resettingPassword, setResettingPassword] = useState(false)
 
+  // Can manage RBAC roles
+  const canManageRoles = hasPermission('roles.manage')
+
   // Debounced search
   const debounceRef = useRef(null)
   const handleSearchChange = (val) => {
@@ -103,28 +184,45 @@ export default function AdminUserPage() {
     }, 350)
   }
 
-  // Load Roles & Permissions once
+  // Load Roles & Permissions
   const loadRolesAndPermissions = useCallback(async () => {
     setLoadingRoles(true)
+    setRolesError(null)
     try {
-      const [roleRes, permRes] = await Promise.allSettled([
+      const [roleRes, permRes] = await Promise.all([
         axiosClient.get(EP.ADMIN_ROLES),
         axiosClient.get(EP.ADMIN_PERMISSIONS),
       ])
 
-      if (roleRes.status === 'fulfilled') {
-        const list = roleRes.value.data?.data?.roles ?? roleRes.value.data?.data ?? []
-        setRoles(list)
-        const firstNonCust = list.find((r) => r.slug !== 'customer')
-        if (firstNonCust) setSelectedRole(firstNonCust.slug)
-      }
+      const rawRoles = roleRes.data?.data?.roles ?? roleRes.data?.data ?? []
+      const rawPerms = permRes.data?.data?.permissions ?? permRes.data?.data ?? []
 
-      if (permRes.status === 'fulfilled') {
-        const list = permRes.value.data?.data?.permissions ?? permRes.value.data?.data ?? []
-        setPermissions(list)
-      }
-    } catch {
-      // Non-blocking fallback
+      // Normalize roles order: super-admin first, then admin, accountant, warehouse, sales, customer
+      const roleOrder = ['super-admin', 'admin', 'accountant', 'warehouse', 'sales', 'customer']
+      const sortedRoles = [...rawRoles].sort((a, b) => {
+        const idxA = roleOrder.indexOf(a.slug)
+        const idxB = roleOrder.indexOf(b.slug)
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB
+        if (idxA !== -1) return -1
+        if (idxB !== -1) return 1
+        return a.slug.localeCompare(b.slug)
+      })
+
+      setRoles(sortedRoles)
+      setPermissions(rawPerms)
+
+      // Initialize matrix draft
+      const draft = {}
+      sortedRoles.forEach((r) => {
+        const perms = (r.permissions || []).map((p) => (typeof p === 'string' ? p : p.slug))
+        draft[r.slug] = new Set(perms)
+      })
+      setMatrixDraft(draft)
+
+      const firstNonCust = sortedRoles.find((r) => r.slug !== 'customer')
+      if (firstNonCust) setSelectedRole(firstNonCust.slug)
+    } catch (err) {
+      setRolesError(err.message || 'Không thể tải danh sách vai trò và quyền hạn.')
     } finally {
       setLoadingRoles(false)
     }
@@ -154,15 +252,22 @@ export default function AdminUserPage() {
       if (toDate) params.to_date = toDate
 
       const { data } = await axiosClient.get(EP.ADMIN_USERS, { params })
-      const payload = data.data ?? data
-      setUsers(Array.isArray(payload) ? payload : (payload.data ?? []))
-      setTotalPages(payload.meta?.last_page ?? payload.last_page ?? 1)
-      setTotalCount(payload.meta?.total ?? payload.total ?? 0)
+      const userList = Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : [])
+      const total = data.meta?.total ?? data.stats?.total ?? userList.length
+      const totalPagesCount = data.meta?.last_page ?? 1
+
+      setUsers(userList)
+      setTotalPages(totalPagesCount)
+      setTotalCount(total)
 
       if (data.stats) {
         setStats(data.stats)
-      } else if (payload.meta?.total !== undefined) {
-        setStats((prev) => ({ ...prev, total: payload.meta.total }))
+      } else {
+        setStats({
+          total,
+          active: userList.filter((u) => u.is_active).length,
+          blocked: userList.filter((u) => !u.is_active).length,
+        })
       }
     } catch {
       showToast('Không thể tải danh sách tài khoản người dùng.', 'error')
@@ -174,6 +279,146 @@ export default function AdminUserPage() {
   useEffect(() => {
     fetchUsers()
   }, [fetchUsers])
+
+  // Group permissions by module
+  const groupedPermissions = useMemo(() => {
+    const groups = {}
+    PERMISSION_MODULES.forEach((mod) => {
+      groups[mod.prefix] = {
+        module: mod,
+        permissions: [],
+      }
+    })
+
+    const otherGroup = {
+      module: { prefix: 'other', label: 'Quyền hạn khác', icon: 'extension' },
+      permissions: [],
+    }
+
+    permissions.forEach((perm) => {
+      const prefix = perm.slug.split('.')[0]
+      if (groups[prefix]) {
+        groups[prefix].permissions.push(perm)
+      } else {
+        otherGroup.permissions.push(perm)
+      }
+    })
+
+    const result = Object.values(groups).filter((g) => g.permissions.length > 0)
+    if (otherGroup.permissions.length > 0) {
+      result.push(otherGroup)
+    }
+    return result
+  }, [permissions])
+
+  // Count changed permissions in Matrix Draft
+  const changedRolesCount = useMemo(() => {
+    let changed = 0
+    roles.forEach((r) => {
+      const origPerms = new Set((r.permissions || []).map((p) => (typeof p === 'string' ? p : p.slug)))
+      const draftPerms = matrixDraft[r.slug] || new Set()
+      if (origPerms.size !== draftPerms.size) {
+        changed++
+        return
+      }
+      for (const p of origPerms) {
+        if (!draftPerms.has(p)) {
+          changed++
+          return
+        }
+      }
+    })
+    return changed
+  }, [roles, matrixDraft])
+
+  // Toggle permission in Matrix Draft
+  const handleToggleMatrixPerm = (roleSlug, permSlug) => {
+    if (!isEditingMatrix || !canManageRoles) return
+
+    // Customer role is fixed
+    if (roleSlug === 'customer') {
+      showToast('Vai trò Khách hàng có phân quyền cố định, không thể chỉnh sửa.', 'warning')
+      return
+    }
+
+    // Protect Super Admin critical core permissions
+    if (roleSlug === 'super-admin' && ['roles.manage', 'users.manage', 'dashboard.view'].includes(permSlug)) {
+      showToast('Không thể tắt các quyền quản trị tối cao của Super Admin.', 'warning')
+      return
+    }
+
+    setMatrixDraft((prev) => {
+      const currentSet = new Set(prev[roleSlug] || [])
+      if (currentSet.has(permSlug)) {
+        currentSet.delete(permSlug)
+      } else {
+        currentSet.add(permSlug)
+      }
+      return {
+        ...prev,
+        [roleSlug]: currentSet,
+      }
+    })
+  }
+
+  // Cancel Matrix Draft
+  const handleCancelMatrixEdit = () => {
+    const draft = {}
+    roles.forEach((r) => {
+      const perms = (r.permissions || []).map((p) => (typeof p === 'string' ? p : p.slug))
+      draft[r.slug] = new Set(perms)
+    })
+    setMatrixDraft(draft)
+    setIsEditingMatrix(false)
+  }
+
+  // Save Matrix Permissions
+  const handleSaveMatrixConfirm = async () => {
+    setSavingMatrix(true)
+    try {
+      const updatePromises = []
+
+      roles.forEach((r) => {
+        const origPerms = new Set((r.permissions || []).map((p) => (typeof p === 'string' ? p : p.slug)))
+        const draftPerms = matrixDraft[r.slug] || new Set()
+
+        let hasChange = origPerms.size !== draftPerms.size
+        if (!hasChange) {
+          for (const p of origPerms) {
+            if (!draftPerms.has(p)) {
+              hasChange = true
+              break
+            }
+          }
+        }
+
+        if (hasChange) {
+          updatePromises.push(
+            axiosClient.put(EP.ADMIN_ROLE_PERMISSIONS_SYNC(r.slug), {
+              permissions: Array.from(draftPerms),
+            })
+          )
+        }
+      })
+
+      if (updatePromises.length === 0) {
+        showToast('Không có thay đổi nào cần lưu.', 'info')
+        setIsEditingMatrix(false)
+        setShowSaveMatrixConfirm(false)
+        return
+      }
+
+      await Promise.all(updatePromises)
+      showToast(`Đã cập nhật ma trận phân quyền thành công (${updatePromises.length} vai trò)!`)
+      setShowSaveMatrixConfirm(false)
+      setIsEditingMatrix(false)
+      await loadRolesAndPermissions()
+    } catch (err) {
+      showToast(err.message || 'Không thể lưu thay đổi ma trận phân quyền.', 'error')
+    } finally {
+      setSavingMatrix(false)
+    }
+  }
 
   // Load User Details
   const handleOpenDetail = async (user) => {
@@ -353,10 +598,10 @@ export default function AdminUserPage() {
         <div>
           <h1 className="text-2xl font-bold text-on-surface flex items-center gap-2">
             <span className="material-symbols-outlined text-primary text-2xl">manage_accounts</span>
-            Quản lý Tài khoản & Phân quyền
+            Quản lý Tài khoản & Phân quyền (RBAC)
           </h1>
           <p className="text-sm text-outline mt-1">
-            Kiểm soát người dùng, phân quyền vai trò (RBAC), bảo vệ an toàn tài khoản và theo dõi phân cấp quyền hạn
+            Kiểm soát người dùng, cấu hình ma trận phân quyền chi tiết, bảo vệ chốt chặn bảo mật hệ thống
           </p>
         </div>
 
@@ -386,7 +631,7 @@ export default function AdminUserPage() {
         >
           <span className="material-symbols-outlined text-lg">group</span>
           Danh sách người dùng
-          <span className="text-xs px-2 py-0.5 rounded-full bg-surface-container-high font-mono">
+          <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-mono font-bold">
             {totalCount}
           </span>
         </button>
@@ -403,74 +648,254 @@ export default function AdminUserPage() {
         >
           <span className="material-symbols-outlined text-lg">shield</span>
           Ma trận phân quyền (RBAC Matrix)
+          <span className="text-xs px-2 py-0.5 rounded-full bg-surface-container-high font-mono">
+            {roles.length} vai trò / {permissions.length} quyền
+          </span>
         </button>
       </div>
 
       {activeTab === 'matrix' ? (
         /* RBAC Matrix Tab */
         <div className="bg-surface-container rounded-2xl border border-outline-variant/20 p-6 shadow-sm space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          {/* Header & Controls */}
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
-              <h2 className="text-lg font-bold text-on-surface">Ma trận Phân quyền Vai trò Hệ thống</h2>
-              <p className="text-xs text-outline mt-0.5">
-                Quy định quyền truy cập chính xác cho từng vai trò Canonical. Mọi thao tác đều được kiểm tra tại Backend.
+              <div className="flex items-center gap-2.5">
+                <h2 className="text-lg font-bold text-on-surface">Ma trận Phân quyền Vai trò Hệ thống</h2>
+                {isEditingMatrix && (
+                  <span className="bg-amber-500/15 text-amber-600 dark:text-amber-400 text-xs font-bold px-2 py-0.5 rounded-full border border-amber-500/30 animate-pulse">
+                    Đang ở chế độ chỉnh sửa
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-outline mt-1">
+                Quy định quyền truy cập chuẩn hóa cho từng vai trò Canonical. Mọi thao tác đều được kiểm tra thực tế tại Backend.
               </p>
             </div>
-            <div className="flex items-center gap-2 text-xs text-outline">
-              <span className="flex items-center gap-1">
-                <span className="material-symbols-outlined text-primary text-sm">check_circle</span> Được phép
-              </span>
-              <span className="flex items-center gap-1 ml-3">
-                <span className="material-symbols-outlined text-outline/30 text-sm">cancel</span> Không có quyền
-              </span>
+
+            {/* Actions & Legend */}
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Legend */}
+              <div className="flex items-center gap-3 text-xs bg-surface-container-low px-3 py-2 rounded-xl border border-outline-variant/20">
+                <span className="flex items-center gap-1.5 font-medium text-on-surface">
+                  <span className="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-base">check_circle</span>
+                  Được phép
+                </span>
+                <span className="flex items-center gap-1.5 font-medium text-outline">
+                  <span className="material-symbols-outlined text-rose-500/50 dark:text-rose-400/50 text-base">cancel</span>
+                  Không có quyền
+                </span>
+                {isEditingMatrix && (
+                  <span className="flex items-center gap-1 text-primary font-bold ml-1 pl-2 border-l border-outline-variant/20">
+                    <span className="material-symbols-outlined text-sm">touch_app</span> Bấm ô để đổi
+                  </span>
+                )}
+              </div>
+
+              {/* Edit Mode Buttons */}
+              {canManageRoles && (
+                <div className="flex items-center gap-2">
+                  {!isEditingMatrix ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsEditingMatrix(true)}
+                      className="cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-sm">edit</span>
+                      Chỉnh sửa ma trận
+                    </Button>
+                  ) : (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleCancelMatrixEdit}
+                        disabled={savingMatrix}
+                        className="cursor-pointer"
+                      >
+                        Hủy bỏ
+                      </Button>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => setShowSaveMatrixConfirm(true)}
+                        loading={savingMatrix}
+                        className="cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-sm">save</span>
+                        Lưu thay đổi {changedRolesCount > 0 && `(${changedRolesCount} vai trò)`}
+                      </Button>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
+          {/* Error Banner */}
+          {rolesError && (
+            <div className="p-4 rounded-xl bg-error/10 border border-error/30 text-error flex items-center justify-between gap-3 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-xl">error</span>
+                <span>{rolesError}</span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={loadRolesAndPermissions}
+                className="cursor-pointer text-xs"
+              >
+                Thử tải lại
+              </Button>
+            </div>
+          )}
+
+          {/* Matrix Table */}
           {loadingRoles ? (
-            <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+            <div className="flex flex-col items-center justify-center py-20 text-outline gap-3">
+              <Spinner size="lg" />
+              <p className="text-sm">Đang tải cấu hình vai trò và ma trận phân quyền...</p>
+            </div>
+          ) : roles.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-outline gap-2">
+              <span className="material-symbols-outlined text-4xl">shield_question</span>
+              <p className="text-sm">Chưa có vai trò nào được đăng ký trong hệ thống.</p>
+            </div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-outline-variant/20">
+            <div className="overflow-x-auto rounded-xl border border-outline-variant/20 shadow-inner">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-surface-container-high/60 border-b border-outline-variant/30">
-                    <th className="py-3 px-4 font-semibold text-on-surface w-72">Quyền hạn (Permission)</th>
+                  <tr className="bg-surface-container-high border-b border-outline-variant/30 text-on-surface">
+                    <th className="py-4 px-4 font-bold text-sm min-w-[280px]">
+                      Phân hệ & Quyền hạn (Permissions)
+                    </th>
                     {roles.map((r) => {
-                      const cfg = ROLE_CONFIG[r.slug] || { label: r.name, icon: 'shield' }
+                      const cfg = ROLE_CONFIG[r.slug] || {
+                        label: r.name,
+                        sublabel: r.slug,
+                        icon: 'shield',
+                        badgeClass: 'text-on-surface bg-surface-container-low border border-outline-variant/30',
+                        description: r.description,
+                      }
                       return (
-                        <th key={r.slug} className="py-3 px-3 text-center font-semibold text-on-surface">
-                          <div className="inline-flex flex-col items-center gap-0.5">
-                            <span className="material-symbols-outlined text-base text-primary">{cfg.icon}</span>
-                            <span className="text-[11px] font-bold">{cfg.label}</span>
-                            <span className="text-[9px] font-mono text-outline">({r.slug})</span>
+                        <th
+                          key={r.slug}
+                          className="py-4 px-3 text-center min-w-[130px] border-l border-outline-variant/15"
+                        >
+                          <div className="inline-flex flex-col items-center gap-1 group relative">
+                            <span className="material-symbols-outlined text-xl text-primary">
+                              {cfg.icon}
+                            </span>
+                            <span className="font-bold text-xs text-on-surface whitespace-nowrap">
+                              {cfg.label}
+                            </span>
+                            <span className="text-[10px] font-mono text-outline">
+                              ({r.slug})
+                            </span>
+                            {/* Role Tooltip */}
+                            <div className="text-[10px] text-outline line-clamp-1 max-w-[120px] font-normal" title={cfg.description || r.description}>
+                              {cfg.description || r.description || cfg.sublabel}
+                            </div>
                           </div>
                         </th>
                       )
                     })}
                   </tr>
                 </thead>
+
                 <tbody className="divide-y divide-outline-variant/10 text-on-surface-variant">
-                  {permissions.map((p) => (
-                    <tr key={p.slug} className="hover:bg-surface-container-high/30 transition-colors">
-                      <td className="py-2.5 px-4">
-                        <div className="font-medium text-on-surface text-xs">{p.name || p.slug}</div>
-                        <div className="text-[10px] text-outline font-mono mt-0.5">{p.slug}</div>
-                      </td>
-                      {roles.map((r) => {
-                        const hasPerm = (r.permissions || []).some((rp) => rp.slug === p.slug)
-                        return (
-                          <td key={r.slug} className="py-2.5 px-3 text-center">
-                            {hasPerm ? (
-                              <span className="material-symbols-outlined text-primary text-base font-bold">
-                                check_circle
-                              </span>
-                            ) : (
-                              <span className="material-symbols-outlined text-outline/25 text-base">
-                                remove
-                              </span>
-                            )}
+                  {groupedPermissions.map((group) => (
+                    <tr key={group.module.prefix} className="contents">
+                      {/* Module Header Row */}
+                      <tr className="bg-surface-container-high/40 border-t-2 border-b border-outline-variant/25">
+                        <td
+                          colSpan={roles.length + 1}
+                          className="py-2.5 px-4 font-bold text-xs text-primary uppercase tracking-wider flex items-center gap-2"
+                        >
+                          <span className="material-symbols-outlined text-base">
+                            {group.module.icon}
+                          </span>
+                          {group.module.label}
+                          <span className="text-[10px] font-mono font-normal text-outline lowercase ml-1">
+                            ({group.permissions.length} quyền)
+                          </span>
+                        </td>
+                      </tr>
+
+                      {/* Permissions Rows in this Module */}
+                      {group.permissions.map((p) => (
+                        <tr
+                          key={p.slug}
+                          className="hover:bg-surface-container-high/25 transition-colors"
+                        >
+                          <td className="py-2.5 px-4">
+                            <div className="font-semibold text-on-surface text-xs">{p.name || p.slug}</div>
+                            <div className="text-[11px] text-outline font-mono mt-0.5 flex items-center gap-1.5">
+                              <span>{p.slug}</span>
+                              {p.description && (
+                                <span className="text-[10px] text-outline/80 italic font-sans">
+                                  — {p.description}
+                                </span>
+                              )}
+                            </div>
                           </td>
-                        )
-                      })}
+
+                          {roles.map((r) => {
+                            // Check permission in draft or original
+                            const draftSet = matrixDraft[r.slug]
+                            const origSet = new Set((r.permissions || []).map((x) => (typeof x === 'string' ? x : x.slug)))
+
+                            const hasPerm = isEditingMatrix
+                              ? (draftSet ? draftSet.has(p.slug) : false)
+                              : origSet.has(p.slug)
+
+                            const isModified = isEditingMatrix && (
+                              (draftSet?.has(p.slug) && !origSet.has(p.slug)) ||
+                              (!draftSet?.has(p.slug) && origSet.has(p.slug))
+                            )
+
+                            const isLocked = isEditingMatrix && (
+                              r.slug === 'customer' ||
+                              (r.slug === 'super-admin' && ['roles.manage', 'users.manage', 'dashboard.view'].includes(p.slug))
+                            )
+
+                            return (
+                              <td
+                                key={r.slug}
+                                className={[
+                                  'py-2 px-3 text-center border-l border-outline-variant/10 transition-colors',
+                                  isEditingMatrix && !isLocked ? 'cursor-pointer hover:bg-surface-container-high/60 active:scale-95' : '',
+                                  isModified ? 'bg-amber-500/10 dark:bg-amber-500/15' : '',
+                                ].join(' ')}
+                                onClick={() => handleToggleMatrixPerm(r.slug, p.slug)}
+                                title={
+                                  isEditingMatrix
+                                    ? isLocked
+                                      ? 'Quyền hạn bảo vệ cố định'
+                                      : `Nhấn để ${hasPerm ? 'tắt' : 'bật'} quyền "${p.name}" cho ${r.name}`
+                                    : `${r.name}: ${hasPerm ? 'Được phép' : 'Không có quyền'}`
+                                }
+                              >
+                                <div className="inline-flex items-center justify-center">
+                                  {hasPerm ? (
+                                    <span className="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-lg transition-transform font-bold">
+                                      check_circle
+                                    </span>
+                                  ) : (
+                                    <span className="material-symbols-outlined text-rose-500/50 dark:text-rose-400/50 text-lg transition-transform">
+                                      cancel
+                                    </span>
+                                  )}
+                                  {isModified && (
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 ml-1 shrink-0" title="Đã chỉnh sửa" />
+                                  )}
+                                </div>
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      ))}
                     </tr>
                   ))}
                 </tbody>
@@ -514,12 +939,12 @@ export default function AdminUserPage() {
             </div>
 
             <div className="bg-surface-container rounded-2xl p-4 border border-outline-variant/20 shadow-sm flex items-center gap-3.5">
-              <div className="w-11 h-11 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-2xl">badge</span>
+              <div className="w-11 h-11 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-2xl">shield</span>
               </div>
               <div>
                 <p className="text-xs text-outline font-medium">Vai trò quản trị</p>
-                <p className="text-xl font-bold text-sky-600 dark:text-sky-400 mt-0.5">{adminRoles.length}</p>
+                <p className="text-xl font-bold text-purple-600 dark:text-purple-400 mt-0.5">{adminRoles.length}</p>
               </div>
             </div>
           </div>
@@ -849,6 +1274,18 @@ export default function AdminUserPage() {
           )}
         </div>
       )}
+
+      {/* ── Save Matrix Confirmation Modal ────────────────────────────────────── */}
+      <ConfirmDialog
+        open={showSaveMatrixConfirm}
+        onClose={() => setShowSaveMatrixConfirm(false)}
+        onConfirm={handleSaveMatrixConfirm}
+        title="Xác nhận lưu thay đổi Ma trận Phân quyền"
+        message={`Bạn có chắc chắn muốn lưu lại các phân quyền vừa chỉnh sửa cho ${changedRolesCount} vai trò? Mọi tài khoản đang hoạt động thuộc các vai trò này sẽ chịu ảnh hưởng của các quyền mới ngay lập tức.`}
+        confirmText="Xác nhận lưu ma trận"
+        variant="primary"
+        loading={savingMatrix}
+      />
 
       {/* ── Detail Modal ──────────────────────────────────────────────────────── */}
       {detailUser && (

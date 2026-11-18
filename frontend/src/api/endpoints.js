@@ -100,6 +100,7 @@ const EP = {
   ADMIN_USER_ROLES: (id) => `/admin/users/${id}/roles`,
   ADMIN_USER_ROLE_DELETE: (id, roleSlug) => `/admin/users/${id}/roles/${roleSlug}`,
   ADMIN_ROLES: '/admin/roles',
+  ADMIN_ROLE_PERMISSIONS_SYNC: (roleId) => `/admin/roles/${roleId}/permissions`,
   ADMIN_PERMISSIONS: '/admin/permissions',
 
   // ── Admin: Spec Definitions ───────────────────────────

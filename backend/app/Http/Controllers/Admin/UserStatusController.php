@@ -26,11 +26,11 @@ class UserStatusController extends Controller
                 ], 409);
             }
 
-            if ($user->is_active && $user->hasRole('admin')) {
+            if ($user->is_active && ($user->hasRole('admin') || $user->hasRole('super-admin'))) {
                 $activeAdminCount = User::query()
                     ->where('is_active', true)
                     ->whereHas('roles', static function ($query): void {
-                        $query->where('slug', 'admin');
+                        $query->whereIn('slug', ['admin', 'super-admin']);
                     })
                     ->count();
 

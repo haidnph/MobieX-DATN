@@ -841,6 +841,13 @@ Route::prefix('admin')
         )
             ->whereNumber('user')
             ->name('users.password.reset');
+
+        Route::put(
+            '/roles/{role}/permissions',
+            [RoleController::class, 'syncPermissions'],
+        )
+            ->middleware('permission:roles.manage')
+            ->name('roles.permissions.sync');
     });
 
 /*

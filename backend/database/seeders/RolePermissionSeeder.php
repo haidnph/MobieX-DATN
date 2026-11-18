@@ -15,9 +15,14 @@ class RolePermissionSeeder extends Seeder
      * @var array<string, array{name: string, description: string, is_system: bool}>
      */
     private const ROLES = [
+        'super-admin' => [
+            'name' => 'Quản trị cấp cao',
+            'description' => 'Toàn quyền tối cao và quản trị hệ thống',
+            'is_system' => true,
+        ],
         'admin' => [
             'name' => 'Quản trị viên',
-            'description' => 'Toàn quyền quản trị hệ thống',
+            'description' => 'Quản trị vận hành hệ thống, sản phẩm và đơn hàng',
             'is_system' => true,
         ],
         'accountant' => [
@@ -91,8 +96,21 @@ class RolePermissionSeeder extends Seeder
      * @var array<string, list<string>>
      */
     private const ROLE_PERMISSION_MAP = [
-        'admin' => [
+        'super-admin' => [
             'dashboard.view', 'users.view', 'users.manage', 'roles.manage',
+            'categories.view', 'categories.manage', 'brands.view', 'brands.manage',
+            'attributes.manage', 'products.view', 'products.manage', 'products.publish',
+            'inventory.view', 'inventory.import', 'inventory.adjust',
+            'orders.view', 'orders.manage', 'orders.update-status',
+            'payments.view', 'coupons.view', 'coupons.manage',
+            'banners.manage', 'shipping_methods.view', 'shipping_methods.manage',
+            'flash_sales.view', 'flash_sales.manage', 'banners.view',
+            'reviews.view', 'reviews.moderate', 'reports.view',
+            'profile.update-own', 'addresses.manage-own', 'orders.view-own',
+            'orders.cancel-own', 'reviews.create-own',
+        ],
+        'admin' => [
+            'dashboard.view', 'users.view', 'users.manage',
             'categories.view', 'categories.manage', 'brands.view', 'brands.manage',
             'attributes.manage', 'products.view', 'products.manage', 'products.publish',
             'inventory.view', 'inventory.import', 'inventory.adjust',
