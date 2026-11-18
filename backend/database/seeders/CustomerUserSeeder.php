@@ -16,6 +16,8 @@ class CustomerUserSeeder extends Seeder
     public function run(): void
     {
         // 1. Customer Account
+        $customerRole = Role::firstOrCreate(['slug' => 'customer'], ['name' => 'Khách hàng']);
+
         $customer = User::firstOrCreate(
             ['email' => 'customer@mobilex.tech'],
             [
@@ -25,6 +27,8 @@ class CustomerUserSeeder extends Seeder
                 'is_active' => true,
             ]
         );
+
+        $customer->roles()->syncWithoutDetaching([$customerRole->id]);
 
         // Seed default address for customer
         UserAddress::firstOrCreate(

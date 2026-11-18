@@ -9,26 +9,30 @@ import EP from '../api/endpoints'
 import AdminOmnisearchModal from '../components/admin/AdminOmnisearchModal'
 
 const NAV_ITEMS = [
-  { to: '/admin',            icon: 'dashboard',           label: 'Tổng quan',       end: true },
-  { to: '/admin/orders',     icon: 'receipt_long',        label: 'Đơn hàng' },
-  { to: '/admin/products',   icon: 'inventory_2',         label: 'Sản phẩm' },
-  { to: '/admin/categories', icon: 'category',            label: 'Danh mục' },
-  { to: '/admin/brands',     icon: 'store',               label: 'Thương hiệu' },
-  { to: '/admin/specs',      icon: 'tune',                label: 'Thông số kỹ thuật' },
-  { to: '/admin/inventories',icon: 'warehouse',           label: 'Kho hàng' },
-  { to: '/admin/users',      icon: 'group',               label: 'Người dùng' },
-  { to: '/admin/coupons',    icon: 'local_offer',         label: 'Mã giảm giá' },
-  { to: '/admin/reviews',    icon: 'rate_review',         label: 'Đánh giá' },
-  { to: '/admin/banners',    icon: 'image',               label: 'Banner' },
-  { to: '/admin/trash',      icon: 'auto_delete',         label: 'Thùng rác' },
+  { to: '/admin',            icon: 'dashboard',           label: 'Tổng quan',       end: true, permission: 'dashboard.view' },
+  { to: '/admin/orders',     icon: 'receipt_long',        label: 'Đơn hàng',                   permission: 'orders.view' },
+  { to: '/admin/products',   icon: 'inventory_2',         label: 'Sản phẩm',                   permission: 'products.view' },
+  { to: '/admin/categories', icon: 'category',            label: 'Danh mục',                   permission: 'categories.view' },
+  { to: '/admin/brands',     icon: 'store',               label: 'Thương hiệu',                permission: 'brands.view' },
+  { to: '/admin/specs',      icon: 'tune',                label: 'Thông số kỹ thuật',          permission: 'products.view' },
+  { to: '/admin/inventories',icon: 'warehouse',           label: 'Kho hàng',                   permission: 'inventory.view' },
+  { to: '/admin/users',      icon: 'group',               label: 'Người dùng',                 permission: 'users.view' },
+  { to: '/admin/coupons',    icon: 'local_offer',         label: 'Mã giảm giá',                permission: 'coupons.view' },
+  { to: '/admin/reviews',    icon: 'rate_review',         label: 'Đánh giá',                   permission: 'reviews.view' },
+  { to: '/admin/banners',    icon: 'image',               label: 'Banner',                     permission: 'banners.view' },
+  { to: '/admin/trash',      icon: 'auto_delete',         label: 'Thùng rác',                  permission: 'products.view' },
 ]
 
 export default function AdminLayout() {
-  const { user, logout } = useAuth()
+  const { user, logout, hasPermission, isAdmin } = useAuth()
   const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState(false)
   const [trashCount, setTrashCount] = useState(0)
   const [omnisearchOpen, setOmnisearchOpen] = useState(false)
+
+  const visibleNavItems = NAV_ITEMS.filter(
+    (item) => !item.permission || isAdmin() || hasPermission(item.permission),
+  )
 
   // Global Ctrl+K / Cmd+K listener
   useEffect(() => {
@@ -56,7 +60,7 @@ export default function AdminLayout() {
 
   const handleLogout = async () => {
     await logout()
-    navigate('/login')
+    navigate('/admin/login', { replace: true })
   }
 
   return (
@@ -82,7 +86,7 @@ export default function AdminLayout() {
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-1">
-          {NAV_ITEMS.map(({ to, icon, label, end }) => (
+          {visibleNavItems.map(({ to, icon, label, end }) => (
             <NavLink
               key={to}
               to={to}
@@ -153,10 +157,16 @@ export default function AdminLayout() {
           </button>
 
           <div className="flex items-center gap-3 shrink-0">
-            <span className="text-sm text-on-surface-variant hidden md:block">{user?.name}</span>
+            <div className="text-right hidden md:block leading-tight">
+              <span className="text-sm font-semibold text-on-surface block">{user?.name}</span>
+              <span className="text-[10px] text-primary uppercase font-bold tracking-wider">
+                {user?.roles?.[0] ?? 'Admin'}
+              </span>
+            </div>
             <button
               onClick={handleLogout}
               className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-error hover:bg-error-container/20 transition-colors text-sm font-medium"
+              title="Đăng xuất khỏi Admin"
             >
               <span className="material-symbols-outlined text-base">logout</span>
               <span className="hidden md:inline">Đăng xuất</span>

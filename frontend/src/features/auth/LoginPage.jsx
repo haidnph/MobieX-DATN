@@ -1,23 +1,34 @@
 // src/features/auth/LoginPage.jsx
-// User login form — POST /auth/login → store token → redirect to home or previous location.
+// Client Storefront login form — POST /auth/login → store token → redirect to safe intended URL.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import Button from '../../components/common/Button'
 import Input from '../../components/common/Input'
+import { getSafeIntendedUrl } from '../../utils/urlUtils'
 
 export default function LoginPage() {
-  const { login } = useAuth()
+  const { user, login, canAccessAdmin, loading: authLoading } = useAuth()
   const { showToast } = useToast()
   const navigate = useNavigate()
   const location = useLocation()
-  const from = location.state?.from?.pathname ?? '/'
 
   const [form, setForm] = useState({ email: '', password: '' })
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState({})
+
+  // If already authenticated, redirect to safe destination
+  useEffect(() => {
+    if (!authLoading && user) {
+      const dest = getSafeIntendedUrl(location.state?.from, '/', {
+        isAdminPortal: false,
+        canAccessAdmin: canAccessAdmin(),
+      })
+      navigate(dest, { replace: true })
+    }
+  }, [user, authLoading, canAccessAdmin, location.state, navigate])
 
   const handleChange = (e) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
@@ -29,17 +40,22 @@ export default function LoginPage() {
     setLoading(true)
     setErrors({})
     try {
-      const user = await login(form)
-      showToast(`Chào mừng trở lại, ${user.name}!`, 'success')
-      // Admin users → admin dashboard; others → previous page or home
-      if (user.roles?.includes('admin') || user.roles?.includes('super-admin')) {
-        navigate('/admin', { replace: true })
-      } else {
-        navigate(from, { replace: true })
-      }
+      const loggedUser = await login(form)
+      showToast(`Chào mừng trở lại, ${loggedUser.name}!`, 'success')
+
+      const canAccess =
+        loggedUser.roles?.some((r) =>
+          ['admin', 'super-admin', 'sales', 'warehouse', 'accountant'].includes(r),
+        ) || loggedUser.permissions?.includes('*')
+
+      const target = getSafeIntendedUrl(location.state?.from, '/', {
+        isAdminPortal: false,
+        canAccessAdmin: canAccess,
+      })
+      navigate(target, { replace: true })
     } catch (err) {
       if (err.validationErrors) setErrors(err.validationErrors)
-      showToast(err.message, 'error')
+      showToast(err.message || 'Đăng nhập không thành công', 'error')
     } finally {
       setLoading(false)
     }
@@ -98,7 +114,7 @@ export default function LoginPage() {
               </Link>
             </div>
 
-            <Button type="submit" loading={loading} className="w-full mt-2">
+            <Button type="submit" loading={loading} className="w-full mt-2 font-semibold">
               Đăng nhập
             </Button>
           </form>
@@ -109,6 +125,17 @@ export default function LoginPage() {
               Đăng ký ngay
             </Link>
           </p>
+
+          {/* Admin / Staff portal entry */}
+          <div className="mt-6 pt-4 border-t border-outline-variant/20 text-center">
+            <Link
+              to="/admin/login"
+              className="inline-flex items-center gap-1.5 text-xs text-on-surface-variant hover:text-primary transition-colors font-medium"
+            >
+              <span className="material-symbols-outlined text-sm">shield_person</span>
+              Bạn là nhân viên quản lý? Đăng nhập cổng quản trị →
+            </Link>
+          </div>
         </div>
       </div>
     </div>

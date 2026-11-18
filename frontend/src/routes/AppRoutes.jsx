@@ -13,6 +13,7 @@ import Spinner from '../components/common/Spinner'
 // ── Lazy imports ──────────────────────────────────────────────────────────────
 // Auth
 const LoginPage          = lazy(() => import('../features/auth/LoginPage'))
+const AdminLoginPage     = lazy(() => import('../features/auth/AdminLoginPage'))
 const RegisterPage       = lazy(() => import('../features/auth/RegisterPage'))
 const ForgotPasswordPage = lazy(() => import('../features/auth/ForgotPasswordPage'))
 const ResetPasswordPage  = lazy(() => import('../features/auth/ResetPasswordPage'))
@@ -91,10 +92,8 @@ function NotFoundPage() {
 // ── Admin Guard ────────────────────────────────────────────────────────────────
 function AdminGuard({ children }) {
   return (
-    <ProtectedRoute>
-      <PermissionRoute permission="orders.view">
-        {children}
-      </PermissionRoute>
+    <ProtectedRoute adminOnly>
+      {children}
     </ProtectedRoute>
   )
 }
@@ -106,6 +105,7 @@ export default function AppRoutes() {
       <Routes>
         {/* ── Auth pages (no layout wrapper) ── */}
         <Route path="/login"           element={<LoginPage />} />
+        <Route path="/admin/login"     element={<AdminLoginPage />} />
         <Route path="/register"        element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password"  element={<ResetPasswordPage />} />
@@ -224,25 +224,25 @@ export default function AppRoutes() {
             </AdminGuard>
           }
         >
-          <Route index                 element={<AdminDashboard />} />
-          <Route path="orders"         element={<AdminOrderListPage />} />
-          <Route path="orders/:id"     element={<AdminOrderDetailPage />} />
-          <Route path="products"           element={<AdminProductPage />} />
-          <Route path="products/create"    element={<AdminProductCreatePage />} />
-          <Route path="products/:id/edit"  element={<AdminProductEditPage />} />
-          <Route path="categories"     element={<AdminCategoryPage />} />
-          <Route path="brands"         element={<AdminBrandPage />} />
-          <Route path="inventories"    element={<AdminInventoryPage />} />
-          <Route path="users"          element={<AdminUserPage />} />
-          <Route path="coupons"            element={<AdminCouponPage />} />
-          <Route path="coupons/create"     element={<AdminCouponCreatePage />} />
-          <Route path="coupons/new"        element={<AdminCouponCreatePage />} />
-          <Route path="coupons/:id/edit"   element={<AdminCouponEditPage />} />
-          <Route path="reviews"        element={<AdminReviewPage />} />
-          <Route path="banners"        element={<AdminBannerPage />} />
-          <Route path="specs"          element={<AdminSpecPage />} />
-          <Route path="trash"          element={<AdminTrashPage />} />
-          <Route path="*"              element={<Navigate to="/admin" replace />} />
+          <Route index                     element={<PermissionRoute permission="dashboard.view"><AdminDashboard /></PermissionRoute>} />
+          <Route path="orders"             element={<PermissionRoute permission="orders.view"><AdminOrderListPage /></PermissionRoute>} />
+          <Route path="orders/:id"         element={<PermissionRoute permission="orders.view"><AdminOrderDetailPage /></PermissionRoute>} />
+          <Route path="products"           element={<PermissionRoute permission="products.view"><AdminProductPage /></PermissionRoute>} />
+          <Route path="products/create"    element={<PermissionRoute permission="products.manage"><AdminProductCreatePage /></PermissionRoute>} />
+          <Route path="products/:id/edit"  element={<PermissionRoute permission="products.manage"><AdminProductEditPage /></PermissionRoute>} />
+          <Route path="categories"         element={<PermissionRoute permission="categories.view"><AdminCategoryPage /></PermissionRoute>} />
+          <Route path="brands"             element={<PermissionRoute permission="brands.view"><AdminBrandPage /></PermissionRoute>} />
+          <Route path="inventories"        element={<PermissionRoute permission="inventory.view"><AdminInventoryPage /></PermissionRoute>} />
+          <Route path="users"              element={<PermissionRoute permission="users.view"><AdminUserPage /></PermissionRoute>} />
+          <Route path="coupons"            element={<PermissionRoute permission="coupons.view"><AdminCouponPage /></PermissionRoute>} />
+          <Route path="coupons/create"     element={<PermissionRoute permission="coupons.manage"><AdminCouponCreatePage /></PermissionRoute>} />
+          <Route path="coupons/new"        element={<PermissionRoute permission="coupons.manage"><AdminCouponCreatePage /></PermissionRoute>} />
+          <Route path="coupons/:id/edit"   element={<PermissionRoute permission="coupons.manage"><AdminCouponEditPage /></PermissionRoute>} />
+          <Route path="reviews"            element={<PermissionRoute permission="reviews.view"><AdminReviewPage /></PermissionRoute>} />
+          <Route path="banners"            element={<PermissionRoute permission="banners.view"><AdminBannerPage /></PermissionRoute>} />
+          <Route path="specs"              element={<PermissionRoute permission="products.view"><AdminSpecPage /></PermissionRoute>} />
+          <Route path="trash"              element={<PermissionRoute permission="products.view"><AdminTrashPage /></PermissionRoute>} />
+          <Route path="*"                  element={<Navigate to="/admin" replace />} />
         </Route>
       </Routes>
     </Suspense>

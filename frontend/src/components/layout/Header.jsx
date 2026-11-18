@@ -336,7 +336,7 @@ function SearchDropdownPanel({
 }
 
 export default function Header() {
-  const { user, logout, isAdmin } = useAuth()
+  const { user, logout, isAdmin, canAccessAdmin } = useAuth()
   const { itemCount, cartBadgeCount } = useCart()
   const { compareCount } = useCompare()
   const { wishlistCount } = useWishlist()
@@ -651,7 +651,11 @@ export default function Header() {
 
   const handleLogout = async () => {
     await logout()
-    navigate('/login')
+    showToast('Đã đăng xuất thành công', 'success')
+    const protectedPrefixes = ['/account', '/checkout', '/orders']
+    if (protectedPrefixes.some((p) => window.location.pathname.startsWith(p))) {
+      navigate('/login')
+    }
   }
 
   return (
@@ -955,7 +959,7 @@ export default function Header() {
                     </span>
                     Đơn hàng của tôi
                   </Link>
-                  {isAdmin() && (
+                  {(isAdmin() || canAccessAdmin?.()) && (
                     <Link
                       to="/admin"
                       onClick={() => setUserMenuOpen(false)}
@@ -1189,7 +1193,7 @@ export default function Header() {
                 >
                   Đơn hàng
                 </Link>
-                {isAdmin() && (
+                {(isAdmin() || canAccessAdmin?.()) && (
                   <Link
                     to="/admin"
                     onClick={() => setMobileMenuOpen(false)}

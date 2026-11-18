@@ -7,23 +7,79 @@ import axiosClient from '../api/axiosClient'
 import EP from '../api/endpoints'
 import storage from '../utils/storage'
 
-/** @typedef {{ id: number, name: string, email: string, roles: string[], permissions: string[] }} AuthUser */
+/** @typedef {{ id: number, name: string, email: string, roles: string[], rawRoles?: any[], permissions: string[] }} AuthUser */
 
-const AuthContext = createContext(null)
+export const ROLE_PERMISSION_MAP = {
+  admin: ['*'],
+  'super-admin': ['*'],
+  sales: [
+    'dashboard.view',
+    'users.view',
+    'categories.view',
+    'brands.view',
+    'products.view',
+    'products.manage',
+    'products.publish',
+    'orders.view',
+    'orders.manage',
+    'orders.update-status',
+    'coupons.view',
+    'flash_sales.view',
+    'flash_sales.manage',
+    'banners.view',
+    'shipping_methods.view',
+  ],
+  warehouse: [
+    'dashboard.view',
+    'products.view',
+    'inventory.view',
+    'inventory.import',
+    'inventory.adjust',
+    'orders.view',
+    'orders.update-status',
+    'shipping_methods.view',
+  ],
+  accountant: [
+    'dashboard.view',
+    'orders.view',
+    'payments.view',
+    'reports.view',
+    'coupons.view',
+    'shipping_methods.view',
+  ],
+  customer: [
+    'profile.update-own',
+    'addresses.manage-own',
+    'orders.view-own',
+    'orders.cancel-own',
+    'reviews.create-own',
+  ],
+}
 
-function normalizeUser(rawUser) {
+/**
+ * Normalizes user object from API response.
+ * Resolves role strings and derives canonical permissions if not explicitly returned.
+ */
+export function normalizeUser(rawUser) {
   if (!rawUser) return null
   const rawRoles = rawUser.roles ?? []
   const roleSlugs = rawRoles.map((r) => (typeof r === 'string' ? r : r?.slug)).filter(Boolean)
-  const permissions = rawUser.permissions ?? []
-  const permissionSlugs = permissions.map((p) => (typeof p === 'string' ? p : p?.slug)).filter(Boolean)
+  const explicitPermissions = (rawUser.permissions ?? [])
+    .map((p) => (typeof p === 'string' ? p : p?.slug))
+    .filter(Boolean)
+
+  const rolePermissions = roleSlugs.flatMap((slug) => ROLE_PERMISSION_MAP[slug] ?? [])
+  const combinedPermissions = Array.from(new Set([...explicitPermissions, ...rolePermissions]))
+
   return {
     ...rawUser,
     roles: roleSlugs,
     rawRoles,
-    permissions: permissionSlugs,
+    permissions: combinedPermissions,
   }
 }
+
+const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(/** @type {AuthUser|null} */ (null))
@@ -45,7 +101,7 @@ export function AuthProvider({ children }) {
         setToken(savedToken)
       })
       .catch(() => {
-        // Token expired or invalid — clear everything
+        // Token expired or invalid — clear session
         storage.clear()
         setToken(null)
         setUser(null)
@@ -91,7 +147,7 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  // ── Permission helpers ─────────────────────────────────────────────────
+  // ── Role & Permission helpers ──────────────────────────────────────────
   const hasRole = useCallback(
     (role) => {
       if (!user?.roles) return false
@@ -108,17 +164,50 @@ export function AuthProvider({ children }) {
     [hasRole],
   )
 
+  const isStaff = useCallback(
+    () =>
+      isAdmin() ||
+      hasRole('sales') ||
+      hasRole('warehouse') ||
+      hasRole('accountant'),
+    [isAdmin, hasRole],
+  )
+
+  const canAccessAdmin = useCallback(
+    () => isStaff() || (user?.permissions ?? []).includes('dashboard.view'),
+    [isStaff, user],
+  )
+
+  const isCustomer = useCallback(
+    () => hasRole('customer'),
+    [hasRole],
+  )
+
   const hasPermission = useCallback(
     (slug) => {
       if (isAdmin()) return true
-      return !!(user?.permissions ?? []).includes(slug)
+      const userPermissions = user?.permissions ?? []
+      if (userPermissions.includes('*')) return true
+      return userPermissions.includes(slug)
     },
     [user, isAdmin],
   )
 
   return (
     <AuthContext.Provider
-      value={{ user, token, loading, login, logout, hasPermission, hasRole, isAdmin }}
+      value={{
+        user,
+        token,
+        loading,
+        login,
+        logout,
+        hasPermission,
+        hasRole,
+        isAdmin,
+        isStaff,
+        canAccessAdmin,
+        isCustomer,
+      }}
     >
       {children}
     </AuthContext.Provider>
@@ -135,6 +224,9 @@ export function AuthProvider({ children }) {
  *   hasPermission: (slug: string) => boolean,
  *   hasRole: (role: string) => boolean,
  *   isAdmin: () => boolean,
+ *   isStaff: () => boolean,
+ *   canAccessAdmin: () => boolean,
+ *   isCustomer: () => boolean,
  * }}
  */
 export function useAuth() {

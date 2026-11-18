@@ -41,11 +41,28 @@ axiosClient.interceptors.response.use(
     const { status, data } = error.response
 
     if (status === 401) {
-      // Clear session and redirect to login
+      // Clear expired session
       storage.clear()
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login'
+
+      const currentPath = typeof window !== 'undefined' ? window.location.pathname : ''
+
+      // If user is inside Admin portal, direct to Admin Login
+      if (currentPath.startsWith('/admin') && currentPath !== '/admin/login') {
+        window.location.href = '/admin/login'
+      } else {
+        // Protected storefront routes that require immediate authentication
+        const customerProtectedPrefixes = ['/checkout', '/payment', '/orders', '/account']
+        const isCustomerProtected = customerProtectedPrefixes.some((prefix) =>
+          currentPath.startsWith(prefix),
+        )
+
+        if (isCustomerProtected && currentPath !== '/login') {
+          window.location.href = '/login'
+        }
+        // If on a public page (e.g. /, /products, /cart), do NOT force redirect;
+        // let the app degrade to guest mode gracefully.
       }
+
       return Promise.reject(new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'))
     }
 
