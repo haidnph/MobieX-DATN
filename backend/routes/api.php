@@ -4,6 +4,7 @@ use App\Http\Controllers\Addresses\AddressController;
 use App\Http\Controllers\Admin\AdminBannerController;
 use App\Http\Controllers\Admin\AdminCouponController;
 use App\Http\Controllers\Admin\AdminDashboardController;
+use App\Http\Controllers\Admin\AdminHomepageController;
 use App\Http\Controllers\Admin\AdminOmnisearchController;
 use App\Http\Controllers\Admin\AdminOrderController;
 use App\Http\Controllers\Admin\AdminReviewController;
@@ -17,6 +18,7 @@ use App\Http\Controllers\Admin\UserStatusController;
 use App\Http\Controllers\Api\BannerController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CouponController;
+use App\Http\Controllers\Api\HomepageController;
 use App\Http\Controllers\Api\InventoryController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentController;
@@ -87,6 +89,11 @@ Route::middleware([
 | Public Catalog Read Endpoints
 |--------------------------------------------------------------------------
 */
+
+Route::get(
+    '/homepage',
+    [HomepageController::class, 'index'],
+)->name('api.homepage.index');
 
 Route::get(
     '/banners',
@@ -944,6 +951,11 @@ Route::prefix('admin')
                 [AdminBannerController::class, 'store'],
             )->name('banners.store');
 
+            Route::post(
+                '/banners/upload-image',
+                [AdminBannerController::class, 'uploadImage'],
+            )->name('banners.upload-image');
+
             Route::match(
                 ['put', 'patch'],
                 '/banners/{id}',
@@ -958,6 +970,53 @@ Route::prefix('admin')
             )
                 ->whereNumber('id')
                 ->name('banners.destroy');
+        });
+
+        // Admin Homepage Management
+        Route::middleware('permission:banners.view')->group(function (): void {
+            Route::get(
+                '/homepage',
+                [AdminHomepageController::class, 'index'],
+            )->name('homepage.index');
+
+            Route::get(
+                '/homepage/preview',
+                [AdminHomepageController::class, 'preview'],
+            )->name('homepage.preview');
+
+            Route::get(
+                '/homepage/audit-logs',
+                [AdminHomepageController::class, 'auditLogs'],
+            )->name('homepage.audit-logs');
+        });
+
+        Route::middleware('permission:banners.manage')->group(function (): void {
+            Route::put(
+                '/homepage/sections/{id}',
+                [AdminHomepageController::class, 'update'],
+            )
+                ->whereNumber('id')
+                ->name('homepage.sections.update');
+
+            Route::post(
+                '/homepage/reorder',
+                [AdminHomepageController::class, 'reorder'],
+            )->name('homepage.reorder');
+
+            Route::post(
+                '/homepage/publish',
+                [AdminHomepageController::class, 'publish'],
+            )->name('homepage.publish');
+
+            Route::post(
+                '/homepage/revert',
+                [AdminHomepageController::class, 'revert'],
+            )->name('homepage.revert');
+
+            Route::post(
+                '/homepage/reset-defaults',
+                [AdminHomepageController::class, 'resetDefaults'],
+            )->name('homepage.reset-defaults');
         });
 
         // Admin Review Management

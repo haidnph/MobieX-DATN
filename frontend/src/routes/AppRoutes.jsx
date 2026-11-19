@@ -61,6 +61,9 @@ const AdminCouponCreatePage = lazy(() => import('../features/admin/AdminCouponCr
 const AdminCouponEditPage   = lazy(() => import('../features/admin/AdminCouponEditPage'))
 const AdminReviewPage      = lazy(() => import('../features/admin/AdminReviewPage'))
 const AdminBannerPage      = lazy(() => import('../features/admin/AdminBannerPage'))
+const AdminBannerCreatePage = lazy(() => import('../features/admin/AdminBannerCreatePage'))
+const AdminBannerEditPage   = lazy(() => import('../features/admin/AdminBannerEditPage'))
+const AdminHomepagePage     = lazy(() => import('../features/admin/homepage/AdminHomepagePage'))
 const AdminSpecPage        = lazy(() => import('../features/admin/AdminSpecPage'))
 const AdminTrashPage       = lazy(() => import('../features/admin/AdminTrashPage'))
 
@@ -240,6 +243,9 @@ export default function AppRoutes() {
           <Route path="coupons/:id/edit"   element={<PermissionRoute permission="coupons.manage"><AdminCouponEditPage /></PermissionRoute>} />
           <Route path="reviews"            element={<PermissionRoute permission="reviews.view"><AdminReviewPage /></PermissionRoute>} />
           <Route path="banners"            element={<PermissionRoute permission="banners.view"><AdminBannerPage /></PermissionRoute>} />
+          <Route path="banners/create"     element={<PermissionRoute permission="banners.manage"><AdminBannerCreatePage /></PermissionRoute>} />
+          <Route path="banners/:id/edit"   element={<PermissionRoute permission="banners.manage"><AdminBannerEditPage /></PermissionRoute>} />
+          <Route path="homepage"           element={<PermissionRoute permission="banners.view"><AdminHomepagePage /></PermissionRoute>} />
           <Route path="specs"              element={<PermissionRoute permission="products.view"><AdminSpecPage /></PermissionRoute>} />
           <Route path="trash"              element={<PermissionRoute permission="products.view"><AdminTrashPage /></PermissionRoute>} />
           <Route path="*"                  element={<Navigate to="/admin" replace />} />

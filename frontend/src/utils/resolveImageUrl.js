@@ -44,8 +44,8 @@ export function resolveImageUrl(input) {
     return '/' + raw
   }
 
-  // Direct storage file path (e.g. "products/uAgLtj3l1s.png")
-  if (raw.startsWith('products/') || raw.startsWith('uploads/')) {
+  // Direct storage file path (e.g. "products/uAgLtj3l1s.png", "banners/xxx.jpg")
+  if (raw.startsWith('products/') || raw.startsWith('uploads/') || raw.startsWith('banners/')) {
     return '/storage/' + raw
   }
 

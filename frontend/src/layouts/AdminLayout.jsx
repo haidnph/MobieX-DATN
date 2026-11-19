@@ -20,6 +20,7 @@ const NAV_ITEMS = [
   { to: '/admin/coupons',    icon: 'local_offer',         label: 'Mã giảm giá',                permission: 'coupons.view' },
   { to: '/admin/reviews',    icon: 'rate_review',         label: 'Đánh giá',                   permission: 'reviews.view' },
   { to: '/admin/banners',    icon: 'image',               label: 'Banner',                     permission: 'banners.view' },
+  { to: '/admin/homepage',   icon: 'view_quilt',          label: 'Quản lý Trang chủ',         permission: 'banners.view' },
   { to: '/admin/trash',      icon: 'auto_delete',         label: 'Thùng rác',                  permission: 'products.view' },
 ]
 

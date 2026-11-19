@@ -19,8 +19,9 @@ const EP = {
   PRODUCT_DETAIL: (id) => `/products/${id}`,
   PRODUCT_REVIEWS: (id) => `/products/${id}/reviews`,
 
-  // ── Banners ───────────────────────────────────────────
+  // ── Banners & Homepage ───────────────────────────────────────────
   BANNERS: '/banners',
+  HOMEPAGE: '/homepage',
 
   // ── Cart ──────────────────────────────────────────────
   CART: '/cart',
@@ -68,6 +69,17 @@ const EP = {
   // ── Admin: Banners ────────────────────────────────────
   ADMIN_BANNERS: '/admin/banners',
   ADMIN_BANNER_DETAIL: (id) => `/admin/banners/${id}`,
+  ADMIN_BANNER_UPLOAD: '/admin/banners/upload-image',
+
+  // ── Admin: Homepage CMS ────────────────────────────────
+  ADMIN_HOMEPAGE: '/admin/homepage',
+  ADMIN_HOMEPAGE_SECTION: (id) => `/admin/homepage/sections/${id}`,
+  ADMIN_HOMEPAGE_REORDER: '/admin/homepage/reorder',
+  ADMIN_HOMEPAGE_PUBLISH: '/admin/homepage/publish',
+  ADMIN_HOMEPAGE_REVERT: '/admin/homepage/revert',
+  ADMIN_HOMEPAGE_RESET_DEFAULTS: '/admin/homepage/reset-defaults',
+  ADMIN_HOMEPAGE_PREVIEW: '/admin/homepage/preview',
+  ADMIN_HOMEPAGE_AUDIT_LOGS: '/admin/homepage/audit-logs',
 
   // ── Admin: Reviews ────────────────────────────────────
   ADMIN_REVIEWS: '/admin/reviews',
