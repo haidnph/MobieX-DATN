@@ -235,6 +235,9 @@ class OrderConfirmationEmailTest extends TestCase
         $this->assertStringContainsString('Chưa thanh toán (Thanh toán khi nhận hàng)', $html);
         $this->assertStringContainsString('Giao giờ hành chính', $html);
         $this->assertStringContainsString(number_format(28520000, 0, ',', '.'), $html);
+        $this->assertStringContainsString('<img', $html);
+        $this->assertStringContainsString('alt="Galaxy S24 Ultra"', $html);
+        $this->assertStringContainsString('width="64"', $html);
     }
 
     /**
@@ -493,5 +496,80 @@ class OrderConfirmationEmailTest extends TestCase
         $this->assertStringContainsString('Khách PlainText', $plainText);
         $this->assertStringContainsString('Thanh toán khi nhận hàng (COD)', $plainText);
         $this->assertStringContainsString('100.000 VND', $plainText);
+    }
+
+    /**
+     * Test Case 10: Multi-product order renders distinct thumbnails for each item.
+     */
+    public function test_multi_product_order_renders_distinct_images_for_each_item(): void
+    {
+        $order = Order::create([
+            'order_code' => 'MX-MULTI-IMG',
+            'user_id' => $this->customer->id,
+            'customer_email' => 'multi@example.com',
+            'shipping_method_id' => $this->shippingMethod->id,
+            'shipping_method_code' => 'standard',
+            'shipping_method_name' => 'Giao hàng tiêu chuẩn',
+            'subtotal' => 40000000,
+            'total_amount' => 40000000,
+            'currency_code' => 'VND',
+            'shipping_name' => 'Nguyễn Đa Năng',
+            'shipping_phone' => '0988112233',
+            'shipping_address_line' => '456 Phố Huế',
+            'shipping_province_code' => 'VN-HN',
+            'shipping_province_name' => 'Hà Nội',
+            'shipping_ward_code' => '001',
+            'shipping_ward_name' => 'Hàng Bài',
+            'payment_method' => 'cod',
+            'payment_status' => 'pending',
+            'status' => 'pending',
+        ]);
+
+        $item1Img = 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?q=80&w=600';
+        $item2Img = 'https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?q=80&w=600';
+
+        OrderItem::create([
+            'order_id' => $order->id,
+            'product_id' => $this->product->id,
+            'product_variant_id' => $this->variant->id,
+            'product_name' => 'iPhone 16 Pro Max',
+            'variant_name' => 'Titan Tự Nhiên • 256GB',
+            'sku' => 'IP16PM-256-NAT',
+            'image_path' => $item1Img,
+            'price' => 34990000,
+            'quantity' => 1,
+        ]);
+
+        $variant2 = ProductVariant::create([
+            'product_id' => $this->product->id,
+            'sku' => 'APP2-USBC',
+            'option_signature' => 'color:white',
+            'price' => 5010000,
+            'is_active' => true,
+        ]);
+
+        OrderItem::create([
+            'order_id' => $order->id,
+            'product_id' => $this->product->id,
+            'product_variant_id' => $variant2->id,
+            'product_name' => 'AirPods Pro 2',
+            'variant_name' => 'Trắng MagSafe',
+            'sku' => 'APP2-USBC',
+            'image_path' => $item2Img,
+            'price' => 5010000,
+            'quantity' => 1,
+        ]);
+
+        $mailable = new OrderConfirmationMail($order);
+        $html = $mailable->render();
+
+        // Verify both product titles and images are rendered
+        $this->assertStringContainsString('iPhone 16 Pro Max', $html);
+        $this->assertStringContainsString('Titan Tự Nhiên • 256GB', $html);
+        $this->assertStringContainsString('AirPods Pro 2', $html);
+        $this->assertStringContainsString('Trắng MagSafe', $html);
+
+        $this->assertStringContainsString(e($item1Img), $html);
+        $this->assertStringContainsString(e($item2Img), $html);
     }
 }

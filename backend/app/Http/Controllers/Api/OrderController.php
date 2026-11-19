@@ -457,7 +457,10 @@ class OrderController extends Controller
                     'product_name' => $item['product_name'],
                     'variant_name' => $item['variant_name'],
                     'sku' => $item['sku'],
-                    'image_path' => $item['variant']->image_path ?? $item['product']->thumbnail_url,
+                    'image_path' => $item['variant']->thumbnail
+                        ?? $item['product']->thumbnail
+                        ?? $item['product']->primary_image_url
+                        ?? null,
                     'price' => $item['price'],
                     'cost_price_snapshot' => $item['variant']->cost_price ?? null,
                     'quantity' => $item['quantity'],

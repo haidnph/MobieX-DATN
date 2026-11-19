@@ -23,9 +23,15 @@ class OrderConfirmationMail extends Mailable implements ShouldQueue
     public function __construct(Order $order)
     {
         // Ensure relationships are loaded
-        if (! $order->relationLoaded('items')) {
-            $order->load(['items.variant.product', 'shippingMethod', 'payments', 'coupon', 'user']);
-        }
+        $order->loadMissing([
+            'items.variant.images',
+            'items.variant.product.images',
+            'items.product.images',
+            'shippingMethod',
+            'payments',
+            'coupon',
+            'user',
+        ]);
 
         $this->order = $order;
     }

@@ -235,39 +235,52 @@
                         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 24px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
                             <thead>
                                 <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
-                                    <th align="left" style="padding: 12px 14px; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">Sản phẩm</th>
-                                    <th align="center" style="padding: 12px 8px; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; width: 50px;">SL</th>
-                                    <th align="right" style="padding: 12px 14px; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; width: 110px;">Thành tiền</th>
+                                    <th align="center" style="padding: 12px 0 12px 14px; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; width: 76px;">Hình ảnh</th>
+                                    <th align="left" style="padding: 12px 12px; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">Sản phẩm</th>
+                                    <th align="center" style="padding: 12px 6px; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; width: 48px;">SL</th>
+                                    <th align="right" style="padding: 12px 14px 12px 6px; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; width: 115px;">Thành tiền</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @foreach($order->items as $item)
                                 @php
                                     $itemTotal = (float) $item->price * (int) $item->quantity;
+                                    $itemImageUrl = $item->image_url;
                                 @endphp
                                 <tr style="border-bottom: 1px solid #f1f5f9;">
-                                    <td style="padding: 14px; vertical-align: top;">
+                                    <!-- Product Thumbnail -->
+                                    <td style="width: 76px; padding: 14px 0 14px 14px; vertical-align: top;">
+                                        <div style="width: 64px; height: 64px; border-radius: 8px; border: 1px solid #e2e8f0; background-color: #f8fafc; overflow: hidden; text-align: center;">
+                                            <img src="{{ $itemImageUrl }}" alt="{{ $item->product_name }}" width="64" height="64" style="display: block; width: 64px; height: 64px; object-fit: cover; border: 0; outline: none; border-radius: 7px;" loading="lazy" />
+                                        </div>
+                                    </td>
+                                    <!-- Product Details -->
+                                    <td style="padding: 14px 12px; vertical-align: top;">
                                         <div style="font-size: 14px; font-weight: 600; color: #0f172a; line-height: 1.4;">
                                             {{ $item->product_name }}
                                         </div>
                                         @if(!empty($item->variant_name))
-                                        <div style="font-size: 12px; color: #64748b; margin-top: 3px;">
-                                            Phân loại: <span style="color: #334155;">{{ $item->variant_name }}</span>
+                                        <div style="margin-top: 4px;">
+                                            <span style="display: inline-block; background-color: #f1f5f9; color: #334155; font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 4px; border: 1px solid #e2e8f0;">
+                                                {{ $item->variant_name }}
+                                            </span>
                                         </div>
                                         @endif
                                         @if(!empty($item->sku))
-                                        <div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">
+                                        <div style="font-size: 11px; color: #94a3b8; margin-top: 3px;">
                                             SKU: {{ $item->sku }}
                                         </div>
                                         @endif
-                                        <div style="font-size: 12px; color: #475569; margin-top: 4px;">
+                                        <div style="font-size: 12px; color: #64748b; margin-top: 4px;">
                                             Đơn giá: {{ number_format((float) $item->price, 0, ',', '.') }} ₫
                                         </div>
                                     </td>
-                                    <td align="center" style="padding: 14px 8px; vertical-align: top; font-size: 14px; font-weight: 600; color: #0f172a;">
+                                    <!-- Quantity -->
+                                    <td align="center" style="padding: 14px 6px; vertical-align: top; font-size: 14px; font-weight: 600; color: #334155; width: 48px;">
                                         ×{{ $item->quantity }}
                                     </td>
-                                    <td align="right" style="padding: 14px; vertical-align: top; font-size: 14px; font-weight: 700; color: #0f172a; white-space: nowrap;">
+                                    <!-- Line Total -->
+                                    <td align="right" style="padding: 14px 14px 14px 6px; vertical-align: top; font-size: 14px; font-weight: 700; color: #0f172a; white-space: nowrap; width: 115px;">
                                         {{ number_format($itemTotal, 0, ',', '.') }} ₫
                                     </td>
                                 </tr>

@@ -85,6 +85,25 @@ class ProductVariant extends Model
             ->join(' • ');
     }
 
+    /**
+     * Get primary image for variant, falling back to product thumbnail.
+     */
+    public function getThumbnailAttribute(): ?string
+    {
+        if ($this->relationLoaded('images') && $this->images->isNotEmpty()) {
+            $primary = $this->images->firstWhere('is_primary', true) ?? $this->images->first();
+
+            return $primary?->image_url ?? $primary?->image_path;
+        }
+
+        $variantImg = $this->images()->where('is_primary', true)->first() ?? $this->images()->first();
+        if ($variantImg) {
+            return $variantImg->image_url ?? $variantImg->image_path;
+        }
+
+        return $this->product?->thumbnail;
+    }
+
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
