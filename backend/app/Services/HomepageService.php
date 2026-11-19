@@ -624,6 +624,10 @@ class HomepageService
                 break;
         }
 
+        if ($items instanceof Collection) {
+            $items = $items->values()->toArray();
+        }
+
         return [
             'id' => $section->id,
             'section_key' => $section->section_key,

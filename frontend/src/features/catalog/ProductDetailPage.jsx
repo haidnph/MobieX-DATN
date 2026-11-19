@@ -590,7 +590,7 @@ export default function ProductDetailPage() {
       )}
 
       {/* ── Mobile Sticky Purchase Action Bar ────────────────────────────── */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-surface-container/95 backdrop-blur-md border-t border-outline-variant/30 px-4 py-2.5 flex items-center justify-between gap-3 shadow-[0_-4px_20px_rgba(0,0,0,0.12)]">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-surface-container/95 backdrop-blur-md border-t border-outline-variant/30 px-4 pt-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom,0px))] flex items-center justify-between gap-3 shadow-[0_-4px_20px_rgba(0,0,0,0.12)]">
         <div className="flex flex-col min-w-0">
           <span className="text-[11px] text-outline truncate">
             {selectedVariant?.name || 'Giá niêm yết'}

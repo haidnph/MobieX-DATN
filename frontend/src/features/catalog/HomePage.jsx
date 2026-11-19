@@ -47,13 +47,15 @@ function HeroBannerCarousel({ banners = [], autoplayInterval = 4000 }) {
   const [current, setCurrent] = useState(0)
   const [isHovered, setIsHovered] = useState(false)
 
-  useEffect(() => {
-    if (banners.length <= 1 || isHovered) return
-    const id = setInterval(() => setCurrent((c) => (c + 1) % banners.length), autoplayInterval)
-    return () => clearInterval(id)
-  }, [banners.length, isHovered, autoplayInterval])
+  const bannerList = Array.isArray(banners) ? banners : []
 
-  if (!banners || banners.length === 0) {
+  useEffect(() => {
+    if (bannerList.length <= 1 || isHovered) return
+    const id = setInterval(() => setCurrent((c) => (c + 1) % bannerList.length), autoplayInterval)
+    return () => clearInterval(id)
+  }, [bannerList.length, isHovered, autoplayInterval])
+
+  if (bannerList.length === 0) {
     return (
       <div className="relative h-72 md:h-96 bg-gradient-to-br from-surface-container via-surface-container-high to-primary-container/20 rounded-2xl overflow-hidden flex items-center px-8 md:px-16">
         <div className="relative z-10 max-w-lg">
@@ -79,7 +81,9 @@ function HeroBannerCarousel({ banners = [], autoplayInterval = 4000 }) {
     )
   }
 
-  const banner = banners[current]
+  const banner = bannerList[current] || bannerList[0]
+  if (!banner) return null
+
   const desktopImg = resolveImageUrl(banner.image_url || banner.image_path)
   const mobileImg = resolveImageUrl(banner.mobile_image_url || banner.mobile_image_path || desktopImg)
   const ctaLink = banner.target_url || banner.link_url || '/products'

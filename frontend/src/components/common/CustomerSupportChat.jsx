@@ -2,6 +2,7 @@
 // Floating customer support live chat widget with auto-consultant and quick FAQ responses.
 
 import { useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 
 const FAQ_CHIPS = [
   { label: '📱 Tư vấn chọn máy', prompt: 'Tư vấn giúp tôi điện thoại hot nhất hiện nay' },
@@ -55,6 +56,8 @@ function getBotReply(userText) {
 }
 
 export default function CustomerSupportChat() {
+  const location = useLocation()
+  const isProductDetail = location.pathname.startsWith('/products/') && location.pathname !== '/products'
   const [isOpen, setIsOpen] = useState(false)
   const [hasUnread, setHasUnread] = useState(true)
   const [inputValue, setInputValue] = useState('')
@@ -112,7 +115,13 @@ export default function CustomerSupportChat() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40">
+    <div
+      className={[
+        'fixed z-40 transition-all duration-300 right-4 sm:right-6',
+        isProductDetail ? 'bottom-20 md:bottom-6' : 'bottom-4 sm:bottom-6',
+      ].join(' ')}
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+    >
       {/* Floating Toggle Button */}
       {!isOpen && (
         <button
