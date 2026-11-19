@@ -78,6 +78,7 @@ export default function ProductListPage() {
   const [brandsLoading, setBrandsLoading] = useState(true)
   const [catsLoading, setCatsLoading] = useState(true)
   const [brandSearch, setBrandSearch] = useState('')
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false)
 
   // Sync state if URL changes externally
   useEffect(() => {
@@ -797,6 +798,25 @@ export default function ProductListPage() {
         <div className="flex-1 min-w-0">
           {/* Mobile Filter Pills Row */}
           <div className="flex lg:hidden gap-2 mb-4 overflow-x-auto pb-1.5 scrollbar-thin">
+            {/* Quick Open Filter Drawer Button */}
+            <button
+              type="button"
+              onClick={() => setMobileFilterOpen(true)}
+              className={`shrink-0 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold border cursor-pointer active:scale-95 transition-all shadow-xs ${
+                hasFilters
+                  ? 'bg-primary text-on-primary border-primary'
+                  : 'bg-surface-container-high text-on-surface border-outline-variant/30 hover:border-primary'
+              }`}
+            >
+              <span className="material-symbols-outlined text-sm">tune</span>
+              <span>Bộ lọc</span>
+              {hasFilters && (
+                <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-surface text-primary text-[10px] font-extrabold">
+                  {(selectedCategory ? 1 : 0) + selectedBrands.length + (selectedPrice ? 1 : 0)}
+                </span>
+              )}
+            </button>
+
             {/* Quick Category Pill */}
             {categories.slice(0, 5).map((cat) => (
               <button
@@ -848,7 +868,7 @@ export default function ProductListPage() {
 
           {/* Product Cards Grid */}
           {loading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-4">
               {Array.from({ length: 12 }).map((_, i) => (
                 <SkeletonCard key={i} />
               ))}
@@ -910,7 +930,7 @@ export default function ProductListPage() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-4">
                 {products.map((p) => (
                   <ProductCard key={p.id} product={p} />
                 ))}
@@ -930,6 +950,220 @@ export default function ProductListPage() {
           )}
         </div>
       </div>
+
+      {/* ── Mobile Filter Drawer (Bottom Sheet) ────────────────────────────── */}
+      {mobileFilterOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden flex flex-col justify-end">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
+            onClick={() => setMobileFilterOpen(false)}
+            aria-hidden="true"
+          />
+
+          {/* Drawer content */}
+          <div className="relative z-10 w-full max-h-[85vh] bg-surface-container rounded-t-3xl border-t border-outline-variant/30 flex flex-col shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-200">
+            {/* Drawer Header */}
+            <div className="px-5 py-4 border-b border-outline-variant/20 flex items-center justify-between shrink-0 bg-surface-container">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary text-xl">tune</span>
+                <h3 className="text-base font-bold text-on-surface">Bộ lọc tìm kiếm</h3>
+                {hasFilters && (
+                  <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-bold">
+                    {(selectedCategory ? 1 : 0) + selectedBrands.length + (selectedPrice ? 1 : 0)}
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setMobileFilterOpen(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface active:scale-90 transition-all cursor-pointer"
+                aria-label="Đóng bộ lọc"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+
+            {/* Drawer Body (Scrollable) */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-6">
+              {/* Category Filter */}
+              <div>
+                <h4 className="text-xs font-bold text-on-surface uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-sm text-primary">category</span>
+                  Danh mục
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCategory('')
+                      updateUrl({ category_id: '', page: 1 })
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                      !selectedCategory
+                        ? 'bg-primary text-on-primary border-primary shadow-xs'
+                        : 'bg-surface-container-high text-on-surface-variant border-outline-variant/30'
+                    }`}
+                  >
+                    Tất cả
+                  </button>
+                  {categories.map((cat) => {
+                    const isSelected = selectedCategory === String(cat.id)
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => handleCategorySelect(cat.id)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                          isSelected
+                            ? 'bg-primary text-on-primary border-primary shadow-xs'
+                            : 'bg-surface-container-high text-on-surface-variant border-outline-variant/30'
+                        }`}
+                      >
+                        {cat.name}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Brands Filter */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-xs font-bold text-on-surface uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-sm text-primary">store</span>
+                    Thương hiệu
+                  </h4>
+                  {selectedBrands.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedBrands([])
+                        updateUrl({ brand_id: '', page: 1 })
+                      }}
+                      className="text-[11px] text-error hover:underline font-medium"
+                    >
+                      Bỏ chọn ({selectedBrands.length})
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                  {brands.map((brand) => {
+                    const isChecked = selectedBrands.includes(String(brand.id))
+                    return (
+                      <button
+                        key={brand.id}
+                        type="button"
+                        onClick={() => handleBrandToggle(brand.id)}
+                        className={`flex items-center gap-2 p-2 rounded-xl text-xs font-medium border text-left transition-all ${
+                          isChecked
+                            ? 'bg-secondary-container text-on-secondary-container border-secondary/40 font-bold'
+                            : 'bg-surface-container-high/60 text-on-surface-variant border-outline-variant/20 hover:border-primary/40'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-sm text-primary">
+                          {isChecked ? 'check_box' : 'check_box_outline_blank'}
+                        </span>
+                        <span className="truncate">{brand.name}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Price Range Filter */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-xs font-bold text-on-surface uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-sm text-primary">payments</span>
+                    Mức giá
+                  </h4>
+                  {selectedPrice && (
+                    <button
+                      type="button"
+                      onClick={() => handlePriceToggle(selectedPrice)}
+                      className="text-[11px] text-error hover:underline font-medium"
+                    >
+                      Bỏ chọn
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  {PRICE_RANGES.map((range) => {
+                    const isSelected = selectedPrice === range.key
+                    return (
+                      <button
+                        key={range.key}
+                        type="button"
+                        onClick={() => handlePriceToggle(range.key)}
+                        className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium border transition-all ${
+                          isSelected
+                            ? 'bg-tertiary-container text-on-tertiary-container border-tertiary/40 font-bold'
+                            : 'bg-surface-container-high/60 text-on-surface-variant border-outline-variant/20'
+                        }`}
+                      >
+                        <span>{range.label}</span>
+                        {isSelected && (
+                          <span className="material-symbols-outlined text-sm">check</span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Sort Order Filter */}
+              <div>
+                <h4 className="text-xs font-bold text-on-surface uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-sm text-primary">swap_vert</span>
+                  Sắp xếp theo
+                </h4>
+                <div className="grid grid-cols-2 gap-2">
+                  {SORT_OPTIONS.map((opt) => {
+                    const isSelected = selectedSort === opt.value
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => handleSortChange(opt.value)}
+                        className={`flex items-center gap-2 p-2 rounded-xl text-xs font-medium border text-left transition-all ${
+                          isSelected
+                            ? 'bg-primary/10 text-primary border-primary font-bold'
+                            : 'bg-surface-container-high/60 text-on-surface-variant border-outline-variant/20'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-sm">{opt.icon}</span>
+                        <span className="truncate">{opt.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Drawer Footer Actions */}
+            <div className="p-4 border-t border-outline-variant/20 bg-surface-container flex items-center gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  clearAllFilters()
+                  setMobileFilterOpen(false)
+                }}
+                className="flex-1 py-2.5 px-3 rounded-xl border border-outline-variant/30 text-xs font-bold text-on-surface-variant hover:text-error hover:border-error/40 transition-colors cursor-pointer text-center"
+              >
+                Đặt lại tất cả
+              </button>
+              <button
+                type="button"
+                onClick={() => setMobileFilterOpen(false)}
+                className="flex-1 py-2.5 px-3 rounded-xl bg-primary text-on-primary text-xs font-bold shadow-md hover:bg-primary-hover active:scale-95 transition-all cursor-pointer text-center"
+              >
+                Xem {meta.total} kết quả
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

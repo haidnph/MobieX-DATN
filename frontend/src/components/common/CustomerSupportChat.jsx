@@ -112,7 +112,7 @@ export default function CustomerSupportChat() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-40">
+    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40">
       {/* Floating Toggle Button */}
       {!isOpen && (
         <button
@@ -138,7 +138,7 @@ export default function CustomerSupportChat() {
 
       {/* Expanded Chat Box */}
       {isOpen && (
-        <div className="w-[90vw] sm:w-[380px] h-[520px] bg-surface-container-high rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-outline-variant/30 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200">
+        <div className="w-[calc(100vw-2rem)] sm:w-[380px] h-[520px] max-h-[85vh] bg-surface-container-high rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-outline-variant/30 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200">
           {/* Header */}
           <div className="px-5 py-4 bg-primary text-on-primary flex items-center justify-between">
             <div className="flex items-center gap-3">

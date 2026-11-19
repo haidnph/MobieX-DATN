@@ -210,7 +210,7 @@ export default function ProductDetailPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 md:px-8 lg:px-16 py-8 space-y-12">
+    <div className="max-w-7xl mx-auto px-4 md:px-8 lg:px-16 py-8 pb-24 md:pb-8 space-y-12">
       {/* Breadcrumbs */}
       <nav className="flex items-center gap-2 text-sm text-on-surface-variant">
         <Link to="/" className="hover:text-on-surface transition-colors">Trang chủ</Link>
@@ -588,6 +588,51 @@ export default function ProductDetailPage() {
           </div>
         </section>
       )}
+
+      {/* ── Mobile Sticky Purchase Action Bar ────────────────────────────── */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-surface-container/95 backdrop-blur-md border-t border-outline-variant/30 px-4 py-2.5 flex items-center justify-between gap-3 shadow-[0_-4px_20px_rgba(0,0,0,0.12)]">
+        <div className="flex flex-col min-w-0">
+          <span className="text-[11px] text-outline truncate">
+            {selectedVariant?.name || 'Giá niêm yết'}
+          </span>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-base font-extrabold text-primary">
+              {formatCurrencyVND(currentPrice)}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Wishlist toggle */}
+          <button
+            type="button"
+            onClick={() => toggleWishlist(product)}
+            className="w-10 h-10 rounded-xl bg-surface-container-high border border-outline-variant/30 flex items-center justify-center text-on-surface-variant hover:text-error active:scale-90 transition-all cursor-pointer"
+            aria-label="Thêm vào danh sách yêu thích"
+          >
+            <span
+              className={`material-symbols-outlined text-lg ${
+                isInWishlist(product.id) ? 'text-error fill-current font-variation-fill' : ''
+              }`}
+            >
+              favorite
+            </span>
+          </button>
+
+          {/* Add to cart button */}
+          <Button
+            variant="primary"
+            size="md"
+            loading={addingToCart}
+            disabled={isOutOfStock || isSelectedVariantOutOfStock || addingToCart}
+            onClick={handleAddToCart}
+            className="rounded-xl font-bold text-xs px-4 shadow-md"
+          >
+            <span className="material-symbols-outlined text-base">shopping_cart</span>
+            <span>{isOutOfStock ? 'Hết hàng' : 'Thêm giỏ'}</span>
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }

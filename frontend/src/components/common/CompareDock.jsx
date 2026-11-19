@@ -51,7 +51,7 @@ export default function CompareDock() {
 
   if (minimized) {
     return (
-      <aside aria-label="Khay so sánh sản phẩm" className="fixed bottom-6 right-6 z-40 animate-bounce-in">
+      <aside aria-label="Khay so sánh sản phẩm" className="fixed bottom-4 left-4 sm:bottom-6 sm:left-6 z-40 animate-bounce-in">
         <button
           type="button"
           onClick={() => setMinimized(false)}
@@ -71,7 +71,7 @@ export default function CompareDock() {
   const slots = Array.from({ length: maxItems }, (_, index) => compareItems[index] || null)
 
   return (
-    <aside aria-label="Khay so sánh sản phẩm" className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[95%] max-w-2xl animate-slide-up">
+    <aside aria-label="Khay so sánh sản phẩm" className="fixed bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-1rem)] sm:w-[95%] max-w-2xl animate-slide-up">
       <div className="bg-surface-container/95 backdrop-blur-xl border border-outline-variant/30 rounded-2xl p-3 md:p-3.5 shadow-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         {/* Left: Device Thumbnails / Slots */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">

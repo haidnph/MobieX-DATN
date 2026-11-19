@@ -1028,6 +1028,12 @@ export default function ProductComparePage() {
         </div>
       </div>
 
+      {/* Mobile Swipe Hint */}
+      <div className="sm:hidden flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl bg-surface-container-high/60 text-[11px] font-medium text-on-surface-variant border border-outline-variant/20 print:hidden">
+        <span className="material-symbols-outlined text-sm text-primary animate-pulse">swipe</span>
+        <span>Vuốt ngang bảng để xem thêm thông số & máy đối chiếu</span>
+      </div>
+
       {/* Comparison Matrix Table */}
       <div className="overflow-x-auto rounded-3xl border border-outline-variant/25 bg-surface-container-low shadow-md scrollbar-thin">
         <table className="text-left border-collapse" style={{ minWidth: 'max-content', width: '100%' }}>
@@ -1035,9 +1041,9 @@ export default function ProductComparePage() {
           <thead className="sticky top-[104px] lg:top-20 z-20 backdrop-blur-xl bg-surface-container/95 border-b border-outline-variant/25 shadow-xs">
             <tr>
               {/* Spec label column – sticky on horizontal scroll */}
-              <th className="sticky left-0 z-30 p-4 w-48 md:w-56 min-w-[180px] text-xs font-bold uppercase tracking-wider text-on-surface-variant align-middle bg-surface-container shadow-[2px_0_6px_-2px_rgba(0,0,0,0.08)]">
-                <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-primary text-base">view_column</span>
+              <th className="sticky left-0 z-30 p-2.5 sm:p-4 w-28 sm:w-48 md:w-56 min-w-[110px] sm:min-w-[180px] text-[11px] sm:text-xs font-bold uppercase tracking-wider text-on-surface-variant align-middle bg-surface-container shadow-[2px_0_6px_-2px_rgba(0,0,0,0.08)]">
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <span className="material-symbols-outlined text-primary text-sm sm:text-base">view_column</span>
                   <span>{t.compareInfoCol}</span>
                 </div>
               </th>
@@ -1050,7 +1056,7 @@ export default function ProductComparePage() {
                 return (
                   <th
                     key={p.id}
-                    className="p-4 w-64 md:w-72 min-w-[240px] align-top border-l border-outline-variant/15 text-center relative bg-surface-container"
+                    className="p-2.5 sm:p-4 w-44 sm:w-64 md:w-72 min-w-[170px] sm:min-w-[240px] align-top border-l border-outline-variant/15 text-center relative bg-surface-container"
                   >
                     {/* Quick remove button */}
                     <button
@@ -1068,7 +1074,7 @@ export default function ProductComparePage() {
 
                       {/* Zone 1: Image */}
                       <Link to={`/products/${p.slug || p.id}`} className="group block w-full mb-2">
-                        <div className="w-24 h-24 md:w-28 md:h-28 mx-auto rounded-2xl overflow-hidden bg-surface-container-highest/60 p-2 flex items-center justify-center group-hover:scale-105 transition-transform duration-300 shadow-xs border border-outline-variant/20">
+                        <div className="w-16 h-16 sm:w-24 sm:h-24 md:w-28 md:h-28 mx-auto rounded-2xl overflow-hidden bg-surface-container-highest/60 p-1.5 sm:p-2 flex items-center justify-center group-hover:scale-105 transition-transform duration-300 shadow-xs border border-outline-variant/20">
                           <CompareImage src={primaryImg} alt={p.name} className="w-full h-full rounded-xl" />
                         </div>
                       </Link>
@@ -1080,7 +1086,7 @@ export default function ProductComparePage() {
 
                       {/* Zone 3: Product name — reserved 2-line height with line-clamp */}
                       <Link to={`/products/${p.slug || p.id}`} className="group w-full mt-1 mb-1.5">
-                        <h3 className="h-10 text-xs md:text-sm font-bold text-on-surface group-hover:text-primary transition-colors line-clamp-2 px-1 text-center leading-5">
+                        <h3 className="h-9 sm:h-10 text-[11px] sm:text-xs md:text-sm font-bold text-on-surface group-hover:text-primary transition-colors line-clamp-2 px-1 text-center leading-4 sm:leading-5">
                           {p.name}
                         </h3>
                       </Link>
@@ -1098,7 +1104,7 @@ export default function ProductComparePage() {
                       </div>
 
                       {/* Zone 5: Price — fixed height */}
-                      <div className="h-7 flex items-center justify-center font-extrabold text-sm md:text-base text-primary mb-2">
+                      <div className="h-6 sm:h-7 flex items-center justify-center font-extrabold text-xs sm:text-sm md:text-base text-primary mb-1.5 sm:mb-2">
                         {formatCurrencyVND(price)}
                       </div>
 
@@ -1123,13 +1129,13 @@ export default function ProductComparePage() {
 
               {/* Add slot placeholder if fewer than 4 */}
               {displayProducts.length < maxItems && (
-                <th className="p-4 w-52 md:w-56 min-w-[200px] align-middle border-l border-outline-variant/15 text-center bg-surface-container/30 print:hidden">
+                <th className="p-2.5 sm:p-4 w-36 sm:w-52 md:w-56 min-w-[140px] sm:min-w-[200px] align-middle border-l border-outline-variant/15 text-center bg-surface-container/30 print:hidden">
                   <button
                     type="button"
                     onClick={() => setShowSearchModal(true)}
-                    className="w-full h-full min-h-[260px] border-2 border-dashed border-outline-variant/50 hover:border-primary rounded-2xl flex flex-col items-center justify-center gap-2 text-on-surface-variant hover:text-primary active:scale-[0.99] cursor-pointer transition-all group hover:bg-primary/[0.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    className="w-full h-full min-h-[220px] sm:min-h-[260px] border-2 border-dashed border-outline-variant/50 hover:border-primary rounded-2xl flex flex-col items-center justify-center gap-2 text-on-surface-variant hover:text-primary active:scale-[0.99] cursor-pointer transition-all group hover:bg-primary/[0.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   >
-                    <div className="w-10 h-10 rounded-full bg-primary/10 group-hover:bg-primary/20 flex items-center justify-center text-primary transition-colors">
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-primary/10 group-hover:bg-primary/20 flex items-center justify-center text-primary transition-colors">
                       <span className="material-symbols-outlined text-xl">add</span>
                     </div>
                     <span className="text-xs font-semibold">
@@ -1158,7 +1164,7 @@ export default function ProductComparePage() {
                 {/* Field: Brand */}
                 {(!onlyDifferences || isBrandDiff) && (
                   <tr className={isBrandDiff && onlyDifferences ? 'bg-primary/[0.04]' : ''}>
-                    <td className="sticky left-0 z-10 p-4 font-semibold text-on-surface-variant bg-surface-container/50 flex items-center justify-between gap-2 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)] min-w-[180px]">
+                    <td className="sticky left-0 z-10 p-2.5 sm:p-4 font-semibold text-on-surface-variant bg-surface-container/50 flex items-center justify-between gap-1.5 sm:gap-2 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)] w-28 sm:w-48 md:w-56 min-w-[110px] sm:min-w-[180px] text-xs sm:text-sm">
                       <span>{t.fields.brand}</span>
                       {isBrandDiff && (
                         <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase tracking-tighter shrink-0">
@@ -1169,7 +1175,7 @@ export default function ProductComparePage() {
                     {displayProducts.map((p) => (
                       <td
                         key={p.id}
-                        className={`p-4 text-center border-l border-outline-variant/10 font-medium ${
+                        className={`p-2.5 sm:p-4 text-center border-l border-outline-variant/10 font-medium ${
                           isBrandDiff ? 'text-primary font-bold' : 'text-on-surface'
                         }`}
                       >
@@ -1188,7 +1194,7 @@ export default function ProductComparePage() {
                 {/* Field: Commercial Selling Variants */}
                 {(!onlyDifferences || isVariantsDiff) && (
                   <tr className={isVariantsDiff && onlyDifferences ? 'bg-primary/[0.04]' : ''}>
-                    <td className="sticky left-0 z-10 p-4 font-semibold text-on-surface-variant bg-surface-container/50 flex items-center justify-between gap-2 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)] min-w-[180px]">
+                    <td className="sticky left-0 z-10 p-2.5 sm:p-4 font-semibold text-on-surface-variant bg-surface-container/50 flex items-center justify-between gap-1.5 sm:gap-2 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)] w-28 sm:w-48 md:w-56 min-w-[110px] sm:min-w-[180px] text-xs sm:text-sm">
                       <span>{t.fields.variants}</span>
                       {isVariantsDiff && (
                         <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase tracking-tighter shrink-0">
@@ -1197,7 +1203,7 @@ export default function ProductComparePage() {
                       )}
                     </td>
                     {displayProducts.map((p) => (
-                      <td key={p.id} className="p-4 text-center border-l border-outline-variant/10">
+                      <td key={p.id} className="p-2.5 sm:p-4 text-center border-l border-outline-variant/10">
                         {p.variants && p.variants.length > 0 ? (
                           <div className="flex flex-col gap-1 items-center">
                             {p.variants.map((v) => (
@@ -1221,7 +1227,7 @@ export default function ProductComparePage() {
                 {/* Field: Stock Status */}
                 {(!onlyDifferences || isStockDiff) && (
                   <tr className={isStockDiff && onlyDifferences ? 'bg-primary/[0.04]' : ''}>
-                    <td className="sticky left-0 z-10 p-4 font-semibold text-on-surface-variant bg-surface-container/50 flex items-center justify-between gap-2 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)] min-w-[180px]">
+                    <td className="sticky left-0 z-10 p-2.5 sm:p-4 font-semibold text-on-surface-variant bg-surface-container/50 flex items-center justify-between gap-1.5 sm:gap-2 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)] w-28 sm:w-48 md:w-56 min-w-[110px] sm:min-w-[180px] text-xs sm:text-sm">
                       <span>{t.fields.stock}</span>
                       {isStockDiff && (
                         <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase tracking-tighter shrink-0">
@@ -1237,7 +1243,7 @@ export default function ProductComparePage() {
                       const hasStock = totalStock > 0 || !p.variants || p.variants.length === 0
 
                       return (
-                        <td key={p.id} className="p-4 text-center border-l border-outline-variant/10">
+                        <td key={p.id} className="p-2.5 sm:p-4 text-center border-l border-outline-variant/10">
                           {hasStock ? (
                             <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -1263,11 +1269,11 @@ export default function ProductComparePage() {
               // Shimmer skeleton rows while fetching deep specs
               Array.from({ length: 6 }).map((_, sIdx) => (
                 <tr key={`skeleton-${sIdx}`} className="animate-pulse">
-                  <td className="sticky left-0 z-10 p-4 bg-surface-container/50 min-w-[180px] shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)]">
+                  <td className="sticky left-0 z-10 p-2.5 sm:p-4 bg-surface-container/50 w-28 sm:w-48 md:w-56 min-w-[110px] sm:min-w-[180px] shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)]">
                     <div className="h-4 bg-surface-container-highest rounded-md w-3/4" />
                   </td>
                   {displayProducts.map((p) => (
-                    <td key={p.id} className="p-4 text-center border-l border-outline-variant/10">
+                    <td key={p.id} className="p-2.5 sm:p-4 text-center border-l border-outline-variant/10">
                       <div className="h-4 bg-surface-container-highest rounded-md w-1/2 mx-auto" />
                     </td>
                   ))}
@@ -1303,7 +1309,7 @@ export default function ProductComparePage() {
                     const diff = hasDifference(def.code)
                     return (
                       <tr key={def.code} className={diff ? 'bg-primary/[0.04]' : ''}>
-                        <td className="sticky left-0 z-10 p-4 font-semibold text-on-surface-variant bg-surface-container/50 flex items-center justify-between gap-2 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)] min-w-[180px]">
+                        <td className="sticky left-0 z-10 p-2.5 sm:p-4 font-semibold text-on-surface-variant bg-surface-container/50 flex items-center justify-between gap-1.5 sm:gap-2 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)] w-28 sm:w-48 md:w-56 min-w-[110px] sm:min-w-[180px] text-xs sm:text-sm">
                           <span>{def.name}</span>
                           {diff && (
                             <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase tracking-tighter shrink-0">
@@ -1316,7 +1322,7 @@ export default function ProductComparePage() {
                           return (
                             <td
                               key={p.id}
-                              className={`p-4 text-center border-l border-outline-variant/10 font-medium ${
+                              className={`p-2.5 sm:p-4 text-center border-l border-outline-variant/10 font-medium ${
                                 diff ? 'text-primary font-bold' : 'text-on-surface'
                               }`}
                             >

@@ -763,144 +763,152 @@ export default function AdminUserPage() {
               <p className="text-sm">Chưa có vai trò nào được đăng ký trong hệ thống.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-outline-variant/20 shadow-inner">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="bg-surface-container-high border-b border-outline-variant/30 text-on-surface">
-                    <th className="py-4 px-4 font-bold text-sm min-w-[280px]">
-                      Phân hệ & Quyền hạn (Permissions)
-                    </th>
-                    {roles.map((r) => {
-                      const cfg = ROLE_CONFIG[r.slug] || {
-                        label: r.name,
-                        sublabel: r.slug,
-                        icon: 'shield',
-                        badgeClass: 'text-on-surface bg-surface-container-low border border-outline-variant/30',
-                        description: r.description,
-                      }
-                      return (
-                        <th
-                          key={r.slug}
-                          className="py-4 px-3 text-center min-w-[130px] border-l border-outline-variant/15"
-                        >
-                          <div className="inline-flex flex-col items-center gap-1 group relative">
-                            <span className="material-symbols-outlined text-xl text-primary">
-                              {cfg.icon}
-                            </span>
-                            <span className="font-bold text-xs text-on-surface whitespace-nowrap">
-                              {cfg.label}
-                            </span>
-                            <span className="text-[10px] font-mono text-outline">
-                              ({r.slug})
-                            </span>
-                            {/* Role Tooltip */}
-                            <div className="text-[10px] text-outline line-clamp-1 max-w-[120px] font-normal" title={cfg.description || r.description}>
-                              {cfg.description || r.description || cfg.sublabel}
+            <>
+              {/* Mobile Swipe Hint */}
+              <div className="md:hidden flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl bg-surface-container-high/60 text-[11px] font-medium text-on-surface-variant border border-outline-variant/20 mb-3">
+                <span className="material-symbols-outlined text-sm text-primary animate-pulse">swipe</span>
+                <span>Vuốt ngang bảng để xem và gán quyền cho các vai trò</span>
+              </div>
+
+              <div className="overflow-x-auto rounded-xl border border-outline-variant/20 shadow-inner">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-surface-container-high border-b border-outline-variant/30 text-on-surface">
+                      <th className="sticky left-0 z-20 bg-surface-container-high py-4 px-4 font-bold text-sm min-w-[220px] sm:min-w-[280px] border-r border-outline-variant/30 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.1)]">
+                        Phân hệ & Quyền hạn (Permissions)
+                      </th>
+                      {roles.map((r) => {
+                        const cfg = ROLE_CONFIG[r.slug] || {
+                          label: r.name,
+                          sublabel: r.slug,
+                          icon: 'shield',
+                          badgeClass: 'text-on-surface bg-surface-container-low border border-outline-variant/30',
+                          description: r.description,
+                        }
+                        return (
+                          <th
+                            key={r.slug}
+                            className="py-4 px-3 text-center min-w-[130px] border-l border-outline-variant/15"
+                          >
+                            <div className="inline-flex flex-col items-center gap-1 group relative">
+                              <span className="material-symbols-outlined text-xl text-primary">
+                                {cfg.icon}
+                              </span>
+                              <span className="font-bold text-xs text-on-surface whitespace-nowrap">
+                                {cfg.label}
+                              </span>
+                              <span className="text-[10px] font-mono text-outline">
+                                ({r.slug})
+                              </span>
+                              {/* Role Tooltip */}
+                              <div className="text-[10px] text-outline line-clamp-1 max-w-[120px] font-normal" title={cfg.description || r.description}>
+                                {cfg.description || r.description || cfg.sublabel}
+                              </div>
                             </div>
-                          </div>
-                        </th>
-                      )
-                    })}
-                  </tr>
-                </thead>
-
-                <tbody className="divide-y divide-outline-variant/10 text-on-surface-variant">
-                  {groupedPermissions.map((group) => (
-                    <tr key={group.module.prefix} className="contents">
-                      {/* Module Header Row */}
-                      <tr className="bg-surface-container-high/40 border-t-2 border-b border-outline-variant/25">
-                        <td
-                          colSpan={roles.length + 1}
-                          className="py-2.5 px-4 font-bold text-xs text-primary uppercase tracking-wider flex items-center gap-2"
-                        >
-                          <span className="material-symbols-outlined text-base">
-                            {group.module.icon}
-                          </span>
-                          {group.module.label}
-                          <span className="text-[10px] font-mono font-normal text-outline lowercase ml-1">
-                            ({group.permissions.length} quyền)
-                          </span>
-                        </td>
-                      </tr>
-
-                      {/* Permissions Rows in this Module */}
-                      {group.permissions.map((p) => (
-                        <tr
-                          key={p.slug}
-                          className="hover:bg-surface-container-high/25 transition-colors"
-                        >
-                          <td className="py-2.5 px-4">
-                            <div className="font-semibold text-on-surface text-xs">{p.name || p.slug}</div>
-                            <div className="text-[11px] text-outline font-mono mt-0.5 flex items-center gap-1.5">
-                              <span>{p.slug}</span>
-                              {p.description && (
-                                <span className="text-[10px] text-outline/80 italic font-sans">
-                                  — {p.description}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-
-                          {roles.map((r) => {
-                            // Check permission in draft or original
-                            const draftSet = matrixDraft[r.slug]
-                            const origSet = new Set((r.permissions || []).map((x) => (typeof x === 'string' ? x : x.slug)))
-
-                            const hasPerm = isEditingMatrix
-                              ? (draftSet ? draftSet.has(p.slug) : false)
-                              : origSet.has(p.slug)
-
-                            const isModified = isEditingMatrix && (
-                              (draftSet?.has(p.slug) && !origSet.has(p.slug)) ||
-                              (!draftSet?.has(p.slug) && origSet.has(p.slug))
-                            )
-
-                            const isLocked = isEditingMatrix && (
-                              r.slug === 'customer' ||
-                              (r.slug === 'super-admin' && ['roles.manage', 'users.manage', 'dashboard.view'].includes(p.slug))
-                            )
-
-                            return (
-                              <td
-                                key={r.slug}
-                                className={[
-                                  'py-2 px-3 text-center border-l border-outline-variant/10 transition-colors',
-                                  isEditingMatrix && !isLocked ? 'cursor-pointer hover:bg-surface-container-high/60 active:scale-95' : '',
-                                  isModified ? 'bg-amber-500/10 dark:bg-amber-500/15' : '',
-                                ].join(' ')}
-                                onClick={() => handleToggleMatrixPerm(r.slug, p.slug)}
-                                title={
-                                  isEditingMatrix
-                                    ? isLocked
-                                      ? 'Quyền hạn bảo vệ cố định'
-                                      : `Nhấn để ${hasPerm ? 'tắt' : 'bật'} quyền "${p.name}" cho ${r.name}`
-                                    : `${r.name}: ${hasPerm ? 'Được phép' : 'Không có quyền'}`
-                                }
-                              >
-                                <div className="inline-flex items-center justify-center">
-                                  {hasPerm ? (
-                                    <span className="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-lg transition-transform font-bold">
-                                      check_circle
-                                    </span>
-                                  ) : (
-                                    <span className="material-symbols-outlined text-rose-500/50 dark:text-rose-400/50 text-lg transition-transform">
-                                      cancel
-                                    </span>
-                                  )}
-                                  {isModified && (
-                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 ml-1 shrink-0" title="Đã chỉnh sửa" />
-                                  )}
-                                </div>
-                              </td>
-                            )
-                          })}
-                        </tr>
-                      ))}
+                          </th>
+                        )
+                      })}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+
+                  <tbody className="divide-y divide-outline-variant/10 text-on-surface-variant">
+                    {groupedPermissions.map((group) => (
+                      <tr key={group.module.prefix} className="contents">
+                        {/* Module Header Row */}
+                        <tr className="bg-surface-container-high/40 border-t-2 border-b border-outline-variant/25">
+                          <td
+                            colSpan={roles.length + 1}
+                            className="py-2.5 px-4 font-bold text-xs text-primary uppercase tracking-wider flex items-center gap-2"
+                          >
+                            <span className="material-symbols-outlined text-base">
+                              {group.module.icon}
+                            </span>
+                            {group.module.label}
+                            <span className="text-[10px] font-mono font-normal text-outline lowercase ml-1">
+                              ({group.permissions.length} quyền)
+                            </span>
+                          </td>
+                        </tr>
+
+                        {/* Permissions Rows in this Module */}
+                        {group.permissions.map((p) => (
+                          <tr
+                            key={p.slug}
+                            className="hover:bg-surface-container-high/25 transition-colors"
+                          >
+                            <td className="sticky left-0 z-10 bg-surface-container py-2.5 px-4 min-w-[220px] sm:min-w-[280px] border-r border-outline-variant/20 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.1)]">
+                              <div className="font-semibold text-on-surface text-xs">{p.name || p.slug}</div>
+                              <div className="text-[11px] text-outline font-mono mt-0.5 flex items-center gap-1.5">
+                                <span>{p.slug}</span>
+                                {p.description && (
+                                  <span className="text-[10px] text-outline/80 italic font-sans truncate max-w-[180px] sm:max-w-[220px]" title={p.description}>
+                                    — {p.description}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+
+                            {roles.map((r) => {
+                              // Check permission in draft or original
+                              const draftSet = matrixDraft[r.slug]
+                              const origSet = new Set((r.permissions || []).map((x) => (typeof x === 'string' ? x : x.slug)))
+
+                              const hasPerm = isEditingMatrix
+                                ? (draftSet ? draftSet.has(p.slug) : false)
+                                : origSet.has(p.slug)
+
+                              const isModified = isEditingMatrix && (
+                                (draftSet?.has(p.slug) && !origSet.has(p.slug)) ||
+                                (!draftSet?.has(p.slug) && origSet.has(p.slug))
+                              )
+
+                              const isLocked = isEditingMatrix && (
+                                r.slug === 'customer' ||
+                                (r.slug === 'super-admin' && ['roles.manage', 'users.manage', 'dashboard.view'].includes(p.slug))
+                              )
+
+                              return (
+                                <td
+                                  key={r.slug}
+                                  className={[
+                                    'py-2 px-3 text-center border-l border-outline-variant/10 transition-colors',
+                                    isEditingMatrix && !isLocked ? 'cursor-pointer hover:bg-surface-container-high/60 active:scale-95' : '',
+                                    isModified ? 'bg-amber-500/10 dark:bg-amber-500/15' : '',
+                                  ].join(' ')}
+                                  onClick={() => handleToggleMatrixPerm(r.slug, p.slug)}
+                                  title={
+                                    isEditingMatrix
+                                      ? isLocked
+                                        ? 'Quyền hạn bảo vệ cố định'
+                                        : `Nhấn để ${hasPerm ? 'tắt' : 'bật'} quyền "${p.name}" cho ${r.name}`
+                                      : `${r.name}: ${hasPerm ? 'Được phép' : 'Không có quyền'}`
+                                  }
+                                >
+                                  <div className="inline-flex items-center justify-center min-w-[36px] min-h-[36px]">
+                                    {hasPerm ? (
+                                      <span className="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-lg transition-transform font-bold">
+                                        check_circle
+                                      </span>
+                                    ) : (
+                                      <span className="material-symbols-outlined text-rose-500/50 dark:text-rose-400/50 text-lg transition-transform">
+                                        cancel
+                                      </span>
+                                    )}
+                                    {isModified && (
+                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 ml-1 shrink-0" title="Đã chỉnh sửa" />
+                                    )}
+                                  </div>
+                                </td>
+                              )
+                            })}
+                          </tr>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       ) : (

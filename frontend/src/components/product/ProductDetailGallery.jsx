@@ -100,7 +100,7 @@ export default function ProductDetailGallery({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [lightboxOpen, closeLightbox, nextImage, prevImage])
 
-  // Mobile Touch Swipe support
+  // Mobile Touch Swipe support for Lightbox and Hero
   const touchStartRef = useRef(0)
   const touchEndRef = useRef(0)
 
@@ -117,6 +117,21 @@ export default function ProductDetailGallery({
     if (Math.abs(delta) > 50) {
       if (delta > 0) nextImage() // swipe left -> next
       else prevImage() // swipe right -> prev
+    }
+    touchStartRef.current = 0
+    touchEndRef.current = 0
+  }
+
+  const handleHeroTouchEnd = () => {
+    const delta = touchStartRef.current - touchEndRef.current
+    if (Math.abs(delta) > 40 && galleryList.length > 1) {
+      if (delta > 0) {
+        // swipe left -> next image
+        setCurrentIndex((prev) => (prev + 1) % galleryList.length)
+      } else {
+        // swipe right -> prev image
+        setCurrentIndex((prev) => (prev - 1 + galleryList.length) % galleryList.length)
+      }
     }
     touchStartRef.current = 0
     touchEndRef.current = 0
@@ -145,9 +160,20 @@ export default function ProductDetailGallery({
             openLightbox(currentIndex)
           }
         }}
-        onMouseEnter={() => setIsZooming(true)}
+        onMouseEnter={() => {
+          if (typeof window !== 'undefined' && window.matchMedia?.('(hover: hover)').matches) {
+            setIsZooming(true)
+          }
+        }}
         onMouseLeave={() => setIsZooming(false)}
-        onMouseMove={handleMouseMove}
+        onMouseMove={(e) => {
+          if (typeof window !== 'undefined' && window.matchMedia?.('(hover: hover)').matches) {
+            handleMouseMove(e)
+          }
+        }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleHeroTouchEnd}
         onClick={() => openLightbox(currentIndex)}
         className="relative aspect-square bg-surface-container rounded-2xl overflow-hidden border border-outline-variant/20 flex items-center justify-center p-6 cursor-zoom-in group shadow-xs hover:shadow-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
@@ -196,6 +222,15 @@ export default function ProductDetailGallery({
           >
             <span className="material-symbols-outlined text-base">fullscreen</span>
           </button>
+        )}
+
+        {/* Mobile Swipe Image Counter */}
+        {galleryList.length > 1 && (
+          <div className="sm:hidden absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1 px-3 py-0.5 rounded-full bg-black/60 backdrop-blur-xs text-white text-[11px] font-medium z-10 pointer-events-none">
+            <span>{currentIndex + 1}</span>
+            <span className="opacity-60">/</span>
+            <span>{galleryList.length}</span>
+          </div>
         )}
 
         {/* Product Status Overlays */}
