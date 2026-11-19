@@ -1,4 +1,3 @@
-
 <?php
 
 namespace Database\Seeders;
@@ -12,222 +11,126 @@ use App\Models\Review;
 use App\Models\ShippingMethod;
 use App\Models\User;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class OrderAndReviewSeeder extends Seeder
 {
     /**
-     * Seed demo orders, status histories and verified reviews.
-     *
-     * Safe for repeated execution.
-     * Never overwrite existing business data.
+     * Seed realistic historical orders, status timelines, and verified customer reviews.
      */
     public function run(): void
     {
-        DB::transaction(function () {
-            $customer = User::where(
-                'email',
-                'customer@mobilex.tech'
-            )->first();
+        $customer = User::where('email', 'customer@mobilex.tech')->first();
+        if (! $customer) {
+            return;
+        }
 
-            if (! $customer) {
-                $this->command?->warn(
-                    'OrderAndReviewSeeder: Customer not found. Skipped.'
-                );
+        $shippingMethod = ShippingMethod::first();
+        if (! $shippingMethod) {
+            $shippingMethod = ShippingMethod::create([
+                'name' => 'Giao hàng tiêu chuẩn',
+                'code' => 'standard',
+                'description' => 'Giao hàng toàn quốc 2-3 ngày',
+                'fee' => 0.00,
+                'is_active' => true,
+            ]);
+        }
 
-                return;
-            }
+        // ── 1. Completed & Delivered Order with Verified Reviews ──
+        $iphone = Product::where('slug', 'iphone-16-pro-max')->first();
+        $iphoneVariant = $iphone ? ProductVariant::where('product_id', $iphone->id)->first() : null;
 
-            // Each developer should configure a different namespace.
-            $namespace = Str::slug(
-                (string) env(
-                    'ORDER_REVIEW_SEEDER_NAMESPACE',
-                    gethostname() ?: 'local'
-                )
-            );
+        $airpods = Product::where('slug', 'apple-airpods-pro-2-usbc')->first();
+        $airpodsVariant = $airpods ? ProductVariant::where('product_id', $airpods->id)->first() : null;
 
-            $namespace = Str::limit($namespace, 20, '');
+        if ($iphone && $iphoneVariant && $airpods && $airpodsVariant) {
+            $subtotal = $iphoneVariant->price + $airpodsVariant->price;
+            $orderCode = 'MX-'.strtoupper(Str::random(8));
 
-            // Find or create a dedicated shipping method.
-            $shippingMethod = ShippingMethod::firstOrCreate(
-                ['code' => 'standard'],
+            $order = Order::firstOrCreate(
+                ['order_code' => 'MX-DEMO-DELIVERED-01'],
                 [
-                    'name' => 'Giao hàng tiêu chuẩn',
-                    'description' => 'Giao hàng toàn quốc 2-3 ngày',
-                    'fee' => 0,
-                    'is_active' => true,
+                    'user_id' => $customer->id,
+                    'shipping_method_id' => $shippingMethod->id,
+                    'shipping_method_code' => $shippingMethod->code,
+                    'shipping_method_name' => $shippingMethod->name,
+                    'subtotal' => $subtotal,
+                    'discount_amount' => 100000.00,
+                    'shipping_fee' => 0.00,
+                    'total_amount' => $subtotal - 100000.00,
+                    'currency_code' => 'VND',
+                    'shipping_name' => $customer->name,
+                    'shipping_phone' => $customer->phone ?? '0987654321',
+                    'shipping_province_code' => '01',
+                    'shipping_province_name' => 'Hà Nội',
+                    'shipping_ward_code' => '001',
+                    'shipping_ward_name' => 'Phương Canh',
+                    'shipping_address_line' => 'Tòa nhà FPT Polytechnic, Phố Trịnh Văn Bô',
+                    'payment_method' => 'vnpay',
+                    'payment_status' => 'paid',
+                    'status' => 'delivered',
+                    'customer_note' => 'Giao giờ hành chính giúp mình',
+                    'delivered_at' => now()->subDays(2),
+                    'created_at' => now()->subDays(5),
+                    'updated_at' => now()->subDays(2),
                 ]
             );
 
-            $this->seedDeliveredOrder(
-                $customer,
-                $shippingMethod,
-                $namespace
-            );
+            // Status Timeline
+            $statuses = [
+                ['status' => 'pending', 'from_status' => null, 'note' => 'Đơn hàng được tạo thành công', 'created_at' => now()->subDays(5)],
+                ['status' => 'confirmed', 'from_status' => 'pending', 'note' => 'Hệ thống đã xác nhận thanh toán qua VNPay', 'created_at' => now()->subDays(4)],
+                ['status' => 'processing', 'from_status' => 'confirmed', 'note' => 'Đang đóng gói tại kho tổng MobieX', 'created_at' => now()->subDays(3)],
+                ['status' => 'shipping', 'from_status' => 'processing', 'note' => 'Đã xuất kho bàn giao cho bưu tá', 'created_at' => now()->subDays(3)->addHours(4)],
+                ['status' => 'delivered', 'from_status' => 'shipping', 'note' => 'Giao hàng thành công cho khách hàng', 'created_at' => now()->subDays(2)],
+            ];
 
-            $this->seedPendingOrder(
-                $customer,
-                $shippingMethod,
-                $namespace
-            );
-        }, 3);
-    }
+            foreach ($statuses as $st) {
+                OrderStatusHistory::firstOrCreate(
+                    [
+                        'order_id' => $order->id,
+                        'status' => $st['status'],
+                    ],
+                    array_merge($st, ['order_id' => $order->id])
+                );
+            }
 
-    /**
-     * Seed a delivered order and verified reviews.
-     */
-    private function seedDeliveredOrder(
-        User $customer,
-        ShippingMethod $shippingMethod,
-        string $namespace
-    ): void {
-        $iphone = Product::where(
-            'slug',
-            'iphone-16-pro-max'
-        )->first();
-
-        $airpods = Product::where(
-            'slug',
-            'apple-airpods-pro-2-usbc'
-        )->first();
-
-        if (! $iphone || ! $airpods) {
-            $this->command?->warn(
-                'Delivered order skipped: products not found.'
-            );
-
-            return;
-        }
-
-        $iphoneVariant = ProductVariant::where(
-            'product_id',
-            $iphone->id
-        )->first();
-
-        $airpodsVariant = ProductVariant::where(
-            'product_id',
-            $airpods->id
-        )->first();
-
-        if (! $iphoneVariant || ! $airpodsVariant) {
-            $this->command?->warn(
-                'Delivered order skipped: product variants not found.'
-            );
-
-            return;
-        }
-
-        $subtotal = $iphoneVariant->price
-            + $airpodsVariant->price;
-
-        $createdAt = now()->subDays(5);
-        $deliveredAt = now()->subDays(2);
-
-        $order = Order::firstOrCreate(
-            [
-                'order_code' => "MX-DEMO-{$namespace}-DELIVERED-01",
-            ],
-            [
-                'user_id' => $customer->id,
-                'shipping_method_id' => $shippingMethod->id,
-                'shipping_method_code' => $shippingMethod->code,
-                'shipping_method_name' => $shippingMethod->name,
-                'subtotal' => $subtotal,
-                'discount_amount' => 100000,
-                'shipping_fee' => 0,
-                'total_amount' => $subtotal - 100000,
-                'currency_code' => 'VND',
-                'shipping_name' => $customer->name,
-                'shipping_phone' => $customer->phone ?? '0987654321',
-                'shipping_province_code' => '01',
-                'shipping_province_name' => 'Hà Nội',
-                'shipping_ward_code' => '001',
-                'shipping_ward_name' => 'Phương Canh',
-                'shipping_address_line' =>
-                    'Tòa nhà FPT Polytechnic, Phố Trịnh Văn Bô',
-                'payment_method' => 'vnpay',
-                'payment_status' => 'paid',
-                'status' => 'delivered',
-                'customer_note' => 'Giao giờ hành chính giúp mình',
-                'delivered_at' => $deliveredAt,
-                'created_at' => $createdAt,
-                'updated_at' => $deliveredAt,
-            ]
-        );
-
-        // Do not modify an existing order belonging to another user.
-        if ((int) $order->user_id !== (int) $customer->id) {
-            $this->command?->warn(
-                'Delivered order code collision. Skipped.'
-            );
-
-            return;
-        }
-
-        // Order status timeline.
-        $statuses = [
-            [
-                'status' => 'pending',
-                'from_status' => null,
-                'note' => 'Đơn hàng được tạo thành công',
-                'created_at' => now()->subDays(5),
-            ],
-            [
-                'status' => 'confirmed',
-                'from_status' => 'pending',
-                'note' => 'Hệ thống đã xác nhận thanh toán qua VNPay',
-                'created_at' => now()->subDays(4),
-            ],
-            [
-                'status' => 'processing',
-                'from_status' => 'confirmed',
-                'note' => 'Đang đóng gói tại kho tổng MobieX',
-                'created_at' => now()->subDays(3),
-            ],
-            [
-                'status' => 'shipping',
-                'from_status' => 'processing',
-                'note' => 'Đã xuất kho bàn giao cho bưu tá',
-                'created_at' => now()->subDays(3)->addHours(4),
-            ],
-            [
-                'status' => 'delivered',
-                'from_status' => 'shipping',
-                'note' => 'Giao hàng thành công cho khách hàng',
-                'created_at' => $deliveredAt,
-            ],
-        ];
-
-        foreach ($statuses as $status) {
-            OrderStatusHistory::firstOrCreate(
+            // Order Items
+            $item1 = OrderItem::firstOrCreate(
                 [
                     'order_id' => $order->id,
-                    'status' => $status['status'],
+                    'product_variant_id' => $iphoneVariant->id,
                 ],
-                array_merge($status, [
-                    'order_id' => $order->id,
-                ])
+                [
+                    'product_id' => $iphone->id,
+                    'product_name' => $iphone->name,
+                    'variant_name' => $iphoneVariant->option_signature,
+                    'sku' => $iphoneVariant->sku,
+                    'price' => $iphoneVariant->price,
+                    'cost_price_snapshot' => $iphoneVariant->cost_price,
+                    'quantity' => 1,
+                    'created_at' => now()->subDays(5),
+                ]
             );
-        }
 
-        // Order items.
-        $item1 = $this->createOrderItem(
-            $order,
-            $iphone,
-            $iphoneVariant,
-            $createdAt
-        );
+            $item2 = OrderItem::firstOrCreate(
+                [
+                    'order_id' => $order->id,
+                    'product_variant_id' => $airpodsVariant->id,
+                ],
+                [
+                    'product_id' => $airpods->id,
+                    'product_name' => $airpods->name,
+                    'variant_name' => $airpodsVariant->option_signature,
+                    'sku' => $airpodsVariant->sku,
+                    'price' => $airpodsVariant->price,
+                    'cost_price_snapshot' => $airpodsVariant->cost_price,
+                    'quantity' => 1,
+                    'created_at' => now()->subDays(5),
+                ]
+            );
 
-        $item2 = $this->createOrderItem(
-            $order,
-            $airpods,
-            $airpodsVariant,
-            $createdAt
-        );
-
-        // Verified customer reviews.
-        if ($item1) {
+            // Verified Reviews
             Review::firstOrCreate(
                 ['order_item_id' => $item1->id],
                 [
@@ -238,12 +141,10 @@ class OrderAndReviewSeeder extends Seeder
                     'content' => 'Máy đóng gói nguyên seal chính hãng, viền titan nhẹ và cầm rất đầm tay. Màu titan sa mạc cực kỳ sang trọng, camera chụp đêm siêu nét. Giao hàng rất nhanh.',
                     'status' => 'approved',
                     'moderated_at' => now()->subDay(),
-                    'created_at' => $deliveredAt,
+                    'created_at' => now()->subDays(2),
                 ]
             );
-        }
 
-        if ($item2) {
             Review::firstOrCreate(
                 ['order_item_id' => $item2->id],
                 [
@@ -254,133 +155,73 @@ class OrderAndReviewSeeder extends Seeder
                     'content' => 'AirPods Pro 2 bản cổng USB-C rất tiện dụng khi dùng chung sạc với iPhone. Chế độ chống ồn ANC cách âm tuyệt đối khi đi ngoài đường.',
                     'status' => 'approved',
                     'moderated_at' => now()->subDay(),
-                    'created_at' => $deliveredAt,
+                    'created_at' => now()->subDays(2),
                 ]
             );
         }
-    }
 
-    /**
-     * Seed a pending order for cancellation/admin workflow testing.
-     */
-    private function seedPendingOrder(
-        User $customer,
-        ShippingMethod $shippingMethod,
-        string $namespace
-    ): void {
-        $samsung = Product::where(
-            'slug',
-            'samsung-galaxy-s24-ultra'
-        )->first();
+        // ── 2. Pending Order (for testing cancellation / admin workflow) ──
+        $samsung = Product::where('slug', 'samsung-galaxy-s24-ultra')->first();
+        $samsungVariant = $samsung ? ProductVariant::where('product_id', $samsung->id)->first() : null;
 
-        if (! $samsung) {
-            $this->command?->warn(
-                'Pending order skipped: Samsung product not found.'
+        if ($samsung && $samsungVariant) {
+            $pendingOrder = Order::firstOrCreate(
+                ['order_code' => 'MX-DEMO-PENDING-02'],
+                [
+                    'user_id' => $customer->id,
+                    'shipping_method_id' => $shippingMethod->id,
+                    'shipping_method_code' => $shippingMethod->code,
+                    'shipping_method_name' => $shippingMethod->name,
+                    'subtotal' => $samsungVariant->price,
+                    'discount_amount' => 0.00,
+                    'shipping_fee' => 0.00,
+                    'total_amount' => $samsungVariant->price,
+                    'currency_code' => 'VND',
+                    'shipping_name' => $customer->name,
+                    'shipping_phone' => $customer->phone ?? '0987654321',
+                    'shipping_province_code' => '01',
+                    'shipping_province_name' => 'Hà Nội',
+                    'shipping_ward_code' => '001',
+                    'shipping_ward_name' => 'Phương Canh',
+                    'shipping_address_line' => 'Tòa nhà FPT Polytechnic, Phố Trịnh Văn Bô',
+                    'payment_method' => 'cod',
+                    'payment_status' => 'pending',
+                    'status' => 'pending',
+                    'customer_note' => 'Gọi điện trước khi giao',
+                    'created_at' => now()->subHours(3),
+                ]
             );
 
-            return;
-        }
-
-        $variant = ProductVariant::where(
-            'product_id',
-            $samsung->id
-        )->first();
-
-        if (! $variant) {
-            $this->command?->warn(
-                'Pending order skipped: Samsung variant not found.'
+            OrderItem::firstOrCreate(
+                [
+                    'order_id' => $pendingOrder->id,
+                    'product_variant_id' => $samsungVariant->id,
+                ],
+                [
+                    'product_id' => $samsung->id,
+                    'product_name' => $samsung->name,
+                    'variant_name' => $samsungVariant->option_signature,
+                    'sku' => $samsungVariant->sku,
+                    'price' => $samsungVariant->price,
+                    'cost_price_snapshot' => $samsungVariant->cost_price,
+                    'quantity' => 1,
+                    'created_at' => now()->subHours(3),
+                ]
             );
 
-            return;
-        }
-
-        $createdAt = now()->subHours(3);
-
-        $order = Order::firstOrCreate(
-            [
-                'order_code' => "MX-DEMO-{$namespace}-PENDING-02",
-            ],
-            [
-                'user_id' => $customer->id,
-                'shipping_method_id' => $shippingMethod->id,
-                'shipping_method_code' => $shippingMethod->code,
-                'shipping_method_name' => $shippingMethod->name,
-                'subtotal' => $variant->price,
-                'discount_amount' => 0,
-                'shipping_fee' => 0,
-                'total_amount' => $variant->price,
-                'currency_code' => 'VND',
-                'shipping_name' => $customer->name,
-                'shipping_phone' => $customer->phone ?? '0987654321',
-                'shipping_province_code' => '01',
-                'shipping_province_name' => 'Hà Nội',
-                'shipping_ward_code' => '001',
-                'shipping_ward_name' => 'Phương Canh',
-                'shipping_address_line' =>
-                    'Tòa nhà FPT Polytechnic, Phố Trịnh Văn Bô',
-                'payment_method' => 'cod',
-                'payment_status' => 'pending',
-                'status' => 'pending',
-                'customer_note' => 'Gọi điện trước khi giao',
-                'created_at' => $createdAt,
-                'updated_at' => $createdAt,
-            ]
-        );
-
-        if ((int) $order->user_id !== (int) $customer->id) {
-            $this->command?->warn(
-                'Pending order code collision. Skipped.'
+            OrderStatusHistory::firstOrCreate(
+                [
+                    'order_id' => $pendingOrder->id,
+                    'status' => 'pending',
+                ],
+                [
+                    'order_id' => $pendingOrder->id,
+                    'status' => 'pending',
+                    'from_status' => null,
+                    'note' => 'Đơn hàng mới tạo, đang chờ xác nhận',
+                    'created_at' => now()->subHours(3),
+                ]
             );
-
-            return;
         }
-
-        $this->createOrderItem(
-            $order,
-            $samsung,
-            $variant,
-            $createdAt
-        );
-
-        OrderStatusHistory::firstOrCreate(
-            [
-                'order_id' => $order->id,
-                'status' => 'pending',
-            ],
-            [
-                'order_id' => $order->id,
-                'status' => 'pending',
-                'from_status' => null,
-                'note' => 'Đơn hàng mới tạo, đang chờ xác nhận',
-                'created_at' => $createdAt,
-            ]
-        );
-    }
-
-    /**
-     * Create an order item without overwriting existing records.
-     */
-    private function createOrderItem(
-        Order $order,
-        Product $product,
-        ProductVariant $variant,
-        $createdAt
-    ): ?OrderItem {
-        return OrderItem::firstOrCreate(
-            [
-                'order_id' => $order->id,
-                'product_variant_id' => $variant->id,
-            ],
-            [
-                'product_id' => $product->id,
-                'product_name' => $product->name,
-                'variant_name' => $variant->option_signature,
-                'sku' => $variant->sku,
-                'price' => $variant->price,
-                'cost_price_snapshot' => $variant->cost_price,
-                'quantity' => 1,
-                'created_at' => $createdAt,
-            ]
-        );
     }
 }
