@@ -20,6 +20,7 @@ export default function CheckoutPage() {
   const [form, setForm] = useState({
     recipient_name: user?.name || '',
     phone: user?.phone || '',
+    email: user?.email || '',
     shipping_address: '',
     city: 'Hà Nội',
     note: '',
@@ -57,6 +58,7 @@ export default function CheckoutPage() {
             ...prev,
             recipient_name: defaultAddr.full_name || prev.recipient_name,
             phone: defaultAddr.phone || prev.phone,
+            email: prev.email || user?.email || '',
             shipping_address: fullAddress || prev.shipping_address,
             city: defaultAddr.city || prev.city,
           }))
@@ -150,6 +152,8 @@ export default function CheckoutPage() {
         shipping_phone: form.phone,
         recipient_phone: form.phone,
         phone: form.phone,
+        customer_email: form.email || user?.email || undefined,
+        email: form.email || user?.email || undefined,
         shipping_address: form.shipping_address,
         shipping_address_line: form.shipping_address,
         shipping_city: form.city || 'Hà Nội',
@@ -316,7 +320,7 @@ export default function CheckoutPage() {
                 </p>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Input
                   label="Họ và tên người nhận"
                   name="recipient_name"
@@ -334,6 +338,16 @@ export default function CheckoutPage() {
                   placeholder="0912345678"
                   error={errors.phone?.[0] || errors.recipient_phone?.[0]}
                   required
+                />
+                <Input
+                  label="Email nhận xác nhận"
+                  name="email"
+                  type="email"
+                  value={form.email}
+                  onChange={handleChange}
+                  placeholder="example@gmail.com"
+                  error={errors.customer_email?.[0] || errors.email?.[0]}
+                  helperText="Nhận thông báo chi tiết đơn hàng"
                 />
               </div>
 

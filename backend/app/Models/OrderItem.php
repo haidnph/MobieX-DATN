@@ -61,4 +61,24 @@ class OrderItem extends Model
     {
         return $this->hasOne(Review::class, 'order_item_id');
     }
+
+    /**
+     * Get the resolved public/CDN URL for the item image.
+     */
+    public function getImageUrlAttribute(): ?string
+    {
+        if (empty($this->image_path)) {
+            return null;
+        }
+
+        if (str_starts_with($this->image_path, 'http://') || str_starts_with($this->image_path, 'https://')) {
+            return $this->image_path;
+        }
+
+        try {
+            return app(\App\Services\MediaStorageService::class)->url($this->image_path);
+        } catch (\Throwable) {
+            return url($this->image_path);
+        }
+    }
 }

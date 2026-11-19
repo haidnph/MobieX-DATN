@@ -25,6 +25,7 @@ class Order extends Model
         'shipping_fee',
         'total_amount',
         'currency_code',
+        'customer_email',
         'shipping_name',
         'shipping_phone',
         'shipping_province_code',
@@ -40,6 +41,9 @@ class Order extends Model
         'cancelled_at',
         'delivered_at',
         'reservation_expires_at',
+        'confirmation_email_sent_at',
+        'confirmation_email_status',
+        'confirmation_email_error',
     ];
 
     protected function casts(): array
@@ -52,6 +56,7 @@ class Order extends Model
             'cancelled_at' => 'datetime',
             'delivered_at' => 'datetime',
             'reservation_expires_at' => 'datetime',
+            'confirmation_email_sent_at' => 'datetime',
         ];
     }
 
@@ -88,5 +93,18 @@ class Order extends Model
     public function couponRedemption(): HasOne
     {
         return $this->hasOne(CouponRedemption::class);
+    }
+
+    public function emailLogs(): HasMany
+    {
+        return $this->hasMany(OrderEmailLog::class);
+    }
+
+    /**
+     * Get the effective recipient email (customer_email or user's email).
+     */
+    public function getEffectiveCustomerEmailAttribute(): ?string
+    {
+        return $this->customer_email ?: $this->user?->email;
     }
 }

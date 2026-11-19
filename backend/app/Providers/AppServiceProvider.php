@@ -21,6 +21,10 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(\App\Services\MediaStorageService::class, function ($app) {
             return new \App\Services\MediaStorageService();
         });
+
+        $this->app->singleton(\App\Services\OrderMailService::class, function ($app) {
+            return new \App\Services\OrderMailService();
+        });
     }
 
     /**

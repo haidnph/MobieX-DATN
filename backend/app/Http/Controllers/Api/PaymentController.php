@@ -149,6 +149,10 @@ class PaymentController extends Controller
                     'note' => 'Thanh toán VNPay thành công (Return URL - Mã GD: '.$transactionNo.')',
                     'created_at' => now(),
                 ]);
+
+                DB::afterCommit(function () use ($order) {
+                    app(\App\Services\OrderMailService::class)->sendOrderConfirmation($order);
+                });
             });
         }
 
@@ -279,6 +283,10 @@ class PaymentController extends Controller
                     'note' => 'Thanh toán VNPay thành công (Mã GD: '.$vnpTransactionNo.')',
                     'created_at' => now(),
                 ]);
+
+                DB::afterCommit(function () use ($order) {
+                    app(\App\Services\OrderMailService::class)->sendOrderConfirmation($order);
+                });
             } else {
                 $order->update([
                     'payment_status' => 'failed',
@@ -466,6 +474,10 @@ class PaymentController extends Controller
                     'note' => 'Thanh toán ZaloPay thành công (Return URL - Mã GD: '.$appTransId.')',
                     'created_at' => now(),
                 ]);
+
+                DB::afterCommit(function () use ($order) {
+                    app(\App\Services\OrderMailService::class)->sendOrderConfirmation($order);
+                });
             });
         }
 
@@ -586,6 +598,10 @@ class PaymentController extends Controller
                 'note' => 'Thanh toán ZaloPay thành công (Webhook - Mã GD: '.$zpTransId.')',
                 'created_at' => now(),
             ]);
+
+            DB::afterCommit(function () use ($order) {
+                app(\App\Services\OrderMailService::class)->sendOrderConfirmation($order);
+            });
         });
 
         return response()->json([
@@ -750,6 +766,10 @@ class PaymentController extends Controller
                     'note' => 'Thanh toán MoMo thành công (Return URL - Mã GD: '.($transId ?: $orderIdParam).')',
                     'created_at' => now(),
                 ]);
+
+                DB::afterCommit(function () use ($order) {
+                    app(\App\Services\OrderMailService::class)->sendOrderConfirmation($order);
+                });
             });
         }
 
@@ -861,6 +881,10 @@ class PaymentController extends Controller
                     'note' => 'Thanh toán MoMo thành công (Webhook - Mã GD: '.$transId.')',
                     'created_at' => now(),
                 ]);
+
+                DB::afterCommit(function () use ($order) {
+                    app(\App\Services\OrderMailService::class)->sendOrderConfirmation($order);
+                });
             });
         }
 

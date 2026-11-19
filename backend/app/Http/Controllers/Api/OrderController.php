@@ -210,8 +210,15 @@ class OrderController extends Controller
         if (! $request->has('customer_note') && $request->has('note')) {
             $request->merge(['customer_note' => $request->input('note')]);
         }
+        if (! $request->has('customer_email')) {
+            $email = $request->input('email') ?? $request->input('recipient_email');
+            if ($email) {
+                $request->merge(['customer_email' => $email]);
+            }
+        }
 
         $validated = $request->validate([
+            'customer_email' => ['nullable', 'email', 'max:150'],
             'shipping_name' => ['required', 'string', 'max:255'],
             'shipping_phone' => ['required', 'string', 'max:20'],
             'shipping_address' => ['nullable', 'string', 'max:255'],
@@ -238,6 +245,7 @@ class OrderController extends Controller
 
         $order = DB::transaction(function () use ($request, $validated, $addressLine) {
             $userId = $request->user()->id;
+            $customerEmail = $validated['customer_email'] ?? $request->user()?->email;
 
             $cart = Cart::where('user_id', $userId)
                 ->where('status', 'active')
@@ -417,6 +425,7 @@ class OrderController extends Controller
                 'shipping_fee' => $shippingFee,
                 'total_amount' => $totalAmount,
                 'currency_code' => 'VND',
+                'customer_email' => $customerEmail,
                 'shipping_name' => $validated['shipping_name'],
                 'shipping_phone' => $validated['shipping_phone'],
                 'shipping_address_line' => $addressLine,
@@ -484,6 +493,10 @@ class OrderController extends Controller
             ]);
 
             $cart->items()->delete();
+
+            DB::afterCommit(function () use ($order) {
+                app(\App\Services\OrderMailService::class)->sendOrderConfirmation($order);
+            });
 
             return $order;
         });

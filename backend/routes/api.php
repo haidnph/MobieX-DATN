@@ -882,6 +882,13 @@ Route::prefix('admin')
             )
                 ->whereNumber('id')
                 ->name('orders.show');
+
+            Route::get(
+                '/orders/{id}/email-logs',
+                [AdminOrderController::class, 'emailLogs'],
+            )
+                ->whereNumber('id')
+                ->name('orders.email-logs');
         });
 
         Route::middleware('permission:orders.manage')->group(function (): void {
@@ -891,6 +898,13 @@ Route::prefix('admin')
             )
                 ->whereNumber('id')
                 ->name('orders.status.update');
+
+            Route::post(
+                '/orders/{id}/resend-confirmation-email',
+                [AdminOrderController::class, 'resendConfirmationEmail'],
+            )
+                ->whereNumber('id')
+                ->name('orders.resend-confirmation-email');
         });
 
         // Admin Coupon Management

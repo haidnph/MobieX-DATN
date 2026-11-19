@@ -69,6 +69,7 @@ class AdminOrderController extends Controller
             'shippingMethod',
             'payments',
             'coupon',
+            'emailLogs',
         ])->findOrFail($id);
 
         return response()->json([
@@ -238,6 +239,44 @@ class AdminOrderController extends Controller
         return response()->json([
             'message' => 'Cập nhật trạng thái đơn hàng thành công.',
             'data' => $order,
+        ]);
+    }
+
+    /**
+     * Resend order confirmation email manually by Admin.
+     */
+    public function resendConfirmationEmail(Request $request, int|string $id): JsonResponse
+    {
+        $order = Order::with(['items.variant.product', 'shippingMethod', 'payments', 'coupon', 'user'])
+            ->findOrFail($id);
+
+        $result = app(\App\Services\OrderMailService::class)->resendConfirmationEmail($order);
+        $statusCode = $result['success'] ? 200 : 422;
+
+        return response()->json([
+            'status' => $result['success'],
+            'message' => $result['message'],
+            'data' => [
+                'order_id' => $order->id,
+                'order_code' => $order->order_code,
+                'recipient' => $result['recipient'],
+                'confirmation_email_status' => $order->fresh()->confirmation_email_status,
+                'confirmation_email_sent_at' => $order->fresh()->confirmation_email_sent_at,
+            ],
+        ], $statusCode);
+    }
+
+    /**
+     * Retrieve audit email logs for an order.
+     */
+    public function emailLogs(Request $request, int|string $id): JsonResponse
+    {
+        $order = Order::findOrFail($id);
+        $logs = app(\App\Services\OrderMailService::class)->getEmailHistory($order);
+
+        return response()->json([
+            'status' => true,
+            'data' => $logs,
         ]);
     }
 }
