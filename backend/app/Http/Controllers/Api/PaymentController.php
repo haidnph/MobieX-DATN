@@ -198,7 +198,7 @@ class PaymentController extends Controller
             ]);
         }
 
-        // 3. Verify Amount
+       // 3. Verify Amount
         $expectedAmount = (int) round(((float) $order->total_amount) * 100);
         if ($expectedAmount !== $vnpAmount) {
             return response()->json([
