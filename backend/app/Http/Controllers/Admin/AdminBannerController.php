@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Banner;
 use App\Services\HomepageService;
+use App\Services\MediaStorageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -13,7 +14,8 @@ use Illuminate\Support\Str;
 class AdminBannerController extends Controller
 {
     public function __construct(
-        protected HomepageService $homepageService
+        protected HomepageService $homepageService,
+        protected MediaStorageService $mediaService
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -74,6 +76,9 @@ class AdminBannerController extends Controller
             'end_at' => ['nullable', 'date', 'after_or_equal:start_at'],
             'is_active' => ['nullable', 'boolean'],
             'status' => ['nullable', 'string', 'in:draft,published,inactive'],
+            'storage_provider' => ['nullable', 'string', 'max:50'],
+            'public_id' => ['nullable', 'string', 'max:255'],
+            'mobile_public_id' => ['nullable', 'string', 'max:255'],
         ]);
 
         $validated['position'] = $validated['position'] ?? 'home';
@@ -121,6 +126,9 @@ class AdminBannerController extends Controller
             'end_at' => ['nullable', 'date', 'after_or_equal:start_at'],
             'is_active' => ['nullable', 'boolean'],
             'status' => ['nullable', 'string', 'in:draft,published,inactive'],
+            'storage_provider' => ['nullable', 'string', 'max:50'],
+            'public_id' => ['nullable', 'string', 'max:255'],
+            'mobile_public_id' => ['nullable', 'string', 'max:255'],
         ]);
 
         if (isset($validated['status']) && ! isset($validated['is_active'])) {
@@ -185,23 +193,21 @@ class AdminBannerController extends Controller
         ]);
 
         $file = $request->file('image');
-        $extension = $file->getClientOriginalExtension() ?: 'webp';
-        $fileName = Str::random(32).'.'.$extension;
-
         $now = now();
         $subFolder = "banners/{$now->format('Y')}/{$now->format('m')}";
-        $path = $file->storeAs($subFolder, $fileName, 'public');
 
-        $url = "/storage/{$path}";
+        $result = $this->mediaService->upload($file, $subFolder);
 
         return response()->json([
             'status' => true,
             'message' => 'Tải ảnh banner lên thành công.',
             'data' => [
-                'path' => $path,
-                'url' => $url,
-                'name' => $file->getClientOriginalName(),
-                'size' => $file->getSize(),
+                'path' => $result['path'],
+                'url' => $result['relative_url'] ?? $result['url'],
+                'public_id' => $result['public_id'],
+                'provider' => $result['provider'],
+                'name' => $result['name'],
+                'size' => $result['size'],
             ],
         ]);
     }
@@ -215,11 +221,7 @@ class AdminBannerController extends Controller
             return;
         }
 
-        $normalized = ltrim(str_replace('/storage/', '', $path), '/');
-
-        if (! str_starts_with($normalized, 'banners/')) {
-            return;
-        }
+        $normalized = $this->mediaService->normalizeLocalPath($path);
 
         $isReferenced = Banner::where('id', '!=', $bannerId)
             ->where(function ($q) use ($path, $normalized) {
@@ -232,8 +234,8 @@ class AdminBannerController extends Controller
             })
             ->exists();
 
-        if (! $isReferenced && Storage::disk('public')->exists($normalized)) {
-            Storage::disk('public')->delete($normalized);
+        if (! $isReferenced) {
+            $this->mediaService->delete($path);
         }
     }
 }

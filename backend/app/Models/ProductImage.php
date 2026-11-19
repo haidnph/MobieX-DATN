@@ -21,6 +21,8 @@ class ProductImage extends Model
         'variant_id',
         'attribute_value_id',
         'image_path',
+        'storage_provider',
+        'public_id',
         'image_url',
         'alt_text',
         'sort_order',
@@ -51,7 +53,31 @@ class ProductImage extends Model
 
     public function getImageUrlAttribute(): ?string
     {
-        return $this->attributes['image_path'] ?? null;
+        $path = $this->attributes['image_path'] ?? null;
+        if (! $path) {
+            return null;
+        }
+
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://') || str_starts_with($path, 'data:') || str_starts_with($path, 'blob:')) {
+            return $path;
+        }
+
+        if (($this->attributes['storage_provider'] ?? null) === 'cloudinary' || str_starts_with($path, 'mobiex/')) {
+            $cloudName = config('media.drivers.cloudinary.cloud_name');
+            if (! empty($cloudName)) {
+                return "https://res.cloudinary.com/{$cloudName}/image/upload/f_auto,q_auto/{$path}";
+            }
+        }
+
+        if (str_starts_with($path, '/storage/')) {
+            return $path;
+        }
+
+        if (str_starts_with($path, 'storage/')) {
+            return '/'.$path;
+        }
+
+        return '/storage/'.ltrim($path, '/');
     }
 
     public function setImageUrlAttribute(?string $value): void

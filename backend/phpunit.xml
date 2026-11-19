@@ -32,5 +32,10 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <env name="MEDIA_STORAGE_DRIVER" value="local"/>
+        <env name="CLOUDINARY_CLOUD_NAME" value=""/>
+        <env name="CLOUDINARY_API_KEY" value=""/>
+        <env name="CLOUDINARY_API_SECRET" value=""/>
+        <env name="CLOUDINARY_URL" value=""/>
     </php>
 </phpunit>

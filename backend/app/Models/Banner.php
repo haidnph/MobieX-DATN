@@ -16,7 +16,10 @@ class Banner extends Model
         'name',
         'description',
         'image_path',
+        'storage_provider',
+        'public_id',
         'mobile_image_path',
+        'mobile_public_id',
         'alt_text',
         'cta_label',
         'target_url',
@@ -57,6 +60,13 @@ class Banner extends Model
             return $path;
         }
 
+        if (($this->storage_provider === 'cloudinary') || str_starts_with($path, 'mobiex/')) {
+            $cloudName = config('media.drivers.cloudinary.cloud_name');
+            if (! empty($cloudName)) {
+                return "https://res.cloudinary.com/{$cloudName}/image/upload/f_auto,q_auto/{$path}";
+            }
+        }
+
         if (str_starts_with($path, '/storage/')) {
             return $path;
         }
@@ -80,6 +90,13 @@ class Banner extends Model
 
         if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://') || str_starts_with($path, 'data:') || str_starts_with($path, 'blob:')) {
             return $path;
+        }
+
+        if (($this->storage_provider === 'cloudinary') || str_starts_with($path, 'mobiex/')) {
+            $cloudName = config('media.drivers.cloudinary.cloud_name');
+            if (! empty($cloudName)) {
+                return "https://res.cloudinary.com/{$cloudName}/image/upload/f_auto,q_auto/{$path}";
+            }
         }
 
         if (str_starts_with($path, '/storage/')) {

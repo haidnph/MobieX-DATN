@@ -35,12 +35,12 @@ class Product extends Model
         if ($this->relationLoaded('images')) {
             $primary = $this->images->firstWhere('is_primary', true) ?? $this->images->first();
 
-            return $primary?->image_path ?? $primary?->image_url ?? null;
+            return $primary?->image_url ?? $primary?->image_path ?? null;
         }
 
         $primary = $this->images()->where('is_primary', true)->first() ?? $this->images()->first();
 
-        return $primary?->image_path ?? $primary?->image_url ?? null;
+        return $primary?->image_url ?? $primary?->image_path ?? null;
     }
 
     public function getPrimaryImageUrlAttribute(): ?string

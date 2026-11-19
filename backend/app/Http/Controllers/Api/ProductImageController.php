@@ -5,12 +5,16 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ProductImage;
 use App\Models\ProductVariant;
+use App\Services\MediaStorageService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class ProductImageController extends Controller
 {
+    public function __construct(
+        protected MediaStorageService $mediaService
+    ) {}
     // Lấy danh sách hình ảnh
     public function index(Request $request)
     {
@@ -145,10 +149,10 @@ class ProductImageController extends Controller
                     : ($currentMaxOrder + 1);
 
                 foreach ($files as $index => $file) {
-                    $path = $file->store('products', 'public');
-                    $storedPaths[] = $path;
+                    $uploadResult = $this->mediaService->upload($file, 'products');
+                    $storedPaths[] = $uploadResult;
 
-                    $imageUrl = asset('storage/'.$path);
+                    $imageUrl = $uploadResult['url'];
 
                     if ($primaryIndex !== null) {
                         $isPrimary = ($index === $primaryIndex);
@@ -172,6 +176,9 @@ class ProductImageController extends Controller
                         'product_id' => $productId,
                         'variant_id' => $variantId,
                         'image_url' => $imageUrl,
+                        'image_path' => $uploadResult['path'],
+                        'storage_provider' => $uploadResult['provider'],
+                        'public_id' => $uploadResult['public_id'],
                         'alt_text' => $validated['alt_text'] ?? null,
                         'sort_order' => $baseOrder + $index,
                         'is_primary' => $isPrimary,
@@ -181,8 +188,12 @@ class ProductImageController extends Controller
                 }
             });
         } catch (\Throwable $e) {
-            foreach ($storedPaths as $path) {
-                Storage::disk('public')->delete($path);
+            foreach ($storedPaths as $stored) {
+                $pathToDelete = is_array($stored) ? ($stored['path'] ?? '') : $stored;
+                $provider = is_array($stored) ? ($stored['provider'] ?? null) : null;
+                if (! empty($pathToDelete)) {
+                    $this->mediaService->delete($pathToDelete, $provider);
+                }
             }
 
             throw $e;
@@ -224,16 +235,16 @@ class ProductImageController extends Controller
         }
 
         $oldImageUrl = $image->image_url;
-        $newPath = null;
+        $oldProvider = $image->storage_provider;
+        $newUpload = null;
 
         try {
             if ($request->hasFile('image')) {
-                $newPath = $request->file('image')->store(
-                    'products',
-                    'public'
-                );
-
-                $validated['image_url'] = asset('storage/'.$newPath);
+                $newUpload = $this->mediaService->upload($request->file('image'), 'products');
+                $validated['image_url'] = $newUpload['url'];
+                $validated['image_path'] = $newUpload['path'];
+                $validated['storage_provider'] = $newUpload['provider'];
+                $validated['public_id'] = $newUpload['public_id'];
             }
 
             unset($validated['image']);
@@ -258,15 +269,15 @@ class ProductImageController extends Controller
                 $image->update($validated);
             });
         } catch (\Throwable $e) {
-            if ($newPath) {
-                Storage::disk('public')->delete($newPath);
+            if ($newUpload) {
+                $this->mediaService->delete($newUpload['path'], $newUpload['provider']);
             }
 
             throw $e;
         }
 
-        if ($newPath) {
-            $this->deleteImageFile($oldImageUrl);
+        if ($newUpload && $oldImageUrl) {
+            $this->deleteImageFile($oldImageUrl, $oldProvider);
         }
 
         return response()->json([
@@ -277,34 +288,13 @@ class ProductImageController extends Controller
     }
 
     // Xóa file ảnh trong Storage
-    private function deleteImageFile($imageUrl)
+    private function deleteImageFile($imageUrl, ?string $provider = null)
     {
         if (empty($imageUrl)) {
             return;
         }
 
-        $parsed = parse_url($imageUrl, PHP_URL_PATH);
-        $path = $parsed !== false && $parsed !== null ? $parsed : $imageUrl;
-        $path = ltrim($path, '/');
-
-        $storagePosition = strpos($path, 'storage/');
-
-        if ($storagePosition !== false) {
-            $storagePath = substr(
-                $path,
-                $storagePosition + strlen('storage/')
-            );
-
-            if (! empty($storagePath) && Storage::disk('public')->exists($storagePath)) {
-                Storage::disk('public')->delete($storagePath);
-
-                return;
-            }
-        }
-
-        if (Storage::disk('public')->exists($path)) {
-            Storage::disk('public')->delete($path);
-        }
+        $this->mediaService->delete($imageUrl, $provider);
     }
 
     // Sắp xếp hình ảnh
@@ -356,6 +346,7 @@ class ProductImageController extends Controller
     {
         $image = ProductImage::findOrFail($id);
         $imageUrl = $image->image_url;
+        $storageProvider = $image->storage_provider;
         $productId = $image->product_id;
         $variantId = $image->product_variant_id;
         $wasPrimary = (bool) $image->is_primary;
@@ -379,7 +370,7 @@ class ProductImageController extends Controller
             }
         });
 
-        $this->deleteImageFile($imageUrl);
+        $this->deleteImageFile($imageUrl, $storageProvider);
 
         return response()->json([
             'status' => true,

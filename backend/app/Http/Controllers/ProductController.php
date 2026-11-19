@@ -924,12 +924,15 @@ class ProductController extends Controller
             if ($request->hasFile('images')) {
                 $files = $request->file('images');
                 $primaryIdx = $request->has('primary_index') ? (int) $request->input('primary_index') : 0;
+                $mediaService = app(\App\Services\MediaStorageService::class);
                 foreach ($files as $idx => $file) {
-                    $path = $file->store('products', 'public');
-                    $imageUrl = asset('storage/'.$path);
+                    $uploadResult = $mediaService->upload($file, 'products');
                     $product->images()->create([
                         'variant_id' => $variant->id,
-                        'image_url' => $imageUrl,
+                        'image_url' => $uploadResult['url'],
+                        'image_path' => $uploadResult['path'],
+                        'storage_provider' => $uploadResult['provider'],
+                        'public_id' => $uploadResult['public_id'],
                         'alt_text' => $product->name,
                         'is_primary' => ($idx === $primaryIdx),
                         'sort_order' => $idx,
