@@ -1,3 +1,4 @@
+
 <?php
 
 namespace Database\Seeders;
@@ -8,7 +9,7 @@ use Illuminate\Database\Seeder;
 class CouponSeeder extends Seeder
 {
     /**
-     * Seed promotional coupons for cart validation and order discounts.
+     * Seed promotional coupons safely.
      */
     public function run(): void
     {
@@ -16,8 +17,8 @@ class CouponSeeder extends Seeder
             [
                 'code' => 'MOBIEX100K',
                 'discount_type' => 'fixed',
-                'discount_value' => 100000.00,
-                'min_order_amount' => 500000.00,
+                'discount_value' => 100000,
+                'min_order_amount' => 500000,
                 'max_discount' => null,
                 'usage_limit' => 500,
                 'reserved_count' => 0,
@@ -27,9 +28,9 @@ class CouponSeeder extends Seeder
             [
                 'code' => 'WELCOME10',
                 'discount_type' => 'percent',
-                'discount_value' => 10.00,
-                'min_order_amount' => 1000000.00,
-                'max_discount' => 500000.00,
+                'discount_value' => 10,
+                'min_order_amount' => 1000000,
+                'max_discount' => 500000,
                 'usage_limit' => 1000,
                 'reserved_count' => 0,
                 'used_count' => 0,
@@ -38,8 +39,8 @@ class CouponSeeder extends Seeder
             [
                 'code' => 'FLAGSHIP1TR',
                 'discount_type' => 'fixed',
-                'discount_value' => 1000000.00,
-                'min_order_amount' => 20000000.00,
+                'discount_value' => 1000000,
+                'min_order_amount' => 20000000,
                 'max_discount' => null,
                 'usage_limit' => 50,
                 'reserved_count' => 0,
@@ -49,7 +50,10 @@ class CouponSeeder extends Seeder
         ];
 
         foreach ($coupons as $coupon) {
-            Coupon::firstOrCreate(['code' => $coupon['code']], $coupon);
+            Coupon::query()->firstOrCreate(
+                ['code' => $coupon['code']],
+                $coupon
+            );
         }
     }
 }
