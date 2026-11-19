@@ -1,4 +1,3 @@
-
 <?php
 
 namespace App\Models;
@@ -13,9 +12,6 @@ class CouponRedemption extends Model
 
     protected $table = 'coupon_redemptions';
 
-    /**
-     * Attributes that can be mass assigned.
-     */
     protected $fillable = [
         'coupon_id',
         'order_id',
@@ -24,40 +20,25 @@ class CouponRedemption extends Model
         'status',
     ];
 
-    /**
-     * Attribute casting.
-     */
     protected function casts(): array
     {
         return [
-            'coupon_id' => 'integer',
-            'order_id' => 'integer',
-            'user_id' => 'integer',
             'discount_amount' => 'decimal:2',
         ];
     }
 
-    /**
-     * Coupon associated with this redemption.
-     */
     public function coupon(): BelongsTo
     {
-        return $this->belongsTo(Coupon::class, 'coupon_id');
+        return $this->belongsTo(Coupon::class);
     }
 
-    /**
-     * Order associated with this redemption.
-     */
     public function order(): BelongsTo
     {
-        return $this->belongsTo(Order::class, 'order_id');
+        return $this->belongsTo(Order::class);
     }
 
-    /**
-     * User who redeemed the coupon.
-     */
     public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'user_id');
+        return $this->belongsTo(User::class);
     }
 }
