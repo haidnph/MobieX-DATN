@@ -28,6 +28,10 @@ export const COMPARE_UI = {
     exploreCatalog: 'Khám phá danh sách sản phẩm',
     bestPriceBadge: 'Giá tốt nhất',
     compareInfoCol: 'Thông số kỹ thuật',
+    specTitle: 'Đối chiếu thông số',
+    specSubtitle: 'So sánh chi tiết thông số kỹ thuật, màn hình, hiệu năng và giá bán giữa các thiết bị.',
+    bestPriceLegend: 'Giá tốt nhất trong kỳ',
+    specDiffLegend: 'Thông số có chênh lệch',
     addToCart: 'Thêm vào giỏ',
     inStock: 'Còn hàng',
     outOfStock: 'Tạm hết hàng',
@@ -78,6 +82,10 @@ export const COMPARE_UI = {
     exploreCatalog: 'Explore Products',
     bestPriceBadge: 'Best Value',
     compareInfoCol: 'Specifications',
+    specTitle: 'Spec Comparison',
+    specSubtitle: 'Compare detailed specifications, display, performance, and pricing side by side.',
+    bestPriceLegend: 'Best value price',
+    specDiffLegend: 'Spec difference',
     addToCart: 'Add to Cart',
     inStock: 'In Stock',
     outOfStock: 'Out of Stock',
@@ -128,6 +136,10 @@ export const COMPARE_UI = {
     exploreCatalog: '去挑选商品',
     bestPriceBadge: '最优价格',
     compareInfoCol: '对比项目',
+    specTitle: '参数对比',
+    specSubtitle: '并排对比多款手机的屏幕、处理器性能、影像系统、电池续航及价格配置。',
+    bestPriceLegend: '最优价格',
+    specDiffLegend: '参数差异',
     addToCart: '加入购物车',
     inStock: '现货充足',
     outOfStock: '暂时缺货',
@@ -931,7 +943,7 @@ export default function ProductComparePage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-fade-in">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 animate-fade-in">
       {/* Header Bar */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-outline-variant/20 print:hidden">
         <div>
@@ -1017,12 +1029,13 @@ export default function ProductComparePage() {
       </div>
 
       {/* Comparison Matrix Table */}
-      <div className="overflow-x-auto rounded-3xl border border-outline-variant/25 bg-surface-container-low shadow-md">
-        <table className="w-full text-left border-collapse min-w-[760px] table-fixed">
+      <div className="overflow-x-auto rounded-3xl border border-outline-variant/25 bg-surface-container-low shadow-md scrollbar-thin">
+        <table className="text-left border-collapse" style={{ minWidth: 'max-content', width: '100%' }}>
           {/* Sticky Product Cards Header */}
-          <thead className="sticky top-16 lg:top-20 z-20 backdrop-blur-xl bg-surface-container/95 border-b border-outline-variant/25 shadow-xs">
+          <thead className="sticky top-[104px] lg:top-20 z-20 backdrop-blur-xl bg-surface-container/95 border-b border-outline-variant/25 shadow-xs">
             <tr>
-              <th className="p-4 w-52 md:w-64 text-xs font-bold uppercase tracking-wider text-on-surface-variant align-middle bg-surface-container">
+              {/* Spec label column – sticky on horizontal scroll */}
+              <th className="sticky left-0 z-30 p-4 w-48 md:w-56 min-w-[180px] text-xs font-bold uppercase tracking-wider text-on-surface-variant align-middle bg-surface-container shadow-[2px_0_6px_-2px_rgba(0,0,0,0.08)]">
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-primary text-base">view_column</span>
                   <span>{t.compareInfoCol}</span>
@@ -1037,7 +1050,7 @@ export default function ProductComparePage() {
                 return (
                   <th
                     key={p.id}
-                    className="p-4 w-60 md:w-72 align-top border-l border-outline-variant/15 text-center relative bg-surface-container"
+                    className="p-4 w-64 md:w-72 min-w-[240px] align-top border-l border-outline-variant/15 text-center relative bg-surface-container"
                   >
                     {/* Quick remove button */}
                     <button
@@ -1050,46 +1063,59 @@ export default function ProductComparePage() {
                       <span className="material-symbols-outlined text-base">close</span>
                     </button>
 
-                    <div className="flex flex-col items-center">
-                      <Link to={`/products/${p.slug || p.id}`} className="group block mb-2 w-full">
-                        {/* High-speed Image container */}
+                    {/* Unified product card — 6 fixed-height zones */}
+                    <div className="flex flex-col items-center h-full">
+
+                      {/* Zone 1: Image */}
+                      <Link to={`/products/${p.slug || p.id}`} className="group block w-full mb-2">
                         <div className="w-24 h-24 md:w-28 md:h-28 mx-auto rounded-2xl overflow-hidden bg-surface-container-highest/60 p-2 flex items-center justify-center group-hover:scale-105 transition-transform duration-300 shadow-xs border border-outline-variant/20">
                           <CompareImage src={primaryImg} alt={p.name} className="w-full h-full rounded-xl" />
                         </div>
+                      </Link>
 
-                        <span className="text-[11px] font-bold text-primary block mt-2 uppercase tracking-wide">
-                          {p.brand?.name || p.brand_name || 'MobieX'}
-                        </span>
-                        <h3 className="text-xs md:text-sm font-bold text-on-surface group-hover:text-primary transition-colors line-clamp-2 px-1">
+                      {/* Zone 2: Brand — fixed 1-line height */}
+                      <span className="h-4 text-[11px] font-bold text-primary block uppercase tracking-wide truncate w-full text-center">
+                        {p.brand?.name || p.brand_name || 'MobieX'}
+                      </span>
+
+                      {/* Zone 3: Product name — reserved 2-line height with line-clamp */}
+                      <Link to={`/products/${p.slug || p.id}`} className="group w-full mt-1 mb-1.5">
+                        <h3 className="h-10 text-xs md:text-sm font-bold text-on-surface group-hover:text-primary transition-colors line-clamp-2 px-1 text-center leading-5">
                           {p.name}
                         </h3>
                       </Link>
 
-                      {/* Pricing with Best Price badge */}
-                      <div className="mb-2.5 flex flex-col items-center gap-1">
-                        <div className="text-sm md:text-base font-extrabold text-primary">
-                          {formatCurrencyVND(price)}
-                        </div>
-                        {isBestPrice && (
+                      {/* Zone 4: Badge area — fixed height so absent badge = same height */}
+                      <div className="h-6 flex items-center justify-center mb-1">
+                        {isBestPrice ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10px] font-extrabold uppercase tracking-wide">
                             <span className="material-symbols-outlined text-[12px]">verified</span>
                             {t.bestPriceBadge}
                           </span>
+                        ) : (
+                          <span className="invisible text-[10px]">placeholder</span>
                         )}
                       </div>
 
-                      {/* Add to Cart button */}
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        className="w-full text-xs rounded-xl shadow-xs print:hidden"
-                        loading={addingToCartId === p.id}
-                        disabled={addingToCartId === p.id}
-                        onClick={() => handleQuickAddToCart(p)}
-                      >
-                        <span className="material-symbols-outlined text-base">add_shopping_cart</span>
-                        {t.addToCart}
-                      </Button>
+                      {/* Zone 5: Price — fixed height */}
+                      <div className="h-7 flex items-center justify-center font-extrabold text-sm md:text-base text-primary mb-2">
+                        {formatCurrencyVND(price)}
+                      </div>
+
+                      {/* Zone 6: Add to Cart button — mt-auto keeps it at the bottom baseline */}
+                      <div className="mt-auto w-full pt-1">
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          className="w-full text-xs rounded-xl shadow-xs print:hidden cursor-pointer"
+                          loading={addingToCartId === p.id}
+                          disabled={addingToCartId === p.id}
+                          onClick={() => handleQuickAddToCart(p)}
+                        >
+                          <span className="material-symbols-outlined text-base">add_shopping_cart</span>
+                          {t.addToCart}
+                        </Button>
+                      </div>
                     </div>
                   </th>
                 )
@@ -1097,11 +1123,11 @@ export default function ProductComparePage() {
 
               {/* Add slot placeholder if fewer than 4 */}
               {displayProducts.length < maxItems && (
-                <th className="p-4 w-48 md:w-56 align-middle border-l border-outline-variant/15 text-center bg-surface-container/30 print:hidden">
+                <th className="p-4 w-52 md:w-56 min-w-[200px] align-middle border-l border-outline-variant/15 text-center bg-surface-container/30 print:hidden">
                   <button
                     type="button"
                     onClick={() => setShowSearchModal(true)}
-                    className="w-full py-10 border-2 border-dashed border-outline-variant/50 hover:border-primary rounded-2xl flex flex-col items-center justify-center gap-2 text-on-surface-variant hover:text-primary active:scale-[0.99] cursor-pointer transition-all group hover:bg-primary/[0.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    className="w-full h-full min-h-[260px] border-2 border-dashed border-outline-variant/50 hover:border-primary rounded-2xl flex flex-col items-center justify-center gap-2 text-on-surface-variant hover:text-primary active:scale-[0.99] cursor-pointer transition-all group hover:bg-primary/[0.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   >
                     <div className="w-10 h-10 rounded-full bg-primary/10 group-hover:bg-primary/20 flex items-center justify-center text-primary transition-colors">
                       <span className="material-symbols-outlined text-xl">add</span>
@@ -1123,7 +1149,7 @@ export default function ProductComparePage() {
                 <tr className="bg-surface-container/70">
                   <td
                     colSpan={displayProducts.length + 1 + (displayProducts.length < maxItems ? 1 : 0)}
-                    className="p-3.5 text-xs font-bold text-primary uppercase tracking-wider"
+                    className="p-3.5 pl-4 text-xs font-bold text-primary uppercase tracking-wider border-l-4 border-primary/40"
                   >
                     {t.sections.overview}
                   </td>
@@ -1132,7 +1158,7 @@ export default function ProductComparePage() {
                 {/* Field: Brand */}
                 {(!onlyDifferences || isBrandDiff) && (
                   <tr className={isBrandDiff && onlyDifferences ? 'bg-primary/[0.04]' : ''}>
-                    <td className="p-4 font-semibold text-on-surface-variant bg-surface-container/30 flex items-center justify-between gap-2">
+                    <td className="sticky left-0 z-10 p-4 font-semibold text-on-surface-variant bg-surface-container/50 flex items-center justify-between gap-2 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)] min-w-[180px]">
                       <span>{t.fields.brand}</span>
                       {isBrandDiff && (
                         <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase tracking-tighter shrink-0">
@@ -1162,7 +1188,7 @@ export default function ProductComparePage() {
                 {/* Field: Commercial Selling Variants */}
                 {(!onlyDifferences || isVariantsDiff) && (
                   <tr className={isVariantsDiff && onlyDifferences ? 'bg-primary/[0.04]' : ''}>
-                    <td className="p-4 font-semibold text-on-surface-variant bg-surface-container/30 flex items-center justify-between gap-2">
+                    <td className="sticky left-0 z-10 p-4 font-semibold text-on-surface-variant bg-surface-container/50 flex items-center justify-between gap-2 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)] min-w-[180px]">
                       <span>{t.fields.variants}</span>
                       {isVariantsDiff && (
                         <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase tracking-tighter shrink-0">
@@ -1195,7 +1221,7 @@ export default function ProductComparePage() {
                 {/* Field: Stock Status */}
                 {(!onlyDifferences || isStockDiff) && (
                   <tr className={isStockDiff && onlyDifferences ? 'bg-primary/[0.04]' : ''}>
-                    <td className="p-4 font-semibold text-on-surface-variant bg-surface-container/30 flex items-center justify-between gap-2">
+                    <td className="sticky left-0 z-10 p-4 font-semibold text-on-surface-variant bg-surface-container/50 flex items-center justify-between gap-2 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)] min-w-[180px]">
                       <span>{t.fields.stock}</span>
                       {isStockDiff && (
                         <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase tracking-tighter shrink-0">
@@ -1237,7 +1263,7 @@ export default function ProductComparePage() {
               // Shimmer skeleton rows while fetching deep specs
               Array.from({ length: 6 }).map((_, sIdx) => (
                 <tr key={`skeleton-${sIdx}`} className="animate-pulse">
-                  <td className="p-4 bg-surface-container/30">
+                  <td className="sticky left-0 z-10 p-4 bg-surface-container/50 min-w-[180px] shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)]">
                     <div className="h-4 bg-surface-container-highest rounded-md w-3/4" />
                   </td>
                   {displayProducts.map((p) => (
@@ -1266,7 +1292,7 @@ export default function ProductComparePage() {
                   <tr className="bg-surface-container/70">
                     <td
                       colSpan={displayProducts.length + 1 + (displayProducts.length < maxItems ? 1 : 0)}
-                      className="p-3.5 text-xs font-bold text-primary uppercase tracking-wider"
+                      className="p-3.5 pl-4 text-xs font-bold text-primary uppercase tracking-wider border-l-4 border-primary/40"
                     >
                       {group.title}
                     </td>
@@ -1277,7 +1303,7 @@ export default function ProductComparePage() {
                     const diff = hasDifference(def.code)
                     return (
                       <tr key={def.code} className={diff ? 'bg-primary/[0.04]' : ''}>
-                        <td className="p-4 font-semibold text-on-surface-variant bg-surface-container/30 flex items-center justify-between gap-2">
+                        <td className="sticky left-0 z-10 p-4 font-semibold text-on-surface-variant bg-surface-container/50 flex items-center justify-between gap-2 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)] min-w-[180px]">
                           <span>{def.name}</span>
                           {diff && (
                             <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase tracking-tighter shrink-0">
