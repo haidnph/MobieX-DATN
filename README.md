@@ -1,111 +1,276 @@
-# 📱 MOBIEX E-COMMERCE PLATFORM (FPT POLYTECHNIC DATN)
+# 📱 MOBIEX — Nền Tảng Thương Mại Điện Tử Thiết Bị Di Động
 
 > **Dự án:** Nền tảng Thương mại Điện tử Thiết bị Di động & Công nghệ MobieX  
-> **Kiến trúc:** Phân tách hoàn toàn (Decoupled Architecture) — **Backend RESTful API** (Laravel 12) + **Frontend Single Page Application** (React 18 + Vite + Tailwind CSS v4).
+> **Kiến trúc:** Phân tách hoàn toàn (Decoupled Architecture) — **Backend RESTful API** (Laravel 13) + **Frontend Single Page Application** (React 18 + Vite + Tailwind CSS v4).
 
 ---
 
-## 🏗️ 1. TỔNG QUAN KIẾN TRÚC TOÀN HỆ THỐNG
+## ⚡ Quick Start (5 phút)
 
-Dự án MobieX được thiết kế theo tiêu chuẩn hiện đại, loại bỏ hoàn toàn mã nguồn Monolithic cũ để phân định rõ ràng trách nhiệm giữa Frontend và Backend:
+### Windows (One-Click)
+
+```bat
+# Chạy setup tự động (CMD)
+setup.bat
+
+# Hoặc PowerShell
+.\setup.ps1
+```
+
+### Thủ công (macOS / Linux / Windows)
+
+```bash
+# Backend
+cd backend
+composer install
+cp .env.example .env        # Trên Windows: copy .env.example .env
+php artisan mobiex:setup    # migrate + seed + storage:link tự động
+
+# Frontend
+cd ../frontend
+npm install
+```
+
+### Khởi động server
+
+```bash
+# Terminal 1 — Backend API
+cd backend
+php artisan serve
+# → http://127.0.0.1:8000
+
+# Terminal 2 — Frontend SPA
+cd frontend
+npm run dev
+# → http://localhost:5173
+```
+
+---
+
+## 👤 Demo Accounts
+
+| Role | Email | Password |
+|------|-------|----------|
+| **Super Admin** | `superadmin@gmail.com` | `superadmin1234567890` |
+| **Admin** | `admin@mobilex.tech` | `AdminPass123456!` |
+| **Customer** | `customer@mobilex.tech` | `Password123456!` |
+
+---
+
+## 🏗️ Kiến Trúc Hệ Thống
 
 ```
 MobieX-DATN/
-  ├── backend/           # 🔵 Dịch vụ API Backend (Laravel 12 REST API, Sanctum, RBAC, Eloquent ORM)
-  │   ├── app/           # Models, Http Controllers, Services, FormRequests
-  │   ├── config/        # vnpay.php, rbac.php, cors.php, auth.php
-  │   ├── database/      # Migrations 45 bảng Canonical, Seeders dữ liệu chuẩn
-  │   ├── routes/        # api.php (toàn bộ REST endpoints công khai và admin)
-  │   ├── tests/         # Bộ kiểm thử tự động toàn diện (425 tests passed)
-  │   └── api.json       # Hợp đồng chuẩn OpenAPI v3.1 (Single Source of Truth)
-  │
-  ├── frontend/          # 🔴 Ứng dụng Client Single Page Application (React 18 + Vite + Tailwind CSS)
-  │   ├── src/
-  │   │   ├── api/       # axiosClient.js (Bearer token, 401 handler, 422 flattener), endpoints.js
-  │   │   ├── components/# Common UI (Button, Input, Modal, Badge, Spinner, Pagination)
-  │   │   ├── contexts/  # AuthContext, CartContext, ToastContext
-  │   │   ├── features/  # Feature-Driven Modules (auth, catalog, cart, checkout, orders, admin)
-  │   │   ├── layouts/   # StorefrontLayout, AdminLayout
-  │   │   └── routes/    # AppRoutes, ProtectedRoute, PermissionRoute
-  │   ├── vite.config.js # Reverse Proxy /api -> port 8000
-  │   └── index.html
-  │
-  └── docs/              # 📚 Tài liệu kỹ thuật, hướng dẫn sandbox VNPay, hợp đồng API
+├── setup.bat              # 🪟 Windows one-click setup
+├── setup.ps1              # 🪟 PowerShell setup (hỗ trợ -Fresh, -SkipFrontend)
+├── backend/               # 🔵 Laravel 13 REST API
+│   ├── app/
+│   │   ├── Console/Commands/MobieXSetupCommand.php   # php artisan mobiex:setup
+│   │   ├── Http/Controllers/                          # API Controllers
+│   │   ├── Models/                                    # Eloquent Models (48 tables)
+│   │   ├── Services/                                  # Business Logic
+│   │   └── Mail/OrderConfirmationMail.php             # Order email
+│   ├── database/
+│   │   ├── migrations/    # 33 migration files
+│   │   └── seeders/       # 16 seeders (1,283 products, 15 categories, ...)
+│   ├── .env.example       # Template môi trường
+│   └── api.json           # OpenAPI v3.1 contract
+├── frontend/              # 🔴 React 18 + Vite + Tailwind CSS v4
+│   ├── src/
+│   │   ├── features/      # auth, catalog, cart, checkout, orders, admin
+│   │   ├── contexts/      # AuthContext, CartContext, ToastContext
+│   │   └── routes/        # AppRoutes, ProtectedRoute, PermissionRoute
+│   └── vite.config.js     # Proxy /api → :8000
+└── docs/                  # 📚 Tài liệu kỹ thuật
 ```
 
 ---
 
-## ⚡ 2. CÁC TÍNH NĂNG ĐẶC TẢ CỐT LÕI
+## 🔧 Yêu Cầu Hệ Thống
 
-### 🛒 Dành cho Khách hàng (Storefront)
-- **Khám phá sản phẩm:** Danh mục động, Hero slider banners, tìm kiếm debounced, bộ lọc hãng/khoảng giá/bộ nhớ và phân trang đồng bộ qua URL.
-- **Chi tiết sản phẩm & Biến thể:** Chọn màu sắc/dung lượng, cập nhật giá và tồn kho khả dụng thời gian thực (`available_quantity`), xem review đã kiểm duyệt.
-- **Giỏ hàng & Khuyến mãi:** Tăng giảm số lượng có chặn vượt tồn kho, áp dụng mã voucher chiết khấu tiền mặt hoặc phần trăm.
-- **Thanh toán linh hoạt:** Đặt hàng COD hoặc chuyển hướng thanh toán trực tuyến qua Cổng VNPay Sandbox với xác thực HMAC-SHA512.
-- **Quản lý đơn hàng:** Theo dõi dòng thời gian (timeline), hủy đơn hàng tự động hoàn kho khi còn ở trạng thái `pending`, viết bài đánh giá 1-5 sao sau khi đơn hoàn tất (`delivered`).
+| Công cụ | Phiên bản tối thiểu | Khuyến nghị |
+|---------|---------------------|-------------|
+| PHP | 8.2+ | 8.3 |
+| Composer | 2.x | 2.9+ |
+| MySQL / MariaDB | 8.0+ | MySQL 8.0 |
+| Node.js | 18+ | 24 LTS |
+| npm | 9+ | 11+ |
 
-### 🛡️ Dành cho Quản trị viên (Admin Portal)
-- **Bảng điều khiển (Dashboard):** Đo lường doanh thu thực thu (`settled`), doanh thu theo ngày, số đơn chờ và cảnh báo cạn kho (`≤ 5`). Biểu đồ doanh số 7 ngày.
-- **State Machine Đơn hàng một chiều:** `Pending ➔ Confirmed ➔ Processing ➔ Shipping ➔ Delivered`. Xuất kho thực tế (`dispatch`) tại mốc `shipping`, giải phóng kho giữ chỗ khi `cancelled`.
-- **Quản lý Mã giảm giá (Coupons):** CRUD toàn diện chiến dịch voucher, giới hạn lượt dùng, đơn tối thiểu và hạn sử dụng.
-- **Quản lý Sản phẩm & Banners:** CRUD thiết bị, tự động tạo slug chuẩn SEO, điều chỉnh hình ảnh tiếp thị.
-- **Kiểm duyệt Đánh giá (Reviews):** Phê duyệt hoặc ẩn đánh giá của khách hàng trước khi hiển thị ra bên ngoài.
+> **Khuyến nghị:** Dùng [Laragon](https://laragon.org) trên Windows — cung cấp PHP, MySQL và Apache/Nginx trong một gói.
 
 ---
 
-## 🚀 3. HƯỚNG DẪN KHỞI CHẠY DỰ ÁN LOCAL
+## ⚙️ Cấu Hình Môi Trường
 
-### Bước 1: Khởi động Backend API (Laravel 12)
-Yêu cầu: PHP 8.2+, MySQL (Laragon / XAMPP).
-```powershell
+Sao chép `.env.example` → `.env` và điều chỉnh:
+
+```dotenv
+# Database
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=mobiex_unified
+DB_USERNAME=root
+DB_PASSWORD=
+
+# App URL
+APP_URL=http://127.0.0.1:8000
+FRONTEND_URL=http://localhost:5173
+
+# Mail (mặc định: ghi log vào storage/logs/laravel.log)
+MAIL_MAILER=log
+# Production — Gmail SMTP:
+# MAIL_MAILER=smtp
+# MAIL_HOST=smtp.gmail.com
+# MAIL_PORT=587
+# MAIL_USERNAME=your@gmail.com
+# MAIL_PASSWORD=your_app_password
+# MAIL_ENCRYPTION=tls
+
+# Cloud Storage (tùy chọn — mặc định dùng local disk)
+MEDIA_STORAGE_DRIVER=local
+# MEDIA_STORAGE_DRIVER=cloudinary
+# CLOUDINARY_CLOUD_NAME=your_cloud_name
+# CLOUDINARY_API_KEY=your_api_key
+# CLOUDINARY_API_SECRET=your_api_secret
+```
+
+---
+
+## 🚀 Artisan Commands
+
+```bash
+# Setup toàn bộ dự án (recommended cho fresh clone)
+php artisan mobiex:setup
+
+# Reset hoàn toàn database và seed lại (WARNING: xóa toàn bộ data)
+php artisan mobiex:setup --fresh
+
+# Chỉ chạy seeders (database đã migrate rồi)
+php artisan mobiex:setup --seed-only
+
+# Migrate media cũ từ local → Cloudinary
+php artisan media:migrate-to-cloudinary
+```
+
+---
+
+## ⚡ Tính Năng Chính
+
+### 🛒 Storefront (Khách hàng)
+- Trang chủ động với CMS sections (Hero Slider, Categories, Flash Sale, Featured Products, Brand Slider, Trust Services)
+- Danh mục sản phẩm với bộ lọc (hãng, khoảng giá, bộ nhớ), tìm kiếm debounced, phân trang URL
+- Chi tiết sản phẩm: chọn màu/dung lượng, real-time tồn kho, gallery ảnh
+- Giỏ hàng: tăng/giảm số lượng, chặn vượt tồn kho, áp mã voucher
+- Thanh toán: COD + VNPay + ZaloPay + MoMo (tất cả Sandbox)
+- Theo dõi đơn hàng timeline, hủy đơn tự hoàn kho
+- Đánh giá sản phẩm sau khi nhận hàng
+- **Email xác nhận đơn hàng** tự động (HTML responsive, hình ảnh sản phẩm)
+
+### 🛡️ Admin Portal
+- Dashboard: doanh thu, biểu đồ 7 ngày, cảnh báo cạn kho
+- State Machine đơn hàng: `Pending → Confirmed → Processing → Shipping → Delivered`
+- Quản lý sản phẩm, biến thể, hình ảnh (Local + Cloudinary)
+- Quản lý Banner và Homepage CMS (kéo-thả sort order, publish/draft)
+- Quản lý Coupon, Thương hiệu, Danh mục
+- Kiểm duyệt đánh giá
+- RBAC phân quyền chi tiết (super-admin, admin, staff, customer)
+- Resend email xác nhận đơn hàng, xem log email
+
+---
+
+## 🧪 Kiểm Thử
+
+```bash
+# Chạy toàn bộ test suite
 cd backend
-composer install
-cp .env.example .env
-php artisan key:generate
-php artisan migrate --seed
-php artisan serve
-```
-* Backend API hoạt động tại: `http://127.0.0.1:8000`
-* Tài liệu API tương tác (Scramble): `http://127.0.0.1:8000/docs/api`
+php artisan test
 
-### Bước 2: Khởi động Frontend SPA (React 18 + Vite)
-Yêu cầu: Node.js 18+.
-```powershell
+# Backend Unit Tests
+php artisan test --testsuite=Unit
+
+# Backend Feature Tests
+php artisan test --testsuite=Feature
+
+# Frontend Tests (Vitest)
 cd frontend
-npm install
-npm run dev
+npm test
 ```
-* Ứng dụng SPA hoạt động tại: `http://localhost:5173`
-* Tự động proxy các lệnh gọi `/api/*` ngầm sang Backend port 8000.
 
 ---
 
-## 🧪 4. KIỂM THỬ VÀ CHUẨN MỰC MÃ NGUỒN
+## 🌐 API Documentation
 
-* **Kiểm thử tự động Backend:**
-  ```powershell
-  cd backend
-  php artisan test
-  # Kết quả: 425 passed (1,896 assertions) — 100% tỷ lệ đạt
-  ```
-
-* **Kiểm tra định dạng mã nguồn Backend (PSR-12):**
-  ```powershell
-  cd backend
-  vendor\bin\pint --test
-  ```
-
-* **Kiểm tra đóng gói Frontend:**
-  ```powershell
-  cd frontend
-  npm run build
-  # Kết quả: ✓ built in ~250ms (0 errors, 0 warnings)
-  ```
+Sau khi khởi động backend server, truy cập:
+- **Interactive API Docs (Scramble):** http://127.0.0.1:8000/docs/api
+- **OpenAPI JSON Contract:** [`backend/api.json`](backend/api.json)
 
 ---
 
-## 👥 5. THÀNH VIÊN VÀ QUY ƯỚC NHÁNH (GIT WORKFLOW)
+## 💳 Payment Sandbox Credentials
 
-- Toàn bộ tính năng phát triển dựa trên nhánh `develop`.
-- Quy chuẩn Commit: Theo chuẩn Conventional Commits (`feat(...)`, `fix(...)`, `chore(...)`).
-- Merge: Sử dụng phương thức **Squash and Merge** để lịch sử cam kết luôn phẳng, tường minh và chuyên nghiệp.
+Các credentials dưới đây là **public test credentials**, an toàn để commit:
+
+| Gateway | Key | Value |
+|---------|-----|-------|
+| VNPay | TMN Code | `CGXZLS0Z` |
+| VNPay | Hash Secret | `XNBCJFAKAZQSGTARRLGCHVZWCIOIGSHN` |
+| ZaloPay | App ID | `2554` |
+| MoMo | Partner Code | `MOMOBKUN20180529` |
+
+---
+
+## 📦 Database & Seed Data
+
+Sau khi chạy `php artisan migrate --seed` hoặc `mobiex:setup`, database sẽ có:
+
+| Bảng | Số lượng | Ghi chú |
+|------|----------|---------|
+| `products` | ~1,283 | Điện thoại, tablet, phụ kiện |
+| `product_variants` | ~1,265 | Màu sắc, bộ nhớ |
+| `product_images` | ~1,304 | URL Unsplash HTTPS |
+| `categories` | 15 | Điện thoại, Tablet, Laptop, ... |
+| `brands` | 13 | Apple, Samsung, Xiaomi, ... |
+| `banners` | 3+ | Hero slider |
+| `homepage_sections` | 9 | CMS sections (Hero, Flash Sale, ...) |
+| `coupons` | 3 | Demo voucher codes |
+| `users` | 3 | admin, superadmin, customer |
+
+---
+
+## 🔀 Git Workflow
+
+- **Nhánh chính:** `develop`
+- **Commit convention:** Conventional Commits (`feat(...)`, `fix(...)`, `chore(...)`)
+- **Merge strategy:** Squash and Merge
+
+---
+
+## 🛠️ Troubleshooting
+
+**Lỗi kết nối database:**
+```
+SQLSTATE[HY000] [2002] No connection could be made
+```
+→ Khởi động MySQL (Laragon: nhấn Start All)
+
+**Lỗi APP_KEY empty:**
+```bash
+php artisan key:generate
+```
+
+**Lỗi public/storage không tồn tại:**
+```bash
+php artisan storage:link
+```
+
+**Lỗi CORS khi gọi API từ frontend:**
+→ Kiểm tra `FRONTEND_URL` trong `.env` trùng với địa chỉ frontend đang chạy
+
+**Queue job không xử lý (email không gửi):**
+```bash
+# Chạy queue worker thủ công
+php artisan queue:work
+
+# Hoặc đổi sang sync driver (email gửi ngay, không cần queue worker)
+# QUEUE_CONNECTION=sync  ← trong .env
+```
