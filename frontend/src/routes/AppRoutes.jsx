@@ -34,6 +34,7 @@ const ZaloPayPage       = lazy(() => import('../features/checkout/ZaloPayPage'))
 const ZaloPayReturnPage = lazy(() => import('../features/checkout/ZaloPayReturnPage'))
 const MoMoPage          = lazy(() => import('../features/checkout/MoMoPage'))
 const MoMoReturnPage    = lazy(() => import('../features/checkout/MoMoReturnPage'))
+const BankTransferPage  = lazy(() => import('../features/checkout/BankTransferPage'))
 
 // Orders
 const OrderHistoryPage  = lazy(() => import('../features/orders/OrderHistoryPage'))
@@ -165,6 +166,14 @@ export default function AppRoutes() {
             element={
               <ProtectedRoute>
                 <MoMoPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="payment/bank-transfer"
+            element={
+              <ProtectedRoute>
+                <BankTransferPage />
               </ProtectedRoute>
             }
           />
