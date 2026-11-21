@@ -666,12 +666,16 @@ class PaymentController extends Controller
             ]);
         }
 
-        if (($mmResult['status'] ?? '') === 'failed' || empty($mmResult['order_url'])) {
+        if (($mmResult['status'] ?? '') === 'failed' || (empty($mmResult['qr_code_url']) && empty($mmResult['deeplink']))) {
             return response()->json([
                 'message' => $mmResult['message'] ?? 'Không thể khởi tạo cổng thanh toán MoMo.',
                 'error' => $mmResult['message'] ?? 'Lỗi kết nối cổng thanh toán MoMo',
             ], 422);
         }
+
+        $momoConfig = config('payment_accounts.momo');
+        $momoPhone = $momoConfig['phone'];
+        $momoName = $momoConfig['name'];
 
         return response()->json([
             'message' => 'Tạo đơn thanh toán MoMo thành công.',
@@ -680,10 +684,13 @@ class PaymentController extends Controller
                 'order_id' => $order->id,
                 'order_code' => $order->order_code,
                 'amount' => (float) $order->total_amount,
-                'order_url' => $mmResult['order_url'],
-                'payment_url' => $mmResult['order_url'],
+                'order_url' => $mmResult['order_url'] ?? null,
+                'payment_url' => $mmResult['order_url'] ?? null,
                 'qr_code_url' => $mmResult['qr_code_url'] ?? null,
                 'deeplink' => $mmResult['deeplink'] ?? null,
+                'momo_phone' => $momoPhone,
+                'momo_name' => $momoName,
+                'transfer_content' => $order->order_code,
                 'order' => [
                     'id' => $order->id,
                     'order_code' => $order->order_code,
@@ -725,8 +732,17 @@ class PaymentController extends Controller
                 $order = Order::find((int) $parts[2]);
             }
         }
-        if (! $order && $request->filled('id')) {
-            $order = Order::find((int) $request->query('id'));
+        $payment = $order
+            ? Payment::where('order_id', $order->id)->where('method', 'momo')->first()
+            : null;
+        if ($isSuccess && (
+            ! $order ||
+            $order->payment_method !== 'momo' ||
+            abs((float) $order->total_amount - $amount) >= 0.01 ||
+            ! $payment ||
+            ! hash_equals((string) $payment->gateway_transaction_id, $orderIdParam)
+        )) {
+            return response()->json(['status' => 'error', 'message' => 'Thông tin giao dịch MoMo không khớp đơn hàng.'], 422);
         }
 
         if ($order && $isSuccess && $order->payment_status !== 'paid') {
@@ -820,6 +836,17 @@ class PaymentController extends Controller
                 'resultCode' => 11,
                 'message' => 'Order not found',
             ]);
+        }
+
+        $callbackAmount = (float) ($payload['amount'] ?? 0);
+        $payment = Payment::where('order_id', $order->id)->where('method', 'momo')->first();
+        if (
+            $order->payment_method !== 'momo' ||
+            abs((float) $order->total_amount - $callbackAmount) >= 0.01 ||
+            ! $payment ||
+            ! hash_equals((string) $payment->gateway_transaction_id, $orderIdParam)
+        ) {
+            return response()->json(['resultCode' => 99, 'message' => 'Payment details do not match the order.'], 400);
         }
 
         if ($order->payment_status === 'paid') {
@@ -916,5 +943,426 @@ class PaymentController extends Controller
         CouponRedemption::where('order_id', $order->id)
             ->where('status', 'reserved')
             ->update(['status' => 'consumed']);
+    }
+
+    /**
+     * Get central payment accounts config for frontend display.
+     */
+    public function getPaymentConfig(): JsonResponse
+    {
+        $bank = config('payment_accounts.bank');
+        $momo = config('payment_accounts.momo');
+
+        return response()->json([
+            'status' => true,
+            'data' => [
+                'bank' => $bank,
+                'momo' => $momo,
+            ],
+        ]);
+    }
+
+    /**
+     * Khởi tạo thông tin thanh toán chuyển khoản ngân hàng qua VietQR.
+     */
+    public function createBankTransferPayment(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_id' => ['required', 'integer', 'exists:orders,id'],
+        ]);
+
+        $order = Order::with('items')->findOrFail($validated['order_id']);
+
+        if ($order->payment_method !== 'bank_transfer') {
+            return response()->json(['message' => 'Ph??ng th?c thanh to?n c?a ??n h?ng kh?ng ph?i chuy?n kho?n ng?n h?ng.'], 422);
+        }
+
+        if ($request->user() && (int) $order->user_id !== (int) $request->user()->id) {
+            return response()->json([
+                'message' => 'Bạn không có quyền thực hiện thanh toán cho đơn hàng này.',
+            ], 403);
+        }
+
+        if ($order->payment_status === 'paid') {
+            return response()->json([
+                'message' => 'Đơn hàng này đã được thanh toán thành công.',
+                'data' => [
+                    'order' => $order,
+                    'is_paid' => true,
+                ],
+            ]);
+        }
+
+        if ($order->status === 'cancelled') {
+            return response()->json([
+                'message' => 'Không thể thanh toán cho đơn hàng đã bị hủy.',
+            ], 422);
+        }
+
+        // Tạo hoặc lấy bản ghi thanh toán chờ
+        $payment = Payment::firstOrCreate(
+            [
+                'order_id' => $order->id,
+                'method' => 'bank_transfer',
+                'status' => 'pending',
+            ],
+            [
+                'transaction_code' => 'PAY-BANK-'.Str::upper(Str::random(14)),
+                'idempotency_key' => 'bank_order_'.$order->id.'_'.uniqid(),
+                'amount' => $order->total_amount,
+                'currency_code' => 'VND',
+            ]
+        );
+
+        $bankConfig = config('payment_accounts.bank');
+        $bankId = $bankConfig['bank_id'];
+        $bankName = $bankConfig['bank_name'];
+        $accountNumber = $bankConfig['account_number'];
+        $accountName = $bankConfig['account_name'];
+        $template = $bankConfig['qr_template'];
+
+        $amount = (int) round((float) $order->total_amount);
+        $orderCode = $order->order_code;
+        $transferContent = $orderCode;
+
+        // URL tạo mã VietQR tiêu chuẩn
+        $vietQrUrl = sprintf(
+            'https://img.vietqr.io/image/%s-%s-%s.png?amount=%d&addInfo=%s&accountName=%s',
+            urlencode($bankId),
+            urlencode($accountNumber),
+            urlencode($template),
+            $amount,
+            urlencode($transferContent),
+            urlencode($accountName)
+        );
+
+        $isWaitingConfirmation = ! empty(($payment->response_data ?? [])['customer_reported_at']);
+
+        return response()->json([
+            'message' => 'Khởi tạo thông tin thanh toán VietQR thành công.',
+            'data' => [
+                'payment_id' => $payment->id,
+                'order_id' => $order->id,
+                'order_code' => $order->order_code,
+                'amount' => $amount,
+                'bank_id' => $bankId,
+                'bank_name' => $bankName,
+                'account_number' => $accountNumber,
+                'account_name' => $accountName,
+                'transfer_content' => $transferContent,
+                'qr_url' => $vietQrUrl,
+                'payment_status' => $order->payment_status,
+                'order_status' => $order->status,
+                'is_waiting_confirmation' => $isWaitingConfirmation,
+                'order' => [
+                    'id' => $order->id,
+                    'order_code' => $order->order_code,
+                    'grand_total' => $amount,
+                    'status' => $order->status,
+                    'payment_status' => $order->payment_status,
+                ],
+            ],
+        ]);
+    }
+
+    /**
+     * Khách hàng bấm "Tôi đã thanh toán" - Chuyển sang trạng thái chờ xác nhận.
+     * Lưu ý: Không tự ý đánh dấu là đã thanh toán khi khách bấm nút này.
+     */
+    public function confirmBankTransferPaid(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_id' => ['required', 'integer', 'exists:orders,id'],
+        ]);
+
+        $order = Order::findOrFail($validated['order_id']);
+
+        if ($order->payment_method !== 'bank_transfer') {
+            return response()->json(['message' => 'Phương thức thanh toán của đơn hàng không phải chuyển khoản ngân hàng.'], 422);
+        }
+
+        if ($request->user() && (int) $order->user_id !== (int) $request->user()->id) {
+            return response()->json([
+                'message' => 'Bạn không có quyền thực hiện hành động này.',
+            ], 403);
+        }
+
+        if ($order->payment_status === 'paid') {
+            return response()->json([
+                'message' => 'Đơn hàng này đã được xác nhận thanh toán trước đó.',
+                'data' => ['payment_status' => 'paid'],
+            ]);
+        }
+
+        $payment = Payment::where('order_id', $order->id)
+            ->where('method', 'bank_transfer')
+            ->first();
+
+        if ($payment) {
+            $responseData = $payment->response_data ?? [];
+            $responseData['customer_reported_at'] = now()->toIso8601String();
+            $payment->update([
+                'response_data' => $responseData,
+            ]);
+        }
+
+        OrderStatusHistory::create([
+            'order_id' => $order->id,
+            'user_id' => $request->user()?->id,
+            'from_status' => $order->status,
+            'status' => $order->status,
+            'note' => 'Khách hàng thông báo đã chuyển khoản qua VietQR. Đang chờ đối soát biến động số dư.',
+            'created_at' => now(),
+        ]);
+
+        return response()->json([
+            'message' => 'Đã ghi nhận thông báo chuyển khoản. Hệ thống đang chờ đối soát biến động số dư tài khoản.',
+            'data' => [
+                'order_id' => $order->id,
+                'order_code' => $order->order_code,
+                'payment_status' => $order->payment_status,
+                'is_waiting_confirmation' => true,
+            ],
+        ]);
+    }
+
+    /**
+     * Bộ mô phỏng giao dịch ngân hàng (Dành cho kiểm thử ĐATN và Admin).
+     */
+    public function simulateBankTransfer(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_id' => ['required', 'integer', 'exists:orders,id'],
+            'action' => ['required', 'string', 'in:success,failed'],
+            'transaction_no' => ['nullable', 'string', 'max:100'],
+            'note' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $order = Order::with('items')->findOrFail($validated['order_id']);
+
+        if ($order->payment_method !== 'bank_transfer' || $order->status === 'cancelled') {
+            return response()->json(['message' => 'Đơn hàng không thể mô phỏng thanh toán ngân hàng.'], 422);
+        }
+
+        if ($validated['action'] === 'success') {
+            if ($order->payment_status === 'paid') {
+                return response()->json([
+                    'message' => 'Đơn hàng này đã được thanh toán thành công trước đó.',
+                    'data' => ['order' => $order],
+                ]);
+            }
+
+            $transNo = $validated['transaction_no'] ?? ('VCB'.now()->format('YmdHis').rand(100, 999));
+
+            DB::transaction(function () use ($order, $transNo, $validated, $request) {
+                $fromStatus = $order->status;
+                $payment = Payment::firstOrCreate(
+                    [
+                        'order_id' => $order->id,
+                        'method' => 'bank_transfer',
+                    ],
+                    [
+                        'transaction_code' => 'PAY-BANK-'.Str::upper(Str::random(14)),
+                        'idempotency_key' => 'bank_order_'.$order->id.'_'.uniqid(),
+                        'amount' => $order->total_amount,
+                        'currency_code' => 'VND',
+                    ]
+                );
+
+                $payment->update([
+                    'status' => 'success',
+                    'gateway_transaction_id' => $transNo,
+                    'paid_at' => now(),
+                    'response_data' => ['note' => $validated['note'] ?? 'Bank transfer simulation succeeded'],
+                ]);
+
+                $newStatus = $fromStatus === 'pending' ? 'confirmed' : $fromStatus;
+                $order->update([
+                    'payment_status' => 'paid',
+                    'status' => $newStatus,
+                ]);
+
+                $this->markCouponAsConsumed($order);
+
+                OrderStatusHistory::create([
+                    'order_id' => $order->id,
+                    'user_id' => $request->user()?->id,
+                    'from_status' => $fromStatus,
+                    'status' => $newStatus,
+                    'note' => 'Xác nhận thanh toán VietQR thành công (Mã GD: '.$transNo.')',
+                    'created_at' => now(),
+                ]);
+
+                PaymentWebhookEvent::create([
+                    'method' => 'bank_transfer',
+                    'event_key' => 'sim_bank_'.$transNo,
+                    'provider_reference' => $transNo,
+                    'signature_verified' => false,
+                    'processing_status' => 'processed',
+                    'event_payload' => [
+                        'order_id' => $order->id,
+                        'order_code' => $order->order_code,
+                        'amount' => $order->total_amount,
+                        'transaction_no' => $transNo,
+                        'simulated_by' => $request->user()?->email,
+                        'time' => now()->toIso8601String(),
+                    ],
+                    'received_at' => now(),
+                    'processed_at' => now(),
+                ]);
+
+                DB::afterCommit(function () use ($order) {
+                    try {
+                        app(\App\Services\OrderMailService::class)->sendOrderConfirmation($order);
+                    } catch (\Throwable) {}
+                });
+            });
+
+            return response()->json([
+                'message' => 'Mô phỏng xác nhận chuyển khoản ngân hàng thành công!',
+                'data' => [
+                    'order_id' => $order->id,
+                    'order_code' => $order->order_code,
+                    'payment_status' => 'paid',
+                    'order_status' => $order->fresh()->status,
+                    'transaction_no' => $transNo,
+                ],
+            ]);
+        }
+
+        // Action: failed
+        $payment = Payment::where('order_id', $order->id)
+            ->where('method', 'bank_transfer')
+            ->first();
+
+        if ($payment) {
+            $payment->update([
+                'status' => 'failed',
+                'response_data' => ['note' => $validated['note'] ?? 'Bank transfer simulation failed'],
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Mô phỏng giao dịch ngân hàng thất bại.',
+            'data' => [
+                'order_id' => $order->id,
+                'payment_status' => 'failed',
+            ],
+        ]);
+    }
+
+    /**
+     * Bộ mô phỏng thanh toán MoMo Sandbox (Dành cho kiểm thử ĐATN).
+     */
+    public function simulateMoMoPayment(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_id' => ['required', 'integer', 'exists:orders,id'],
+            'action' => ['required', 'string', 'in:success,failed'],
+            'trans_id' => ['nullable', 'string', 'max:50'],
+        ]);
+
+        $order = Order::with('items')->findOrFail($validated['order_id']);
+
+        if ($order->payment_method !== 'momo' || $order->status === 'cancelled') {
+            return response()->json(['message' => 'Đơn hàng không thể mô phỏng thanh toán MoMo.'], 422);
+        }
+
+        if ($validated['action'] === 'success') {
+            if ($order->payment_status === 'paid') {
+                return response()->json([
+                    'message' => 'Đơn hàng này đã được thanh toán thành công trước đó.',
+                    'data' => ['order' => $order],
+                ]);
+            }
+
+            $transId = $validated['trans_id'] ?? ((string) time().rand(100, 999));
+
+            DB::transaction(function () use ($order, $transId, $request) {
+                $fromStatus = $order->status;
+                $payment = Payment::firstOrCreate(
+                    [
+                        'order_id' => $order->id,
+                        'method' => 'momo',
+                    ],
+                    [
+                        'transaction_code' => 'PAY-MM-'.Str::upper(Str::random(14)),
+                        'idempotency_key' => 'momo_order_'.$order->id.'_'.uniqid(),
+                        'amount' => $order->total_amount,
+                        'currency_code' => 'VND',
+                    ]
+                );
+
+                $payment->update([
+                    'status' => 'success',
+                    'gateway_transaction_id' => $transId,
+                    'paid_at' => now(),
+                    'response_data' => ['note' => 'MoMo payment simulation succeeded'],
+                ]);
+
+                $newStatus = $fromStatus === 'pending' ? 'confirmed' : $fromStatus;
+                $order->update([
+                    'payment_status' => 'paid',
+                    'status' => $newStatus,
+                ]);
+
+                $this->markCouponAsConsumed($order);
+
+                OrderStatusHistory::create([
+                    'order_id' => $order->id,
+                    'user_id' => $request->user()?->id,
+                    'from_status' => $fromStatus,
+                    'status' => $newStatus,
+                    'note' => 'Thanh toán MoMo thành công (Mô phỏng Sandbox - Mã GD: '.$transId.')',
+                    'created_at' => now(),
+                ]);
+
+                PaymentWebhookEvent::create([
+                    'method' => 'momo',
+                    'event_key' => 'sim_mm_'.$transId,
+                    'provider_reference' => $transId,
+                    'signature_verified' => false,
+                    'processing_status' => 'processed',
+                    'event_payload' => [
+                        'order_id' => $order->id,
+                        'trans_id' => $transId,
+                        'amount' => $order->total_amount,
+                    ],
+                    'received_at' => now(),
+                    'processed_at' => now(),
+                ]);
+
+                DB::afterCommit(function () use ($order) {
+                    try {
+                        app(\App\Services\OrderMailService::class)->sendOrderConfirmation($order);
+                    } catch (\Throwable) {}
+                });
+            });
+
+            return response()->json([
+                'message' => 'Mô phỏng thanh toán MoMo thành công!',
+                'data' => [
+                    'order_id' => $order->id,
+                    'order_code' => $order->order_code,
+                    'payment_status' => 'paid',
+                    'order_status' => $order->fresh()->status,
+                    'trans_id' => $transId,
+                ],
+            ]);
+        }
+
+        // Failed
+        $payment = Payment::where('order_id', $order->id)->where('method', 'momo')->first();
+        if ($payment) {
+            $payment->update([
+                'status' => 'failed',
+                'response_data' => ['note' => 'MoMo payment simulation failed'],
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Mô phỏng thanh toán MoMo thất bại.',
+            'data' => ['payment_status' => 'failed'],
+        ]);
     }
 }
