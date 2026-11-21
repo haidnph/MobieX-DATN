@@ -179,6 +179,8 @@ export default function CheckoutPage() {
       } else if (form.payment_method === 'momo') {
         // Redirect to MoMo initiate page
         navigate(`/payment/momo?order_id=${order.id}`)
+      } else if (form.payment_method === 'bank_transfer') {
+        navigate(`/payment/bank-transfer?order_id=${order.id}`)
       } else {
         // COD order created successfully
         showToast('Đặt hàng thành công!', 'success')
@@ -457,6 +459,31 @@ export default function CheckoutPage() {
             </div>
 
             <div className="space-y-3">
+              <div
+                role="radio"
+                aria-checked={form.payment_method === 'bank_transfer'}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setForm((prev) => ({ ...prev, payment_method: 'bank_transfer' }))
+                  }
+                }}
+                onClick={() => setForm((prev) => ({ ...prev, payment_method: 'bank_transfer' }))}
+                className={`p-4 rounded-2xl border cursor-pointer transition-all space-y-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${form.payment_method === 'bank_transfer' ? 'border-primary bg-primary/5 ring-2 ring-primary/20 shadow-md' : 'border-outline-variant/30 bg-surface-container-low hover:border-outline'}`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <input type="radio" name="payment_method" value="bank_transfer" checked={form.payment_method === 'bank_transfer'} onChange={handleChange} className="text-primary focus:ring-primary w-4 h-4" />
+                    <div>
+                      <p className="text-sm font-bold text-on-surface">Chuyển khoản ngân hàng</p>
+                      <p className="text-xs text-on-surface-variant">Quét VietQR, thông tin đơn hàng và số tiền được điền sẵn.</p>
+                    </div>
+                  </div>
+                  <span className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0"><span className="material-symbols-outlined text-2xl">account_balance</span></span>
+                </div>
+              </div>
+
               {/* Option 1: VNPay Gateway (Featured / Recommended) */}
               <div
                 role="radio"
@@ -847,7 +874,9 @@ export default function CheckoutPage() {
               className="w-full"
               loading={submitting}
             >
-              {form.payment_method === 'vnpay'
+              {form.payment_method === 'bank_transfer'
+                ? 'Tạo đơn và hiển thị QR ngân hàng'
+                : form.payment_method === 'vnpay'
                 ? 'Thanh toán qua VNPay'
                 : form.payment_method === 'zalopay'
                   ? 'Thanh toán qua ZaloPay'
