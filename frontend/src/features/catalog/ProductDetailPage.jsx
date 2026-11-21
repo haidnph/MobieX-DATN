@@ -210,7 +210,7 @@ export default function ProductDetailPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 md:px-8 lg:px-16 py-8 pb-24 md:pb-8 space-y-12">
+    <div className="w-full px-4 sm:px-6 lg:px-10 xl:px-12 py-8 pb-24 md:pb-8 space-y-12">
       {/* Breadcrumbs */}
       <nav className="flex items-center gap-2 text-sm text-on-surface-variant">
         <Link to="/" className="hover:text-on-surface transition-colors">Trang chủ</Link>

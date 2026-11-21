@@ -26,7 +26,7 @@ function SkeletonCard() {
 
 function PageLoadingSkeleton() {
   return (
-    <div className="max-w-7xl mx-auto px-4 md:px-8 lg:px-16 py-6 space-y-12 animate-pulse">
+    <div className="w-full px-4 sm:px-6 lg:px-10 xl:px-12 py-6 space-y-12 animate-pulse">
       <div className="h-72 md:h-96 rounded-2xl bg-surface-container" />
       <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
         {Array.from({ length: 6 }).map((_, i) => (
@@ -505,7 +505,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 md:px-8 lg:px-16 py-6 space-y-12">
+    <div className="w-full px-4 sm:px-6 lg:px-10 xl:px-12 py-6 space-y-12">
       {sections.map((section, idx) => {
         // Enforce rule: Section disabled in Admin must NOT appear
         if (!section.is_active) return null

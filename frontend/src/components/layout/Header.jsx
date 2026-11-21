@@ -661,7 +661,7 @@ export default function Header() {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-surface/90 backdrop-blur-xl border-b border-outline-variant/20 shadow-sm transition-colors duration-200">
       {/* ── DESKTOP & TABLET HEADER (Single Row, Height 80px) ── */}
-      <div className="hidden lg:flex h-20 w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 items-center justify-between gap-4">
+      <div className="hidden lg:flex h-20 w-full px-4 sm:px-6 lg:px-10 xl:px-12 items-center justify-between gap-4">
         {/* ── GROUP A: LOGO, SEARCH & NAVIGATION ── */}
         <div className="flex items-center gap-3 xl:gap-5 flex-1 min-w-0">
           {/* 1. MobileX Logo (Navigates to Home; Home menu item is removed) */}
