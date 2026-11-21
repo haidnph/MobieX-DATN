@@ -50,17 +50,23 @@ const EP = {
   SHIPPING_METHODS: '/shipping-methods',
 
   // ── Payments ──────────────────────────────────────────
+  PAYMENT_CONFIG: '/payments/config',
   PAYMENT_VNPAY_CREATE: '/payments/vnpay/create',
   PAYMENT_VNPAY_RETURN: '/payments/vnpay/return',
   PAYMENT_ZALOPAY_CREATE: '/payments/zalopay/create',
   PAYMENT_ZALOPAY_RETURN: '/payments/zalopay/return',
   PAYMENT_MOMO_CREATE: '/payments/momo/create',
   PAYMENT_MOMO_RETURN: '/payments/momo/return',
+  PAYMENT_BANK_CREATE: '/payments/bank-transfer/create',
+  PAYMENT_BANK_CONFIRM_PAID: '/payments/bank-transfer/confirm-paid',
 
   // ── Admin: Orders ─────────────────────────────────────
   ADMIN_ORDERS: '/admin/orders',
   ADMIN_ORDER_DETAIL: (id) => `/admin/orders/${id}`,
   ADMIN_ORDER_STATUS: (id) => `/admin/orders/${id}/status`,
+  ADMIN_CONFIRM_BANK_TRANSFER: (id) => `/admin/orders/${id}/confirm-bank-transfer`,
+  ADMIN_SIMULATE_BANK_PAYMENT: '/admin/payments/bank-transfer/simulate',
+  ADMIN_SIMULATE_MOMO_PAYMENT: '/admin/payments/momo/simulate',
 
   // ── Admin: Coupons ────────────────────────────────────
   ADMIN_COUPONS: '/admin/coupons',
