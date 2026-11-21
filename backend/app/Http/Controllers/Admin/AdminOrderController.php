@@ -279,4 +279,92 @@ class AdminOrderController extends Controller
             'data' => $logs,
         ]);
     }
+
+    /**
+     * Admin xác nhận đã nhận tiền chuyển khoản ngân hàng (VietQR).
+     */
+    public function confirmBankTransfer(Request $request, int|string $id): JsonResponse
+    {
+        $order = Order::with('items')->findOrFail($id);
+
+        if ($order->payment_status === 'paid') {
+            return response()->json([
+                'message' => 'Đơn hàng này đã được xác nhận thanh toán trước đó.',
+                'data' => $order,
+            ]);
+        }
+
+        if ($order->payment_method !== 'bank_transfer') {
+            return response()->json(['message' => 'Đơn hàng không sử dụng chuyển khoản ngân hàng.'], 422);
+        }
+
+        $userId = $request->user()->id;
+        $adminName = $request->user()->name;
+        $note = $request->input('note', "Quản trị viên {$adminName} xác nhận đã khớp lệnh chuyển khoản ngân hàng");
+        $transNo = $request->input('transaction_no', 'VCB-ADM-'.now()->format('YmdHis'));
+
+        DB::transaction(function () use ($order, $userId, $note, $transNo) {
+            $fromStatus = $order->status;
+            $payment = \App\Models\Payment::firstOrCreate(
+                [
+                    'order_id' => $order->id,
+                    'method' => 'bank_transfer',
+                ],
+                [
+                    'transaction_code' => 'PAY-BANK-'.\Illuminate\Support\Str::upper(\Illuminate\Support\Str::random(14)),
+                    'idempotency_key' => 'bank_order_'.$order->id.'_'.uniqid(),
+                    'amount' => $order->total_amount,
+                    'currency_code' => 'VND',
+                ]
+            );
+
+            $payment->update([
+                'status' => 'success',
+                'gateway_transaction_id' => $transNo,
+                'paid_at' => now(),
+                'response_data' => ['note' => $note],
+            ]);
+
+            $newStatus = $fromStatus === 'pending' ? 'confirmed' : $fromStatus;
+            $order->update([
+                'payment_status' => 'paid',
+                'status' => $newStatus,
+            ]);
+
+            // Consume coupon
+            if ($order->coupon_id) {
+                $coupon = \App\Models\Coupon::whereKey($order->coupon_id)->lockForUpdate()->first();
+                if ($coupon) {
+                    $coupon->reserved_count = max(0, (int) $coupon->reserved_count - 1);
+                    $coupon->used_count += 1;
+                    $coupon->save();
+                }
+                \App\Models\CouponRedemption::where('order_id', $order->id)
+                    ->where('status', 'reserved')
+                    ->update(['status' => 'consumed']);
+            }
+
+            \App\Models\OrderStatusHistory::create([
+                'order_id' => $order->id,
+                'user_id' => $userId,
+                'from_status' => $fromStatus,
+                'status' => $newStatus,
+                'note' => "Admin duyệt thanh toán VietQR: {$note} (Mã GD: {$transNo})",
+                'created_at' => now(),
+            ]);
+
+            DB::afterCommit(function () use ($order) {
+                try {
+                    app(\App\Services\OrderMailService::class)->sendOrderConfirmation($order);
+                } catch (\Throwable) {}
+            });
+        });
+
+        $order->load(['items.variant.product', 'statusHistories.user', 'payments']);
+
+        return response()->json([
+            'message' => 'Xác nhận thanh toán chuyển khoản ngân hàng thành công.',
+            'data' => $order,
+        ]);
+    }
 }
