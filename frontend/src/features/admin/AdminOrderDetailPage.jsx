@@ -8,6 +8,7 @@ import EP from '../../api/endpoints'
 import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
 import { formatDateTime } from '../../utils/formatDate'
 import { useToast } from '../../contexts/ToastContext'
+import { useAuth } from '../../contexts/AuthContext'
 import Badge from '../../components/common/Badge'
 import Button from '../../components/common/Button'
 import Spinner from '../../components/common/Spinner'
@@ -34,6 +35,7 @@ const VALID_TRANSITIONS = {
 export default function AdminOrderDetailPage() {
   const { id } = useParams()
   const { showToast } = useToast()
+  const { hasPermission, isAdmin } = useAuth()
 
   const [order, setOrder] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -42,6 +44,7 @@ export default function AdminOrderDetailPage() {
   const [nextStatus, setNextStatus] = useState('')
   const [transitionNote, setTransitionNote] = useState('')
   const [updating, setUpdating] = useState(false)
+  const [simulatingPayment, setSimulatingPayment] = useState(false)
 
   const fetchOrder = () => {
     setLoading(true)
@@ -79,6 +82,22 @@ export default function AdminOrderDetailPage() {
       showToast(err.message || 'Không thể cập nhật trạng thái đơn hàng', 'error')
     } finally {
       setUpdating(false)
+    }
+  }
+
+  const handleSimulatePayment = async (action) => {
+    const endpoint = order.payment_method === 'momo'
+      ? EP.ADMIN_SIMULATE_MOMO_PAYMENT
+      : EP.ADMIN_SIMULATE_BANK_PAYMENT
+    setSimulatingPayment(true)
+    try {
+      await axiosClient.post(endpoint, { order_id: order.id, action })
+      showToast(action === 'success' ? 'Đã mô phỏng thanh toán thành công.' : 'Đã mô phỏng giao dịch thất bại.', action === 'success' ? 'success' : 'info')
+      fetchOrder()
+    } catch (err) {
+      showToast(err.message || 'Không thể mô phỏng thanh toán.', 'error')
+    } finally {
+      setSimulatingPayment(false)
     }
   }
 
@@ -260,6 +279,23 @@ export default function AdminOrderDetailPage() {
 
         {/* Right: State Machine Workflow Controls (4 cols) */}
         <div className="lg:col-span-4 space-y-6">
+          {['bank_transfer', 'momo'].includes(order.payment_method) && order.payment_status !== 'paid' && (isAdmin() || hasPermission('orders.manage')) && (
+            <div className="bg-amber-500/5 rounded-2xl border border-amber-500/25 p-5 space-y-3">
+              <div>
+                <h3 className="text-sm font-bold text-on-surface">Mô phỏng thanh toán (ĐATN)</h3>
+                <p className="text-xs text-on-surface-variant mt-1">Chỉ quản trị viên có quyền xác nhận kết quả kiểm thử.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Button type="button" variant="primary" size="sm" loading={simulatingPayment} disabled={simulatingPayment} onClick={() => handleSimulatePayment('success')}>
+                  Thành công
+                </Button>
+                <Button type="button" variant="outline" size="sm" loading={simulatingPayment} disabled={simulatingPayment} onClick={() => handleSimulatePayment('failed')}>
+                  Thất bại
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="bg-surface-container rounded-2xl border border-outline-variant/20 p-6 space-y-5">
             <div>
               <h3 className="text-base font-bold text-on-surface">Cập nhật trạng thái đơn</h3>
