@@ -943,7 +943,7 @@ export default function ProductComparePage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 animate-fade-in">
+    <div className="w-full px-4 sm:px-6 lg:px-10 xl:px-12 py-10 lg:py-12 space-y-8 lg:space-y-10 animate-fade-in">
       {/* Header Bar */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-outline-variant/20 print:hidden">
         <div>
@@ -957,7 +957,7 @@ export default function ProductComparePage() {
               {compareItems.length}/{maxItems} {t.deviceCountSuffix}
             </span>
           </h1>
-          <p className="text-xs md:text-sm text-on-surface-variant mt-1 max-w-2xl">{t.subtitle}</p>
+          <p className="text-sm md:text-base text-on-surface-variant mt-3 max-w-2xl leading-relaxed">{t.subtitle}</p>
         </div>
 
         {/* Toolbar */}
@@ -1041,7 +1041,7 @@ export default function ProductComparePage() {
           <thead className="sticky top-[104px] lg:top-20 z-20 backdrop-blur-xl bg-surface-container/95 border-b border-outline-variant/25 shadow-xs">
             <tr>
               {/* Spec label column – sticky on horizontal scroll */}
-              <th className="sticky left-0 z-30 p-2.5 sm:p-4 w-28 sm:w-48 md:w-56 min-w-[110px] sm:min-w-[180px] text-[11px] sm:text-xs font-bold uppercase tracking-wider text-on-surface-variant align-middle bg-surface-container shadow-[2px_0_6px_-2px_rgba(0,0,0,0.08)]">
+              <th className="sticky left-0 z-30 p-4 sm:p-6 w-36 sm:w-56 md:w-64 min-w-[145px] sm:min-w-[215px] text-xs sm:text-sm font-bold uppercase tracking-wider text-on-surface-variant align-middle bg-surface-container shadow-[2px_0_6px_-2px_rgba(0,0,0,0.08)]">
                 <div className="flex items-center gap-1.5 sm:gap-2">
                   <span className="material-symbols-outlined text-primary text-sm sm:text-base">view_column</span>
                   <span>{t.compareInfoCol}</span>
@@ -1056,7 +1056,7 @@ export default function ProductComparePage() {
                 return (
                   <th
                     key={p.id}
-                    className="p-2.5 sm:p-4 w-44 sm:w-64 md:w-72 min-w-[170px] sm:min-w-[240px] align-top border-l border-outline-variant/15 text-center relative bg-surface-container"
+                    className="p-4 sm:p-6 w-56 sm:w-72 md:w-80 min-w-[220px] sm:min-w-[280px] align-top border-l border-outline-variant/15 text-center relative bg-surface-container"
                   >
                     {/* Quick remove button */}
                     <button
@@ -1086,7 +1086,7 @@ export default function ProductComparePage() {
 
                       {/* Zone 3: Product name — reserved 2-line height with line-clamp */}
                       <Link to={`/products/${p.slug || p.id}`} className="group w-full mt-1 mb-1.5">
-                        <h3 className="h-9 sm:h-10 text-[11px] sm:text-xs md:text-sm font-bold text-on-surface group-hover:text-primary transition-colors line-clamp-2 px-1 text-center leading-4 sm:leading-5">
+                        <h3 className="min-h-12 text-sm sm:text-base font-bold text-on-surface group-hover:text-primary transition-colors line-clamp-2 px-1 text-center leading-6">
                           {p.name}
                         </h3>
                       </Link>
@@ -1129,7 +1129,7 @@ export default function ProductComparePage() {
 
               {/* Add slot placeholder if fewer than 4 */}
               {displayProducts.length < maxItems && (
-                <th className="p-2.5 sm:p-4 w-36 sm:w-52 md:w-56 min-w-[140px] sm:min-w-[200px] align-middle border-l border-outline-variant/15 text-center bg-surface-container/30 print:hidden">
+                <th className="p-4 sm:p-6 w-48 sm:w-60 min-w-[190px] sm:min-w-[230px] align-middle border-l border-outline-variant/15 text-center bg-surface-container/30 print:hidden">
                   <button
                     type="button"
                     onClick={() => setShowSearchModal(true)}
@@ -1148,14 +1148,14 @@ export default function ProductComparePage() {
           </thead>
 
           {/* Table Body */}
-          <tbody className="divide-y divide-outline-variant/10 text-xs md:text-sm">
+          <tbody className="divide-y divide-outline-variant/10 text-sm md:text-base">
             {/* Section 1: Overview & Pricing (Shown if Full Compare or if any overview field differs) */}
             {(!onlyDifferences || isBrandDiff || isVariantsDiff || isStockDiff) && (
               <>
                 <tr className="bg-surface-container/70">
                   <td
                     colSpan={displayProducts.length + 1 + (displayProducts.length < maxItems ? 1 : 0)}
-                    className="p-3.5 pl-4 text-xs font-bold text-primary uppercase tracking-wider border-l-4 border-primary/40"
+                    className="px-5 py-5 sm:px-7 text-sm font-bold text-primary uppercase tracking-wider border-l-4 border-primary/40"
                   >
                     {t.sections.overview}
                   </td>
@@ -1164,7 +1164,7 @@ export default function ProductComparePage() {
                 {/* Field: Brand */}
                 {(!onlyDifferences || isBrandDiff) && (
                   <tr className={isBrandDiff && onlyDifferences ? 'bg-primary/[0.04]' : ''}>
-                    <td className="sticky left-0 z-10 p-2.5 sm:p-4 font-semibold text-on-surface-variant bg-surface-container/50 flex items-center justify-between gap-1.5 sm:gap-2 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)] w-28 sm:w-48 md:w-56 min-w-[110px] sm:min-w-[180px] text-xs sm:text-sm">
+                    <td className="sticky left-0 z-10 p-4 sm:p-6 font-semibold text-on-surface-variant bg-surface-container/50 flex items-center justify-between gap-2 sm:gap-3 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)] w-36 sm:w-56 md:w-64 min-w-[145px] sm:min-w-[215px] text-sm sm:text-base">
                       <span>{t.fields.brand}</span>
                       {isBrandDiff && (
                         <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase tracking-tighter shrink-0">
@@ -1175,7 +1175,7 @@ export default function ProductComparePage() {
                     {displayProducts.map((p) => (
                       <td
                         key={p.id}
-                        className={`p-2.5 sm:p-4 text-center border-l border-outline-variant/10 font-medium ${
+                        className={`p-4 sm:p-6 text-center border-l border-outline-variant/10 font-medium ${
                           isBrandDiff ? 'text-primary font-bold' : 'text-on-surface'
                         }`}
                       >
@@ -1194,7 +1194,7 @@ export default function ProductComparePage() {
                 {/* Field: Commercial Selling Variants */}
                 {(!onlyDifferences || isVariantsDiff) && (
                   <tr className={isVariantsDiff && onlyDifferences ? 'bg-primary/[0.04]' : ''}>
-                    <td className="sticky left-0 z-10 p-2.5 sm:p-4 font-semibold text-on-surface-variant bg-surface-container/50 flex items-center justify-between gap-1.5 sm:gap-2 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)] w-28 sm:w-48 md:w-56 min-w-[110px] sm:min-w-[180px] text-xs sm:text-sm">
+                    <td className="sticky left-0 z-10 p-4 sm:p-6 font-semibold text-on-surface-variant bg-surface-container/50 flex items-center justify-between gap-2 sm:gap-3 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)] w-36 sm:w-56 md:w-64 min-w-[145px] sm:min-w-[215px] text-sm sm:text-base">
                       <span>{t.fields.variants}</span>
                       {isVariantsDiff && (
                         <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase tracking-tighter shrink-0">
@@ -1203,7 +1203,7 @@ export default function ProductComparePage() {
                       )}
                     </td>
                     {displayProducts.map((p) => (
-                      <td key={p.id} className="p-2.5 sm:p-4 text-center border-l border-outline-variant/10">
+                      <td key={p.id} className="p-4 sm:p-6 text-center border-l border-outline-variant/10">
                         {p.variants && p.variants.length > 0 ? (
                           <div className="flex flex-col gap-1 items-center">
                             {p.variants.map((v) => (
@@ -1227,7 +1227,7 @@ export default function ProductComparePage() {
                 {/* Field: Stock Status */}
                 {(!onlyDifferences || isStockDiff) && (
                   <tr className={isStockDiff && onlyDifferences ? 'bg-primary/[0.04]' : ''}>
-                    <td className="sticky left-0 z-10 p-2.5 sm:p-4 font-semibold text-on-surface-variant bg-surface-container/50 flex items-center justify-between gap-1.5 sm:gap-2 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)] w-28 sm:w-48 md:w-56 min-w-[110px] sm:min-w-[180px] text-xs sm:text-sm">
+                    <td className="sticky left-0 z-10 p-4 sm:p-6 font-semibold text-on-surface-variant bg-surface-container/50 flex items-center justify-between gap-2 sm:gap-3 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)] w-36 sm:w-56 md:w-64 min-w-[145px] sm:min-w-[215px] text-sm sm:text-base">
                       <span>{t.fields.stock}</span>
                       {isStockDiff && (
                         <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase tracking-tighter shrink-0">
@@ -1243,7 +1243,7 @@ export default function ProductComparePage() {
                       const hasStock = totalStock > 0 || !p.variants || p.variants.length === 0
 
                       return (
-                        <td key={p.id} className="p-2.5 sm:p-4 text-center border-l border-outline-variant/10">
+                        <td key={p.id} className="p-4 sm:p-6 text-center border-l border-outline-variant/10">
                           {hasStock ? (
                             <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -1269,11 +1269,11 @@ export default function ProductComparePage() {
               // Shimmer skeleton rows while fetching deep specs
               Array.from({ length: 6 }).map((_, sIdx) => (
                 <tr key={`skeleton-${sIdx}`} className="animate-pulse">
-                  <td className="sticky left-0 z-10 p-2.5 sm:p-4 bg-surface-container/50 w-28 sm:w-48 md:w-56 min-w-[110px] sm:min-w-[180px] shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)]">
+                  <td className="sticky left-0 z-10 p-4 sm:p-6 bg-surface-container/50 w-36 sm:w-56 md:w-64 min-w-[145px] sm:min-w-[215px] shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)]">
                     <div className="h-4 bg-surface-container-highest rounded-md w-3/4" />
                   </td>
                   {displayProducts.map((p) => (
-                    <td key={p.id} className="p-2.5 sm:p-4 text-center border-l border-outline-variant/10">
+                    <td key={p.id} className="p-4 sm:p-6 text-center border-l border-outline-variant/10">
                       <div className="h-4 bg-surface-container-highest rounded-md w-1/2 mx-auto" />
                     </td>
                   ))}
@@ -1298,7 +1298,7 @@ export default function ProductComparePage() {
                   <tr className="bg-surface-container/70">
                     <td
                       colSpan={displayProducts.length + 1 + (displayProducts.length < maxItems ? 1 : 0)}
-                      className="p-3.5 pl-4 text-xs font-bold text-primary uppercase tracking-wider border-l-4 border-primary/40"
+                      className="px-5 py-5 sm:px-7 text-sm font-bold text-primary uppercase tracking-wider border-l-4 border-primary/40"
                     >
                       {group.title}
                     </td>
@@ -1309,7 +1309,7 @@ export default function ProductComparePage() {
                     const diff = hasDifference(def.code)
                     return (
                       <tr key={def.code} className={diff ? 'bg-primary/[0.04]' : ''}>
-                        <td className="sticky left-0 z-10 p-2.5 sm:p-4 font-semibold text-on-surface-variant bg-surface-container/50 flex items-center justify-between gap-1.5 sm:gap-2 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)] w-28 sm:w-48 md:w-56 min-w-[110px] sm:min-w-[180px] text-xs sm:text-sm">
+                        <td className="sticky left-0 z-10 p-4 sm:p-6 font-semibold text-on-surface-variant bg-surface-container/50 flex items-center justify-between gap-2 sm:gap-3 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)] w-36 sm:w-56 md:w-64 min-w-[145px] sm:min-w-[215px] text-sm sm:text-base">
                           <span>{def.name}</span>
                           {diff && (
                             <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase tracking-tighter shrink-0">
@@ -1322,7 +1322,7 @@ export default function ProductComparePage() {
                           return (
                             <td
                               key={p.id}
-                              className={`p-2.5 sm:p-4 text-center border-l border-outline-variant/10 font-medium ${
+                              className={`p-4 sm:p-6 text-center border-l border-outline-variant/10 font-medium ${
                                 diff ? 'text-primary font-bold' : 'text-on-surface'
                               }`}
                             >
