@@ -110,6 +110,7 @@ class OrderConfirmationMail extends Mailable implements ShouldQueue
             'vnpay' => 'Cổng thanh toán VNPay',
             'zalopay' => 'Ví điện tử ZaloPay',
             'momo' => 'Ví điện tử MoMo',
+            'bank_transfer' => 'Chuyển khoản ngân hàng (VietQR)',
             default => strtoupper((string) $this->order->payment_method),
         };
     }
