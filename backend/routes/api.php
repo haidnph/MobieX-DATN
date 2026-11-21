@@ -714,13 +714,23 @@ Route::middleware([
 
     Route::post('/payments/momo/create', [PaymentController::class, 'createMoMoPayment'])
         ->name('api.payments.momo.create');
+
+    Route::post('/payments/bank-transfer/create', [PaymentController::class, 'createBankTransferPayment'])
+        ->name('api.payments.bank.create');
+
+    Route::post('/payments/bank-transfer/confirm-paid', [PaymentController::class, 'confirmBankTransferPaid'])
+        ->name('api.payments.bank.confirm-paid');
+
 });
 
 /*
 |--------------------------------------------------------------------------
-| Payment Callbacks & Webhooks
+| Payment Callbacks & Webhooks & Public Config
 |--------------------------------------------------------------------------
 */
+
+Route::get('/payments/config', [PaymentController::class, 'getPaymentConfig'])
+    ->name('api.payments.config');
 
 Route::get('/payments/vnpay/return', [PaymentController::class, 'vnpayReturn'])
     ->name('api.payments.vnpay.return');
@@ -905,6 +915,18 @@ Route::prefix('admin')
             )
                 ->whereNumber('id')
                 ->name('orders.resend-confirmation-email');
+
+            Route::post(
+                '/orders/{id}/confirm-bank-transfer',
+                [AdminOrderController::class, 'confirmBankTransfer'],
+            )
+                ->whereNumber('id')
+                ->name('orders.confirm-bank-transfer');
+
+            Route::post('/payments/bank-transfer/simulate', [PaymentController::class, 'simulateBankTransfer'])
+                ->name('payments.bank-transfer.simulate');
+            Route::post('/payments/momo/simulate', [PaymentController::class, 'simulateMoMoPayment'])
+                ->name('payments.momo.simulate');
         });
 
         // Admin Coupon Management
