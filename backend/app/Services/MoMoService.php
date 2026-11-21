@@ -74,11 +74,10 @@ class MoMoService
         ];
 
         try {
-            $response = Http::timeout(10)
+            $response = Http::timeout(30)
                 ->withHeaders([
-                    'Content-Type' => 'application/json',
+                    'Content-Type' => 'application/json; charset=UTF-8',
                     'Accept' => 'application/json',
-                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
                 ])
                 ->post($this->endpoint, $payload);
 
@@ -98,47 +97,43 @@ class MoMoService
                     ];
                 }
 
-                Log::warning('MoMo Create Order Gateway Non-Zero: '.json_encode($body));
+                $resultCode = is_array($body) ? ($body['resultCode'] ?? 'unknown') : 'invalid_response';
+                $gatewayMessage = is_array($body) ? ($body['message'] ?? 'MoMo không trả về thông tin thanh toán hợp lệ.') : 'MoMo trả về dữ liệu không hợp lệ.';
+                Log::warning('MoMo create payment rejected', [
+                    'http_status' => $response->status(),
+                    'result_code' => $resultCode,
+                    'message' => $gatewayMessage,
+                ]);
+
+                return [
+                    'status' => 'failed',
+                    'message' => "MoMo từ chối tạo giao dịch (mã {$resultCode}): {$gatewayMessage}",
+                ];
             }
+
+            $body = $response->json();
+            $resultCode = is_array($body) ? ($body['resultCode'] ?? 'unknown') : 'no_result_code';
+            $gatewayMessage = is_array($body) ? ($body['message'] ?? $response->body()) : $response->body();
+            Log::warning('MoMo create payment HTTP error', [
+                'http_status' => $response->status(),
+                'result_code' => $resultCode,
+                'message' => mb_substr((string) $gatewayMessage, 0, 500),
+            ]);
+
+            return [
+                'status' => 'failed',
+                'message' => "MoMo Sandbox trả lỗi HTTP {$response->status()} (mã {$resultCode}). Kiểm tra cấu hình Sandbox và log backend.",
+            ];
         } catch (\Throwable $e) {
-            Log::warning('MoMo Create Order Gateway Exception: '.$e->getMessage());
+            Log::warning('MoMo create payment connection exception', [
+                'exception' => class_basename($e),
+                'message' => mb_substr($e->getMessage(), 0, 500),
+            ]);
         }
 
-        // Sandbox Simulator for isolated local test environments or when gateway firewall restricts local IP
-        $simulatedTransId = (string) (time().rand(100, 999));
-        $simulatedResponseTime = (string) round(microtime(true) * 1000);
-        $simulatedMessage = 'Giao dịch thành công.';
-        $simulatedResultCode = '0';
-        $simulatedOrderType = 'momo_wallet';
-        $simulatedPayType = 'qr';
-
-        $simulatedRaw = "accessKey={$this->accessKey}&amount={$amount}&extraData={$extraData}&message={$simulatedMessage}&orderId={$orderId}&orderInfo={$orderInfo}&orderType={$simulatedOrderType}&partnerCode={$this->partnerCode}&payType={$simulatedPayType}&requestId={$requestId}&responseTime={$simulatedResponseTime}&resultCode={$simulatedResultCode}&transId={$simulatedTransId}";
-        $simulatedSig = hash_hmac('sha256', $simulatedRaw, $this->secretKey);
-
-        $simulatedUrl = $this->returnUrl.'?'.http_build_query([
-            'partnerCode' => $this->partnerCode,
-            'orderId' => $orderId,
-            'requestId' => $requestId,
-            'amount' => $amount,
-            'orderInfo' => $orderInfo,
-            'orderType' => $simulatedOrderType,
-            'transId' => $simulatedTransId,
-            'resultCode' => $simulatedResultCode,
-            'message' => $simulatedMessage,
-            'payType' => $simulatedPayType,
-            'responseTime' => $simulatedResponseTime,
-            'extraData' => $extraData,
-            'signature' => $simulatedSig,
-        ]);
-
         return [
-            'status' => 'success',
-            'order_url' => $simulatedUrl,
-            'pay_url' => $simulatedUrl,
-            'order_id' => $orderId,
-            'request_id' => $requestId,
-            'result_code' => 0,
-            'message' => 'Giao dịch khởi tạo thành công (Chế độ Sandbox Simulator).',
+            'status' => 'failed',
+            'message' => 'MoMo Sandbox is unavailable. Configure valid credentials and a reachable callback URL.',
         ];
     }
 
