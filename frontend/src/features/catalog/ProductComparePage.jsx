@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, Fragment } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useCompare, FALLBACK_PHONE_SVG, getProductThumbnail } from '../../contexts/CompareContext'
 import { useCart } from '../../contexts/CartContext'
@@ -1164,13 +1164,15 @@ export default function ProductComparePage() {
                 {/* Field: Brand */}
                 {(!onlyDifferences || isBrandDiff) && (
                   <tr className={isBrandDiff && onlyDifferences ? 'bg-primary/[0.04]' : ''}>
-                    <td className="sticky left-0 z-10 p-4 sm:p-6 font-semibold text-on-surface-variant bg-surface-container/50 flex items-center justify-between gap-2 sm:gap-3 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)] w-36 sm:w-56 md:w-64 min-w-[145px] sm:min-w-[215px] text-sm sm:text-base">
-                      <span>{t.fields.brand}</span>
-                      {isBrandDiff && (
-                        <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase tracking-tighter shrink-0">
-                          {t.differenceBadge}
-                        </span>
-                      )}
+                    <td className="sticky left-0 z-10 p-4 sm:p-6 font-semibold text-on-surface-variant bg-surface-container/50 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)] w-36 sm:w-56 md:w-64 min-w-[145px] sm:min-w-[215px] text-sm sm:text-base">
+                      <div className="flex items-center justify-between gap-2 sm:gap-3">
+                        <span>{t.fields.brand}</span>
+                        {isBrandDiff && (
+                          <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase tracking-tighter shrink-0">
+                            {t.differenceBadge}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     {displayProducts.map((p) => (
                       <td
@@ -1194,13 +1196,15 @@ export default function ProductComparePage() {
                 {/* Field: Commercial Selling Variants */}
                 {(!onlyDifferences || isVariantsDiff) && (
                   <tr className={isVariantsDiff && onlyDifferences ? 'bg-primary/[0.04]' : ''}>
-                    <td className="sticky left-0 z-10 p-4 sm:p-6 font-semibold text-on-surface-variant bg-surface-container/50 flex items-center justify-between gap-2 sm:gap-3 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)] w-36 sm:w-56 md:w-64 min-w-[145px] sm:min-w-[215px] text-sm sm:text-base">
-                      <span>{t.fields.variants}</span>
-                      {isVariantsDiff && (
-                        <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase tracking-tighter shrink-0">
-                          {t.differenceBadge}
-                        </span>
-                      )}
+                    <td className="sticky left-0 z-10 p-4 sm:p-6 font-semibold text-on-surface-variant bg-surface-container/50 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)] w-36 sm:w-56 md:w-64 min-w-[145px] sm:min-w-[215px] text-sm sm:text-base">
+                      <div className="flex items-center justify-between gap-2 sm:gap-3">
+                        <span>{t.fields.variants}</span>
+                        {isVariantsDiff && (
+                          <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase tracking-tighter shrink-0">
+                            {t.differenceBadge}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     {displayProducts.map((p) => (
                       <td key={p.id} className="p-4 sm:p-6 text-center border-l border-outline-variant/10">
@@ -1227,13 +1231,15 @@ export default function ProductComparePage() {
                 {/* Field: Stock Status */}
                 {(!onlyDifferences || isStockDiff) && (
                   <tr className={isStockDiff && onlyDifferences ? 'bg-primary/[0.04]' : ''}>
-                    <td className="sticky left-0 z-10 p-4 sm:p-6 font-semibold text-on-surface-variant bg-surface-container/50 flex items-center justify-between gap-2 sm:gap-3 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)] w-36 sm:w-56 md:w-64 min-w-[145px] sm:min-w-[215px] text-sm sm:text-base">
-                      <span>{t.fields.stock}</span>
-                      {isStockDiff && (
-                        <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase tracking-tighter shrink-0">
-                          {t.differenceBadge}
-                        </span>
-                      )}
+                    <td className="sticky left-0 z-10 p-4 sm:p-6 font-semibold text-on-surface-variant bg-surface-container/50 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)] w-36 sm:w-56 md:w-64 min-w-[145px] sm:min-w-[215px] text-sm sm:text-base">
+                      <div className="flex items-center justify-between gap-2 sm:gap-3">
+                        <span>{t.fields.stock}</span>
+                        {isStockDiff && (
+                          <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase tracking-tighter shrink-0">
+                            {t.differenceBadge}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     {displayProducts.map((p) => {
                       const totalStock = p.variants?.reduce(
@@ -1293,7 +1299,7 @@ export default function ProductComparePage() {
               </tr>
             ) : (
               groupedDefinitions.map((group) => (
-                <tbody key={group.id} className="divide-y divide-outline-variant/10">
+                <Fragment key={group.id}>
                   {/* Group Section Header */}
                   <tr className="bg-surface-container/70">
                     <td
@@ -1309,13 +1315,15 @@ export default function ProductComparePage() {
                     const diff = hasDifference(def.code)
                     return (
                       <tr key={def.code} className={diff ? 'bg-primary/[0.04]' : ''}>
-                        <td className="sticky left-0 z-10 p-4 sm:p-6 font-semibold text-on-surface-variant bg-surface-container/50 flex items-center justify-between gap-2 sm:gap-3 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)] w-36 sm:w-56 md:w-64 min-w-[145px] sm:min-w-[215px] text-sm sm:text-base">
-                          <span>{def.name}</span>
-                          {diff && (
-                            <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase tracking-tighter shrink-0">
-                              {t.differenceBadge}
-                            </span>
-                          )}
+                        <td className="sticky left-0 z-10 p-4 sm:p-6 font-semibold text-on-surface-variant bg-surface-container/50 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.07)] w-36 sm:w-56 md:w-64 min-w-[145px] sm:min-w-[215px] text-sm sm:text-base">
+                          <div className="flex items-center justify-between gap-2 sm:gap-3">
+                            <span>{def.name}</span>
+                            {diff && (
+                              <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase tracking-tighter shrink-0">
+                                {t.differenceBadge}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         {displayProducts.map((p) => {
                           const specResult = getProductSpec(p, def.code)
@@ -1343,7 +1351,7 @@ export default function ProductComparePage() {
                       </tr>
                     )
                   })}
-                </tbody>
+                </Fragment>
               ))
             )}
           </tbody>
