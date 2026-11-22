@@ -88,7 +88,7 @@ export default function RegisterPage() {
               icon="lock"
               value={form.password}
               onChange={handleChange}
-              placeholder="Tối thiểu 8 ký tự"
+              placeholder="Tối thiểu 15 ký tự"
               error={errors.password?.[0]}
               required
               autoComplete="new-password"
