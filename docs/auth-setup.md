@@ -1,14 +1,45 @@
 # C-01: Tài khoản
 
-## Cấu hình cơ sở dữ liệu
+Ứng dụng dùng frontend React tại `frontend/` và Laravel REST API tại `backend/`. Tài khoản được xác thực qua Sanctum Bearer Token; không dùng các trang PHP/PDO `?page=login` hoặc `?page=register`.
 
-1. Khởi động MySQL trong Laragon.
-2. Import `docs/database/auth.sql` bằng phpMyAdmin hoặc MySQL CLI. Nếu đã tạo database trước đó, import lại để thêm bảng `user_remember_tokens`.
-3. Đặt các biến môi trường `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` cho PHP/Apache. Mặc định dùng `127.0.0.1:3306`, database `mobilex_store`, user `root`, mật khẩu rỗng.
-4. Mở `?page=register` để tạo tài khoản hoặc `?page=login` để đăng nhập.
+## Khởi động local
 
-Mật khẩu được lưu bằng `password_hash`; truy vấn dùng PDO prepared statements; các form có CSRF token; session ID được đổi sau khi xác thực. Tùy chọn ghi nhớ tạo cookie HttpOnly/SameSite với token ngẫu nhiên chỉ lưu dạng hash trong DB và hết hạn sau 30 ngày.
+1. Khởi động MySQL trong Laragon và cấu hình kết nối trong `backend/.env`.
+2. Tạo key và chạy migration nếu đây là lần đầu cài đặt:
 
-## Trạng thái quên mật khẩu
+   ```powershell
+   cd backend
+   php artisan key:generate
+   php artisan migrate --seed
+   ```
 
-Các màn hình `?page=forgot-password` và `?page=reset-password` đã có tuyến và giao diện. Chúng chưa gửi liên kết đặt lại mật khẩu vì dự án chưa cấu hình nhà cung cấp email. Cần cấu hình SMTP/mail transport trước khi bật thao tác gửi token.
+3. Khởi động backend tại cổng `8000`:
+
+   ```powershell
+   php artisan serve --host=127.0.0.1 --port=8000
+   ```
+
+4. Mở terminal khác, khởi động frontend:
+
+   ```powershell
+   cd frontend
+   npm install
+   npm run dev
+   ```
+
+5. Mở `http://localhost:5173`. Vite chuyển tiếp `/api` tới `http://127.0.0.1:8000`.
+
+## API đăng nhập
+
+Frontend gửi `POST /api/auth/login` với JSON:
+
+```json
+{
+  "email": "customer@example.com",
+  "password": "your-password"
+}
+```
+
+Email được trim và chuẩn hóa chữ thường trước khi tra cứu. Thành công trả về `data.user`, `data.token`, `data.token_type` và `data.expires_at`. Frontend lưu token rồi gửi `Authorization: Bearer <token>` cho API cần đăng nhập.
+
+Chi tiết endpoint, response và các mã lỗi nằm trong [backend-auth-api.md](backend-auth-api.md).

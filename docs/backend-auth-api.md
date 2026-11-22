@@ -23,7 +23,7 @@ Các chức năng bao gồm:
 Local development mặc định theo `backend/.env.example`:
 
 ```text
-http://127.0.0.1:8001/api
+http://127.0.0.1:8000/api
 ```
 
 Thay đổi host hoặc port theo cấu hình `APP_URL` của môi trường đang chạy.
@@ -157,7 +157,7 @@ POST /api/auth/login
 - `422 Unprocessable Entity`: missing or invalid email/password input.
 - `429 Too Many Requests`: login rate limit exceeded.
 
-The login endpoint verifies the password against the stored hash. The new minimum password policy applies when setting or changing a password, not when checking an existing credential at login.
+The login endpoint trims and lowercases the email before lookup and verifies the password against the stored hash. Email lookup is case-insensitive across supported database drivers. The new minimum password policy applies when setting or changing a password, not when checking an existing credential at login.
 
 The current implementation uses the same authentication error message for incorrect credentials and inactive accounts.
 
