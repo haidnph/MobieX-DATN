@@ -701,7 +701,7 @@ export default function Header() {
                   }}
                   onKeyDown={handleSearchKeyDown}
                   className="w-full bg-transparent text-sm text-on-surface placeholder:text-outline/80 focus:outline-none"
-                  placeholder={lang === 'zh-CN' ? '搜索商品... (按 / 聚焦)' : lang === 'en' ? 'Search products... (Press /)' : 'Tìm kiếm sản phẩm... (Nhấn /)'}
+                  placeholder={lang === 'zh-CN' ? '搜索商品... (按 / 聚焦)' : lang === 'en' ? 'Search products... (Press /)' : 'Tìm kiếm sản phẩm...'}
                   aria-label={lang === 'zh-CN' ? '搜索商品' : lang === 'en' ? 'Search products' : 'Tìm kiếm sản phẩm'}
                 />
                 <kbd className="hidden xl:inline-block px-1.5 py-0.5 text-[10px] font-mono font-semibold text-outline bg-surface-container rounded border border-outline-variant/30 mr-1 select-none">
@@ -1086,7 +1086,7 @@ export default function Header() {
                 onKeyDown={handleSearchKeyDown}
                 className="w-full bg-transparent text-xs text-on-surface placeholder:text-outline focus:outline-none"
                 placeholder={lang === 'zh-CN' ? '搜索商品...' : lang === 'en' ? 'Search for products...' : 'Tìm kiếm sản phẩm...'}
-                aria-label={lang === 'zh-CN' ? '搜索商品' : lang === 'en' ? 'Search products' : 'Tìm kiếm sản phẩm'}
+                aria-label={lang === 'zh-CN' ? '搜索商品' : lang === 'en' ? 'Search products' : 'Tìm kiếm sản phẩm...'}
               />
               {searchQuery && (
                 <button
