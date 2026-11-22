@@ -57,7 +57,7 @@ axiosClient.interceptors.response.use(
 
     const { status, data } = error.response
 
-    if (status === 401) {
+    if (status === 401 && !error.config?.url?.includes('/auth/login')) {
       // Clear expired session
       storage.clear()
 

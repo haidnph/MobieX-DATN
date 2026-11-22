@@ -43,9 +43,10 @@ class LoginController extends Controller
             );
         }
 
-        $user = User::where(
-            'email',
-            $credentials['email']
+        // Compare case-insensitively across MySQL and SQLite environments.
+        $user = User::whereRaw(
+            'LOWER(email) = ?',
+            [$credentials['email']]
         )->first();
 
         /*
