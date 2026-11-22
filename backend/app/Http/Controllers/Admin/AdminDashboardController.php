@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Inventory;
 use App\Models\Order;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -15,27 +14,26 @@ class AdminDashboardController extends Controller
     /**
      * Get aggregate overview statistics for the admin dashboard.
      */
-    public function stats(): JsonResponse
+    public function stats(Request $request): JsonResponse
     {
-        $today = Carbon::today();
+        [$startDate, $endDate] = $this->dateRange($request);
+        $orders = Order::query()->whereDate('created_at', '>=', $startDate)->whereDate('created_at', '<=', $endDate);
 
         // Settled revenue: Paid orders that are not cancelled or refunded
-        $totalRevenue = (float) Order::where('payment_status', 'paid')
+        $totalRevenue = (float) (clone $orders)->where('payment_status', 'paid')->whereNotIn('status', ['cancelled'])
+            ->sum('total_amount');
+
+        $todayRevenue = (float) (clone $orders)->where('payment_status', 'paid')
             ->whereNotIn('status', ['cancelled'])
             ->sum('total_amount');
 
-        $todayRevenue = (float) Order::where('payment_status', 'paid')
-            ->whereNotIn('status', ['cancelled'])
-            ->whereDate('created_at', $today)
-            ->sum('total_amount');
-
-        $todayOrdersCount = Order::whereDate('created_at', $today)->count();
-        $pendingOrdersCount = Order::where('status', 'pending')->count();
-        $cancelledOrdersCount = Order::where('status', 'cancelled')->count();
-        $totalOrdersCount = Order::count();
+        $todayOrdersCount = (clone $orders)->count();
+        $pendingOrdersCount = (clone $orders)->where('status', 'pending')->count();
+        $cancelledOrdersCount = (clone $orders)->where('status', 'cancelled')->count();
+        $totalOrdersCount = (clone $orders)->count();
 
         // Average order value (AOV) for settled orders
-        $paidOrdersCount = Order::where('payment_status', 'paid')
+        $paidOrdersCount = (clone $orders)->where('payment_status', 'paid')
             ->whereNotIn('status', ['cancelled'])
             ->count();
 
@@ -44,7 +42,7 @@ class AdminDashboardController extends Controller
             : 0.0;
 
         // Order Status Distribution
-        $statusCounts = Order::query()
+        $statusCounts = (clone $orders)
             ->selectRaw('status, COUNT(*) as count')
             ->groupBy('status')
             ->pluck('count', 'status')
@@ -68,14 +66,14 @@ class AdminDashboardController extends Controller
             : 0.0;
 
         // Payment Method Distribution
-        $paymentCounts = Order::query()
+        $paymentCounts = (clone $orders)
             ->whereNotIn('status', ['cancelled'])
             ->selectRaw('payment_method, COUNT(*) as count, SUM(total_amount) as total_amount')
             ->groupBy('payment_method')
             ->get()
             ->keyBy('payment_method');
 
-        $activeOrdersCount = Order::whereNotIn('status', ['cancelled'])->count();
+        $activeOrdersCount = (clone $orders)->whereNotIn('status', ['cancelled'])->count();
         $methods = ['vnpay', 'zalopay', 'momo', 'cod'];
         $paymentMethodDistribution = [];
         foreach ($methods as $m) {
@@ -94,6 +92,8 @@ class AdminDashboardController extends Controller
         $topSellingProducts = DB::table('order_items')
             ->join('orders', 'order_items.order_id', '=', 'orders.id')
             ->whereNotIn('orders.status', ['cancelled'])
+            ->whereDate('orders.created_at', '>=', $startDate)
+            ->whereDate('orders.created_at', '<=', $endDate)
             ->selectRaw('order_items.product_id, order_items.product_name, MAX(order_items.image_path) as image_path, SUM(order_items.quantity) as total_sold, SUM(order_items.price * order_items.quantity) as total_revenue')
             ->groupBy('order_items.product_id', 'order_items.product_name')
             ->orderByDesc('total_sold')
@@ -109,25 +109,6 @@ class AdminDashboardController extends Controller
                 ];
             });
 
-        // Low stock count & list
-        $lowStockQuery = Inventory::query()
-            ->whereRaw('(on_hand_quantity - reserved_quantity) <= min_stock')
-            ->with(['variant.product:id,name']);
-
-        $lowStockCount = $lowStockQuery->count();
-        $lowStockItems = $lowStockQuery->take(10)->get()->map(function ($inv) {
-            return [
-                'inventory_id' => $inv->id,
-                'variant_id' => $inv->product_variant_id,
-                'product_name' => $inv->variant?->product?->name ?? 'N/A',
-                'sku' => $inv->variant?->sku ?? 'N/A',
-                'on_hand_quantity' => (int) $inv->on_hand_quantity,
-                'reserved_quantity' => (int) $inv->reserved_quantity,
-                'available_quantity' => (int) $inv->available_quantity,
-                'min_stock' => (int) $inv->min_stock,
-            ];
-        });
-
         return response()->json([
             'data' => [
                 'total_revenue' => $totalRevenue,
@@ -141,8 +122,8 @@ class AdminDashboardController extends Controller
                 'order_status_distribution' => $orderStatusDistribution,
                 'payment_method_distribution' => $paymentMethodDistribution,
                 'top_selling_products' => $topSellingProducts,
-                'low_stock_count' => $lowStockCount,
-                'low_stock_items' => $lowStockItems,
+                'start_date' => $startDate->toDateString(),
+                'end_date' => $endDate->toDateString(),
             ],
         ]);
     }
@@ -152,15 +133,8 @@ class AdminDashboardController extends Controller
      */
     public function revenueChart(Request $request): JsonResponse
     {
-        $days = (int) $request->query('days', 7);
-        if (! in_array($days, [7, 14, 30, 90], true)) {
-            if ($days < 1 || $days > 90) {
-                $days = 7;
-            }
-        }
-
-        $startDate = Carbon::today()->subDays($days - 1);
-        $endDate = Carbon::today();
+        [$startDate, $endDate] = $this->dateRange($request);
+        $days = $startDate->diffInDays($endDate) + 1;
 
         // Group by date
         $records = Order::where('payment_status', 'paid')
@@ -234,5 +208,29 @@ class AdminDashboardController extends Controller
                 ],
             ],
         ]);
+    }
+
+    /** @return array{Carbon, Carbon} */
+    private function dateRange(Request $request): array
+    {
+        $validated = $request->validate([
+            'start_date' => ['nullable', 'date_format:Y-m-d'],
+            'end_date' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:start_date'],
+            'days' => ['nullable', 'integer', 'min:1', 'max:90'],
+        ]);
+
+        if (! empty($validated['start_date']) && ! empty($validated['end_date'])) {
+            return [Carbon::parse($validated['start_date'])->startOfDay(), Carbon::parse($validated['end_date'])->endOfDay()];
+        }
+
+        $today = Carbon::today();
+        $days = (int) ($validated['days'] ?? 7);
+
+        return match ($request->query('days')) {
+            'month' => [$today->copy()->startOfMonth(), $today->copy()->endOfDay()],
+            'prev_month' => [$today->copy()->subMonthNoOverflow()->startOfMonth(), $today->copy()->startOfMonth()->subSecond()],
+            '2' => [$today->copy()->subDay()->startOfDay(), $today->copy()->subDay()->endOfDay()],
+            default => [$today->copy()->subDays($days - 1)->startOfDay(), $today->copy()->endOfDay()],
+        };
     }
 }

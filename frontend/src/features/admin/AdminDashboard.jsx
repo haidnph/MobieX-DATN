@@ -4,12 +4,10 @@
 // best-selling leaderboard, payment method share, and low-stock telemetry.
 
 import { useEffect, useState, useCallback } from 'react'
-import { Link } from 'react-router-dom'
 import axiosClient from '../../api/axiosClient'
 import EP from '../../api/endpoints'
 import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
 import Spinner from '../../components/common/Spinner'
-import Badge from '../../components/common/Badge'
 import RevenueAreaChart from '../../components/charts/RevenueAreaChart'
 import OrderStatusDonutChart from '../../components/charts/OrderStatusDonutChart'
 import TopSellingLeaderboard from '../../components/dashboard/TopSellingLeaderboard'
@@ -19,20 +17,22 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState(null)
   const [revenueChart, setRevenueChart] = useState([])
   const [chartSummary, setChartSummary] = useState(null)
-  const [days, setDays] = useState(7)
+  const [range, setRange] = useState('7')
+  const [customRange, setCustomRange] = useState({ start: '', end: '' })
+  const [appliedRange, setAppliedRange] = useState(null)
   const [loading, setLoading] = useState(true)
   const [chartLoading, setChartLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
 
   // Fetch all dashboard data
-  const loadDashboard = useCallback(async (selectedDays = 7, isRefresh = false) => {
+  const loadDashboard = useCallback(async (selectedRange = range, isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
     else setChartLoading(true)
 
     try {
       const [statsRes, chartRes] = await Promise.allSettled([
-        axiosClient.get(EP.ADMIN_DASHBOARD_STATS),
-        axiosClient.get(EP.ADMIN_DASHBOARD_REVENUE_CHART, { params: { days: selectedDays } }),
+        axiosClient.get(EP.ADMIN_DASHBOARD_STATS, { params: selectedRange === 'custom' ? appliedRange : { days: Number(selectedRange) } }),
+        axiosClient.get(EP.ADMIN_DASHBOARD_REVENUE_CHART, { params: selectedRange === 'custom' ? appliedRange : { days: Number(selectedRange) } }),
       ])
 
       if (statsRes.status === 'fulfilled') {
@@ -52,22 +52,23 @@ export default function AdminDashboard() {
       setChartLoading(false)
       setRefreshing(false)
     }
-  }, [])
+  }, [range, appliedRange])
 
   // Initial load
   useEffect(() => {
-    loadDashboard(days)
-  }, [loadDashboard, days])
+    loadDashboard(range)
+  }, [loadDashboard, range])
 
   // Handle changing timeframe
   const handleDaysChange = (newDays) => {
-    setDays(newDays)
-    loadDashboard(newDays)
+    setRange(String(newDays))
+    setAppliedRange(null)
+    loadDashboard(String(newDays))
   }
 
   // Handle manual refresh
   const handleRefresh = () => {
-    loadDashboard(days, true)
+    loadDashboard(range, true)
   }
 
   if (loading) {
@@ -78,8 +79,6 @@ export default function AdminDashboard() {
       </div>
     )
   }
-
-  const lowStockItems = stats?.low_stock_items ?? []
 
   return (
     <div className="space-y-6 pb-8">
@@ -128,8 +127,13 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Executive KPI Ribbon (5 Cards) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-outline-variant/20 bg-surface-container p-4">
+        <label className="text-xs text-on-surface-variant">Khoảng thời gian<select value={range} onChange={(event) => { setRange(event.target.value); setAppliedRange(null) }} className="mt-1 block rounded-lg border border-outline-variant/30 bg-surface-container-high px-3 py-2 text-sm text-on-surface"><option value="1">Hôm nay</option><option value="2">Hôm qua</option><option value="7">7 ngày gần nhất</option><option value="14">14 ngày gần nhất</option><option value="30">30 ngày gần nhất</option><option value="90">90 ngày gần nhất</option><option value="month">Tháng này</option><option value="prev_month">Tháng trước</option><option value="custom">Tùy chỉnh</option></select></label>
+        {range === 'custom' && <><label className="text-xs text-on-surface-variant">Từ ngày<input type="date" value={customRange.start} max={customRange.end || undefined} onChange={(event) => setCustomRange((current) => ({ ...current, start: event.target.value }))} className="mt-1 block rounded-lg border border-outline-variant/30 bg-surface-container-high px-3 py-2 text-sm text-on-surface" /></label><label className="text-xs text-on-surface-variant">Đến ngày<input type="date" value={customRange.end} min={customRange.start || undefined} onChange={(event) => setCustomRange((current) => ({ ...current, end: event.target.value }))} className="mt-1 block rounded-lg border border-outline-variant/30 bg-surface-container-high px-3 py-2 text-sm text-on-surface" /></label><button type="button" disabled={!customRange.start || !customRange.end || customRange.start > customRange.end} onClick={() => { setAppliedRange({ start_date: customRange.start, end_date: customRange.end }); loadDashboard('custom') }} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary disabled:opacity-50">Áp dụng</button><button type="button" onClick={() => { setCustomRange({ start: '', end: '' }); setRange('7'); setAppliedRange(null) }} className="rounded-lg border border-outline-variant/30 px-4 py-2 text-sm">Đặt lại</button></>}
+        <span className="text-xs text-on-surface-variant">{appliedRange ? `${appliedRange.start_date} – ${appliedRange.end_date}` : `Đang xem: ${range} ngày gần nhất`}</span>
+      </div>
+      {/* Executive KPI Ribbon */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Settled Revenue */}
         <div className="bg-surface-container rounded-2xl p-4 md:p-5 border border-outline-variant/20 flex flex-col justify-between shadow-xs hover:border-primary/40 transition-colors">
           <div className="flex items-center justify-between text-on-surface-variant">
@@ -199,23 +203,6 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Low Stock Alerts */}
-        <div className="bg-surface-container rounded-2xl p-4 md:p-5 border border-outline-variant/20 flex flex-col justify-between shadow-xs hover:border-error/40 transition-colors">
-          <div className="flex items-center justify-between text-on-surface-variant">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Cảnh báo tồn kho</span>
-            <span className="p-2 rounded-xl bg-error/10 text-error material-symbols-outlined text-xl">
-              warning
-            </span>
-          </div>
-          <div className="mt-3">
-            <h2 className="text-xl md:text-2xl font-black text-error font-mono tracking-tight">
-              {stats?.low_stock_count ?? lowStockItems.length}
-            </h2>
-            <Link to="/admin/inventories" className="text-[11px] text-error hover:underline font-semibold mt-1 block">
-              Biến thể cạn kho (≤ 5) →
-            </Link>
-          </div>
-        </div>
       </div>
 
       {/* Primary Analytics Section (Area/Bar Chart + Donut Status Breakdown) */}
@@ -224,7 +211,7 @@ export default function AdminDashboard() {
         <div className="xl:col-span-8 flex flex-col">
           <RevenueAreaChart
             data={revenueChart}
-            days={days}
+            days={Number(range) || 7}
             onDaysChange={handleDaysChange}
             summary={chartSummary}
             loading={chartLoading}
@@ -250,80 +237,6 @@ export default function AdminDashboard() {
         <PaymentMethodCard distribution={stats?.payment_method_distribution} />
       </div>
 
-      {/* Low Stock Alert Table */}
-      <div className="bg-surface-container rounded-2xl border border-outline-variant/20 overflow-hidden shadow-xs space-y-3">
-        <div className="p-6 pb-2 flex items-center justify-between">
-          <div>
-            <h3 className="text-base font-bold text-on-surface">Cảnh báo Tồn kho Cạn kiệt</h3>
-            <p className="text-xs text-on-surface-variant mt-0.5">
-              Danh sách sản phẩm và biến thể có số lượng tồn khả dụng cần nhập thêm
-            </p>
-          </div>
-          <Badge variant={lowStockItems.length > 0 ? 'error' : 'success'}>
-            {lowStockItems.length} mục
-          </Badge>
-        </div>
-
-        {lowStockItems.length === 0 ? (
-          <div className="p-8 text-center text-sm text-secondary flex items-center justify-center gap-2">
-            <span className="material-symbols-outlined text-lg">check_circle</span>
-            Tất cả sản phẩm hiện đều có số lượng tồn kho an toàn.
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-surface-container-high text-xs uppercase text-on-surface-variant border-b border-outline-variant/20">
-                <tr>
-                  <th className="px-6 py-3 font-semibold">Mã SKU</th>
-                  <th className="px-6 py-3 font-semibold">Sản phẩm / Biến thể</th>
-                  <th className="px-6 py-3 text-center font-semibold">Khả dụng</th>
-                  <th className="px-6 py-3 text-center font-semibold">Tồn thực</th>
-                  <th className="px-6 py-3 text-center font-semibold">Đang giữ</th>
-                  <th className="px-6 py-3 text-right font-semibold">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-outline-variant/10">
-                {lowStockItems.map((item, idx) => (
-                  <tr key={idx} className="hover:bg-surface-container-high/40 transition-colors">
-                    <td className="px-6 py-3 font-mono text-xs font-semibold text-primary">
-                      {item.sku || '—'}
-                    </td>
-                    <td className="px-6 py-3 text-on-surface font-medium">
-                      {item.product_name || item.variant_name || 'Biến thể'}
-                    </td>
-                    <td className="px-6 py-3 text-center">
-                      <span
-                        className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                          (item.available_quantity ?? 0) <= 2
-                            ? 'bg-error-container/30 text-error'
-                            : 'bg-amber-500/15 text-amber-500'
-                        }`}
-                      >
-                        {item.available_quantity ?? 0}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3 text-center text-on-surface-variant font-mono">
-                      {item.on_hand_quantity ?? 0}
-                    </td>
-                    <td className="px-6 py-3 text-center text-outline font-mono">
-                      {item.reserved_quantity ?? 0}
-                    </td>
-                    <td className="px-6 py-3 text-right">
-                      <Link
-                        to={`/admin/inventories?search=${encodeURIComponent(item.sku || item.product_name || '')}`}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-primary-container text-on-primary-container hover:bg-primary hover:text-on-primary text-xs font-semibold transition-colors"
-                      >
-                        <span className="material-symbols-outlined text-sm">add_box</span>
-                        Nhập kho
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
     </div>
   )
 }

@@ -14,8 +14,6 @@ const NAV_ITEMS = [
   { to: '/admin/products',   icon: 'inventory_2',         label: 'Sản phẩm',                   permission: 'products.view' },
   { to: '/admin/categories', icon: 'category',            label: 'Danh mục',                   permission: 'categories.view' },
   { to: '/admin/brands',     icon: 'store',               label: 'Thương hiệu',                permission: 'brands.view' },
-  { to: '/admin/specs',      icon: 'tune',                label: 'Thông số kỹ thuật',          permission: 'products.view' },
-  { to: '/admin/inventories',icon: 'warehouse',           label: 'Kho hàng',                   permission: 'inventory.view' },
   { to: '/admin/users',      icon: 'group',               label: 'Người dùng',                 permission: 'users.view' },
   { to: '/admin/coupons',    icon: 'local_offer',         label: 'Mã giảm giá',                permission: 'coupons.view' },
   { to: '/admin/reviews',    icon: 'rate_review',         label: 'Đánh giá',                   permission: 'reviews.view' },
