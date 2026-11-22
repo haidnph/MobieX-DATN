@@ -72,7 +72,7 @@ class CustomerUserSeeder extends Seeder
             ]
         );
 
-        $superAdmin = User::updateOrCreate(
+        $superAdmin = User::firstOrCreate(
             ['email' => 'superadmin@gmail.com'],
             [
                 'name' => 'Super Admin',
