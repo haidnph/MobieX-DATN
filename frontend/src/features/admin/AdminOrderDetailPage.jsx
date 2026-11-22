@@ -152,11 +152,15 @@ export default function AdminOrderDetailPage() {
               <h3 className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">
                 Khách hàng & Nhận hàng
               </h3>
-              <p className="text-sm font-semibold text-on-surface">{order.recipient_name || order.user?.name}</p>
-              <p className="text-xs text-on-surface-variant">SĐT: {order.recipient_phone || order.phone}</p>
+              <p className="text-sm font-semibold text-on-surface">{order.shipping_name || order.user?.name}</p>
+              <p className="text-xs text-on-surface-variant">SĐT: {order.shipping_phone || order.phone}</p>
               <p className="text-xs text-on-surface-variant">Email: {order.user?.email || '—'}</p>
-              <p className="text-xs text-on-surface-variant leading-relaxed pt-1">
-                Địa chỉ: {order.shipping_address}
+              <p>
+                 Địa chỉ: {[
+                     order.shipping_address_line,
+                      order.shipping_ward_name,
+                      order.shipping_province_name,
+                       ].filter(Boolean).join(', ') || '—'}
               </p>
               {order.note && (
                 <p className="text-xs text-outline italic">Ghi chú khách: {order.note}</p>
