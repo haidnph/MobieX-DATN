@@ -164,6 +164,8 @@ export default function CartPage() {
               const maxStock = variant.inventory?.available_quantity ?? variant.available_quantity ?? 99
               const price = item.price ?? variant.price ?? 0
               const itemTotal = price * item.quantity
+              const activeFlashSale = item.flash_sale
+              const regularPrice = Number(variant.price ?? price)
 
               return (
                 <div key={item.id} className="p-4 md:p-6 flex flex-col sm:flex-row items-center gap-4">
@@ -187,7 +189,7 @@ export default function CartPage() {
                   {/* Info */}
                   <div className="flex-1 min-w-0 text-center sm:text-left space-y-1">
                     <Link
-                      to={`/products/${product.id}`}
+                      to={`/products/${product.id}${activeFlashSale ? `?variant=${variant.id}` : ''}`}
                       className="text-base font-semibold text-on-surface hover:text-primary transition-colors line-clamp-1"
                     >
                       {product.name || 'Sản phẩm'}
@@ -195,9 +197,15 @@ export default function CartPage() {
                     <p className="text-xs text-on-surface-variant">
                       Phiên bản: {variant.name || variant.option_signature || 'Mặc định'}
                     </p>
-                    <p className="text-sm font-bold text-primary">
-                      {formatCurrencyVND(price)}
-                    </p>
+                    <div className="flex items-center justify-center sm:justify-start gap-2">
+                      <p className={`text-sm font-bold ${activeFlashSale ? 'text-error' : 'text-primary'}`}>
+                        {formatCurrencyVND(price)}
+                      </p>
+                      {activeFlashSale && <span className="rounded bg-error/10 px-1.5 py-0.5 text-[10px] font-semibold text-error">Flash Sale</span>}
+                    </div>
+                    {activeFlashSale && regularPrice > price && (
+                      <p className="text-xs text-outline line-through">{formatCurrencyVND(regularPrice)}</p>
+                    )}
                   </div>
 
                   {/* Quantity control */}

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\MediaStorageService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,6 +13,8 @@ class OrderItem extends Model
     use HasFactory;
 
     protected $table = 'order_items';
+
+    protected $hidden = ['cost_price_snapshot'];
 
     protected $fillable = [
         'order_id',
@@ -90,7 +93,7 @@ class OrderItem extends Model
         }
 
         try {
-            $resolved = app(\App\Services\MediaStorageService::class)->url($path);
+            $resolved = app(MediaStorageService::class)->url($path);
             if (str_contains($resolved, 'localhost') || str_contains($resolved, '127.0.0.1')) {
                 return 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?q=80&w=400&auto=format&fit=crop';
             }

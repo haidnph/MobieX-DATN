@@ -7,23 +7,23 @@ use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\Coupon;
 use App\Models\ProductVariant;
+use App\Models\User;
+use App\Services\CouponRules;
+use App\Services\FlashSalePricing;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class CartController extends Controller
 {
+    public function __construct(private readonly CouponRules $couponRules) {}
+
     /**
      * Lấy giỏ hàng của người dùng đang đăng nhập.
      */
     public function index(Request $request): JsonResponse
     {
-        $cart = Cart::firstOrCreate(
-            [
-                'user_id' => $request->user()->id,
-                'status' => 'active',
-            ]
-        );
+        $cart = DB::transaction(fn () => $this->lockActiveCart((int) $request->user()->id, true));
 
         $cart->load([
             'items.variant.product',
@@ -31,9 +31,23 @@ class CartController extends Controller
             'items.variant.inventory',
         ]);
 
-        $items = $cart->items->map(function ($item) {
+        $saleItems = app(FlashSalePricing::class)->activeItemsForVariants(
+            $cart->items->pluck('variant_id')->map(static fn ($id): int => (int) $id)->all(),
+        );
+
+        $items = $cart->items->map(function ($item) use ($saleItems) {
             $variant = $item->variant;
             $product = $variant?->product;
+            $saleItem = $variant ? $saleItems->get($variant->id) : null;
+            $quantity = (int) $item->quantity;
+            $saleAvailable = $saleItem ? app(FlashSalePricing::class)->remainingQuantity($saleItem) : 0;
+            $flashSale = $saleItem && $saleAvailable >= $quantity ? [
+                'id' => $saleItem->flash_sale_id,
+                'end_at' => $saleItem->flashSale->end_at->toIso8601String(),
+                'sale_price' => (float) $saleItem->sale_price,
+                'quantity_remaining' => $saleAvailable,
+            ] : null;
+            $unitPrice = $flashSale ? (float) $saleItem->sale_price : (float) ($variant?->price ?? 0);
 
             return [
                 'id' => $item->id,
@@ -52,6 +66,8 @@ class CartController extends Controller
                     'id' => $variant?->id,
                     'sku' => $variant?->sku,
                     'price' => $variant?->price,
+                    'current_price' => $unitPrice,
+                    'flash_sale' => $flashSale,
                     'name' => $variant?->option_signature,
                     'available_quantity' => $variant?->inventory?->available_quantity ?? $variant?->inventory?->quantity ?? 0,
                     'image_url' => $product?->thumbnail,
@@ -62,11 +78,11 @@ class CartController extends Controller
                         'value' => $value->value,
                     ])
                     ->values(),
-                'price' => (float) ($variant?->price ?? 0),
+                'price' => $unitPrice,
                 'quantity' => $item->quantity,
+                'flash_sale' => $flashSale,
                 'stock_quantity' => $variant?->inventory?->available_quantity ?? $variant?->inventory?->quantity ?? 0,
-                'subtotal' => (float) ($variant?->price ?? 0)
-                    * $item->quantity,
+                'subtotal' => $unitPrice * $quantity,
             ];
         })->values();
 
@@ -78,7 +94,7 @@ class CartController extends Controller
         $couponInvalidReason = null;
 
         if ($request->filled('coupon_code') && $totalAmount > 0) {
-            $inputCode = trim((string) $request->input('coupon_code'));
+            $inputCode = strtoupper(trim((string) $request->input('coupon_code')));
             $coupon = Coupon::where('code', $inputCode)->first();
 
             $now = now();
@@ -92,19 +108,25 @@ class CartController extends Controller
                 $couponInvalidReason = 'Mã giảm giá đã hết hạn sử dụng.';
             } elseif ($coupon->usage_limit !== null && (($coupon->used_count + $coupon->reserved_count) >= $coupon->usage_limit)) {
                 $couponInvalidReason = 'Mã giảm giá đã hết lượt sử dụng.';
-            } elseif ($totalAmount < (float) $coupon->min_order_amount) {
-                $couponInvalidReason = 'Giá trị đơn hàng chưa đạt mức tối thiểu '.number_format((float) $coupon->min_order_amount).' VND để áp dụng mã.';
+            } elseif ($this->couponRules->customerLimitReached($coupon, (int) $request->user()->id)) {
+                $couponInvalidReason = 'Bạn đã sử dụng hết lượt áp dụng mã giảm giá này.';
             } else {
-                if ($coupon->discount_type === 'percent') {
-                    $discount = round(($totalAmount * (float) $coupon->discount_value) / 100, 2);
-                    if ($coupon->max_discount !== null && $discount > (float) $coupon->max_discount) {
-                        $discount = (float) $coupon->max_discount;
-                    }
-                } elseif ($coupon->discount_type === 'fixed') {
-                    $discount = min((float) $coupon->discount_value, $totalAmount);
+                $eligibleSubtotal = $this->couponRules->eligibleSubtotal(
+                    $coupon,
+                    $items,
+                    static fn (array $item): int => (int) ($item['product_id'] ?? 0),
+                    static fn (array $item): float => ! empty($item['flash_sale']) ? 0.0 : (float) ($item['subtotal'] ?? 0),
+                );
+
+                if ($eligibleSubtotal <= 0) {
+                    $couponInvalidReason = 'Mã giảm giá không áp dụng cho sản phẩm trong giỏ hàng.';
+                } elseif ($eligibleSubtotal < (float) $coupon->min_order_amount) {
+                    $couponInvalidReason = 'Giá trị đơn hàng chưa đạt mức tối thiểu '.number_format((float) $coupon->min_order_amount).' VND để áp dụng mã.';
+                } else {
+                    $discount = $this->couponRules->discountAmount($coupon, $eligibleSubtotal);
+                    $couponCode = $coupon->code;
+                    $couponId = $coupon->id;
                 }
-                $couponCode = $coupon->code;
-                $couponId = $coupon->id;
             }
         }
 
@@ -143,6 +165,7 @@ class CartController extends Controller
         ]);
 
         $result = DB::transaction(function () use ($request, $validated) {
+            $cart = $this->lockActiveCart((int) $request->user()->id, true);
             $variant = ProductVariant::with('product')
                 ->whereKey($validated['variant_id'])
                 ->lockForUpdate()
@@ -165,11 +188,6 @@ class CartController extends Controller
                     'code' => 422,
                 ];
             }
-
-            $cart = Cart::firstOrCreate([
-                'user_id' => $request->user()->id,
-                'status' => 'active',
-            ]);
 
             $cartItem = CartItem::where('cart_id', $cart->id)
                 ->where('product_variant_id', $variant->id)
@@ -228,9 +246,7 @@ class CartController extends Controller
         ]);
 
         $result = DB::transaction(function () use ($request, $id, $validated) {
-            $cart = Cart::where('user_id', $request->user()->id)
-                ->where('status', 'active')
-                ->first();
+            $cart = $this->lockActiveCart((int) $request->user()->id);
 
             if (! $cart) {
                 return [
@@ -241,6 +257,7 @@ class CartController extends Controller
 
             $cartItem = CartItem::where('cart_id', $cart->id)
                 ->where('id', $id)
+                ->lockForUpdate()
                 ->first();
 
             if (! $cartItem) {
@@ -310,29 +327,33 @@ class CartController extends Controller
      */
     public function destroy(Request $request, int $id): JsonResponse
     {
-        $cart = Cart::where('user_id', $request->user()->id)
-            ->where('status', 'active')
-            ->first();
+        $deleted = DB::transaction(function () use ($request, $id): bool {
+            $cart = $this->lockActiveCart((int) $request->user()->id);
+            if (! $cart) {
+                return false;
+            }
 
-        if (! $cart) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Không tìm thấy giỏ hàng.',
-            ], 404);
-        }
+            $cartItem = CartItem::query()
+                ->where('cart_id', $cart->id)
+                ->whereKey($id)
+                ->lockForUpdate()
+                ->first();
 
-        $cartItem = CartItem::where('cart_id', $cart->id)
-            ->where('id', $id)
-            ->first();
+            if (! $cartItem) {
+                return false;
+            }
 
-        if (! $cartItem) {
+            $cartItem->delete();
+
+            return true;
+        });
+
+        if (! $deleted) {
             return response()->json([
                 'status' => false,
                 'message' => 'Không tìm thấy sản phẩm trong giỏ hàng.',
             ], 404);
         }
-
-        $cartItem->delete();
 
         return response()->json([
             'status' => true,
@@ -340,22 +361,42 @@ class CartController extends Controller
         ]);
     }
 
-    /**
-     * Xóa toàn bộ sản phẩm khỏi giỏ hàng.
-     */
     public function clear(Request $request): JsonResponse
     {
-        $cart = Cart::where('user_id', $request->user()->id)
-            ->where('status', 'active')
-            ->first();
+        DB::transaction(function () use ($request): void {
+            $cart = $this->lockActiveCart((int) $request->user()->id);
 
-        if ($cart) {
-            $cart->items()->delete();
-        }
+            if ($cart) {
+                $items = $cart->items()->lockForUpdate()->get();
+                foreach ($items as $item) {
+                    $item->delete();
+                }
+            }
+        });
 
         return response()->json([
             'status' => true,
             'message' => 'Đã xóa toàn bộ sản phẩm khỏi giỏ hàng.',
         ]);
+    }
+
+    private function lockActiveCart(int $userId, bool $create = false): ?Cart
+    {
+        User::query()->whereKey($userId)->lockForUpdate()->firstOrFail();
+
+        $cart = Cart::query()
+            ->where('user_id', $userId)
+            ->where('status', 'active')
+            ->lockForUpdate()
+            ->first();
+
+        if (! $cart && $create) {
+            $cart = Cart::create([
+                'user_id' => $userId,
+                'status' => 'active',
+            ]);
+        }
+
+        return $cart;
     }
 }

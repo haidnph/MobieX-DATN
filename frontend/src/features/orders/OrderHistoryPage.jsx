@@ -19,6 +19,7 @@ const STATUS_TABS = [
   { key: 'confirmed', label: 'Đã xác nhận' },
   { key: 'processing', label: 'Đang đóng gói' },
   { key: 'shipping', label: 'Đang giao' },
+  { key: 'received', label: 'Đã nhận hàng' },
   { key: 'delivered', label: 'Đã giao' },
   { key: 'cancelled', label: 'Đã hủy' },
 ]
@@ -28,6 +29,7 @@ const STATUS_CONFIG = {
   confirmed: { label: 'Đã xác nhận', variant: 'info' },
   processing: { label: 'Đang xử lý', variant: 'info' },
   shipping: { label: 'Đang giao hàng', variant: 'warning' },
+  received: { label: 'Đã nhận hàng', variant: 'info' },
   delivered: { label: 'Hoàn thành', variant: 'success' },
   cancelled: { label: 'Đã hủy', variant: 'error' },
 }

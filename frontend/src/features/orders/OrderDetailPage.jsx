@@ -21,6 +21,7 @@ const STATUS_CONFIG = {
   confirmed: { label: 'Đã xác nhận', variant: 'info', icon: 'check_circle' },
   processing: { label: 'Đang chuẩn bị hàng', variant: 'info', icon: 'inventory' },
   shipping: { label: 'Đang vận chuyển', variant: 'warning', icon: 'local_shipping' },
+  received: { label: 'Đã nhận hàng', variant: 'info', icon: 'inventory' },
   delivered: { label: 'Giao hàng thành công', variant: 'success', icon: 'verified' },
   cancelled: { label: 'Đã hủy', variant: 'error', icon: 'cancel' },
 }
@@ -41,6 +42,7 @@ export default function OrderDetailPage() {
   const [cancelOpen, setCancelOpen] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
   const [cancelling, setCancelling] = useState(false)
+  const [confirmingReceived, setConfirmingReceived] = useState(false)
 
   // Review modal
   const [reviewItem, setReviewItem] = useState(null)
@@ -105,6 +107,19 @@ export default function OrderDetailPage() {
     }
   }
 
+  const handleConfirmReceived = async () => {
+    setConfirmingReceived(true)
+    try {
+      await axiosClient.patch(EP.ORDER_CONFIRM_RECEIVED(id))
+      showToast('Đã xác nhận nhận hàng. Cửa hàng sẽ chốt đơn sau đó.', 'success')
+      fetchOrderDetail()
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Không thể xác nhận đã nhận hàng', 'error')
+    } finally {
+      setConfirmingReceived(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -159,6 +174,13 @@ export default function OrderDetailPage() {
           {isCancellable && (
             <Button variant="danger" size="sm" onClick={() => setCancelOpen(true)}>
               Hủy đơn hàng
+            </Button>
+          )}
+
+          {order.status === 'shipping' && (
+            <Button variant="primary" size="sm" onClick={handleConfirmReceived} loading={confirmingReceived}>
+              <span className="material-symbols-outlined text-base">inventory</span>
+              Tôi đã nhận hàng
             </Button>
           )}
 

@@ -19,6 +19,20 @@ const STATUS_CONFIG = {
     twText: 'text-violet-500',
     icon: 'local_shipping',
   },
+  received: {
+    label: 'Khách đã nhận hàng',
+    color: '#06b6d4',
+    twBg: 'bg-cyan-500',
+    twText: 'text-cyan-500',
+    icon: 'inventory',
+  },
+  processing: {
+    label: 'Đang chuẩn bị',
+    color: '#3b82f6',
+    twBg: 'bg-blue-500',
+    twText: 'text-blue-500',
+    icon: 'package_2',
+  },
   confirmed: {
     label: 'Đã xác nhận',
     color: '#3b82f6',
@@ -55,7 +69,7 @@ export default function OrderStatusDonutChart({
   const circumference = 2 * Math.PI * radius // ≈ 402.12
 
   // Build segments array
-  const keys = ['delivered', 'shipping', 'confirmed', 'pending', 'cancelled']
+  const keys = ['delivered', 'received', 'shipping', 'processing', 'confirmed', 'pending', 'cancelled']
   let cumulativeOffset = 0
 
   const segments = keys.map((key) => {

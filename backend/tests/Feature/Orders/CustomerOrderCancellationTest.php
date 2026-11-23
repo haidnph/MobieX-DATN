@@ -186,6 +186,24 @@ class CustomerOrderCancellationTest extends TestCase
         $response->assertStatus(422);
     }
 
+    public function test_cancellation_does_not_write_a_release_when_reserved_stock_is_insufficient(): void
+    {
+        $order = $this->createOrder($this->userA, 'pending', 2);
+        $this->inventory->update(['reserved_quantity' => 1]);
+
+        $this->actingAs($this->userA)
+            ->patchJson("/api/orders/{$order->id}/cancel")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['inventory']);
+
+        $this->assertSame('pending', $order->fresh()->status);
+        $this->assertSame(1, $this->inventory->fresh()->reserved_quantity);
+        $this->assertDatabaseMissing('inventory_transactions', [
+            'reference_id' => $order->id,
+            'type' => 'release',
+        ]);
+    }
+
     public function test_cancelling_non_pending_order_returns_422(): void
     {
         $order = $this->createOrder($this->userA, 'confirmed', 2);

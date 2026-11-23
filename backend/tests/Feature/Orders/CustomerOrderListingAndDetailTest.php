@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\OrderStatusHistory;
+use App\Models\Payment;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\ShippingMethod;
@@ -145,12 +146,30 @@ class CustomerOrderListingAndDetailTest extends TestCase
     public function test_user_can_view_own_order_detail(): void
     {
         $order = $this->createOrderForUser($this->userA, 'MX-ORD-A3', 'pending');
+        Payment::create([
+            'order_id' => $order->id,
+            'transaction_code' => 'PAY-PRIVATE-DETAIL',
+            'idempotency_key' => 'payment-private-detail',
+            'method' => 'vnpay',
+            'amount' => $order->total_amount,
+            'currency_code' => 'VND',
+            'status' => 'pending',
+            'response_data' => ['vnp_SecureHash' => 'private-callback-signature'],
+            'refund_required' => true,
+            'refund_note' => 'Internal reconciliation note',
+            'refund_confirmed_by' => $this->userB->id,
+        ]);
 
         $response = $this->actingAs($this->userA)->getJson("/api/orders/{$order->id}");
 
         $response->assertOk();
         $response->assertJsonPath('data.order_code', 'MX-ORD-A3');
         $response->assertJsonPath('data.items.0.sku', $this->variant->sku);
+        $response->assertJsonMissingPath('data.payments.0.response_data');
+        $response->assertJsonMissingPath('data.payments.0.idempotency_key');
+        $response->assertJsonMissingPath('data.payments.0.refund_required');
+        $response->assertJsonMissingPath('data.payments.0.refund_note');
+        $response->assertJsonMissingPath('data.payments.0.refund_confirmed_by');
         $this->assertNotEmpty($response->json('data.status_histories'));
     }
 

@@ -33,7 +33,7 @@ return new class extends Migration
                 $table->id();
                 $table->foreignId('product_variant_id')->constrained('product_variants');
                 $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
-                $table->enum('type', ['import', 'dispatch', 'adjustment', 'reserve', 'release']);
+                $table->enum('type', ['import', 'export', 'dispatch', 'adjustment', 'reserve', 'release']);
                 $table->integer('quantity_delta');
                 $table->integer('reserved_delta')->default(0);
                 $table->decimal('unit_cost', 14, 2)->nullable();

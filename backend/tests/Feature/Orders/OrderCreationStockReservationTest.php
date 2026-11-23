@@ -7,6 +7,7 @@ use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\Category;
 use App\Models\Inventory;
+use App\Models\InventoryTransaction;
 use App\Models\Order;
 use App\Models\OrderStatusHistory;
 use App\Models\Product;
@@ -122,6 +123,11 @@ class OrderCreationStockReservationTest extends TestCase
             'shipping_name' => 'Nguyễn Văn A',
             'shipping_fee' => 50000,
             'total_amount' => 90050000,
+            'reservation_expires_at' => null,
+            'shipping_province_code' => '',
+            'shipping_province_name' => '',
+            'shipping_ward_code' => '',
+            'shipping_ward_name' => '',
         ]);
 
         $this->assertDatabaseHas('order_items', [
@@ -243,5 +249,138 @@ class OrderCreationStockReservationTest extends TestCase
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['cart']);
+    }
+
+    public function test_repeating_checkout_after_success_does_not_create_a_duplicate_order(): void
+    {
+        $cart = Cart::create([
+            'user_id' => $this->user->id,
+            'status' => 'active',
+        ]);
+        CartItem::create([
+            'cart_id' => $cart->id,
+            'product_variant_id' => $this->variant->id,
+            'quantity' => 1,
+        ]);
+        $payload = [
+            'shipping_name' => 'Checkout Retry',
+            'shipping_phone' => '0987654321',
+            'shipping_address_line' => '123 Retry Street',
+            'shipping_method_id' => $this->shippingMethod->id,
+            'payment_method' => 'COD',
+        ];
+
+        $this->actingAs($this->user)
+            ->postJson('/api/orders', $payload)
+            ->assertCreated();
+
+        $this->actingAs($this->user)
+            ->postJson('/api/orders', $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['cart']);
+
+        $this->assertSame(1, Order::query()->where('user_id', $this->user->id)->count());
+        $this->assertSame(3, $this->inventory->fresh()->reserved_quantity);
+        $this->assertSame(1, InventoryTransaction::query()
+            ->where('user_id', $this->user->id)
+            ->where('type', 'reserve')
+            ->count());
+    }
+
+    public function test_only_one_customer_can_reserve_the_last_available_unit(): void
+    {
+        $this->inventory->update([
+            'on_hand_quantity' => 1,
+            'reserved_quantity' => 0,
+        ]);
+        $secondCustomer = User::factory()->create(['is_active' => true]);
+
+        foreach ([$this->user, $secondCustomer] as $customer) {
+            $cart = Cart::create([
+                'user_id' => $customer->id,
+                'status' => 'active',
+            ]);
+            CartItem::create([
+                'cart_id' => $cart->id,
+                'product_variant_id' => $this->variant->id,
+                'quantity' => 1,
+            ]);
+        }
+
+        $payload = [
+            'shipping_name' => 'Last Item Buyer',
+            'shipping_phone' => '0987654321',
+            'shipping_address_line' => '123 Last Item Street',
+            'shipping_method_id' => $this->shippingMethod->id,
+            'payment_method' => 'COD',
+        ];
+
+        $this->actingAs($this->user)
+            ->postJson('/api/orders', $payload)
+            ->assertCreated();
+
+        $this->actingAs($secondCustomer)
+            ->postJson('/api/orders', $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['cart']);
+
+        $this->assertSame(1, Order::query()->count());
+        $this->assertSame(1, $this->inventory->fresh()->reserved_quantity);
+        $this->assertSame(0, $this->inventory->fresh()->available_quantity);
+        $this->assertSame(1, InventoryTransaction::query()->where('type', 'reserve')->count());
+    }
+
+    public function test_checkout_locks_and_reserves_variants_in_stable_id_order(): void
+    {
+        $secondVariant = ProductVariant::create([
+            'product_id' => $this->variant->product_id,
+            'sku' => 'IP15PM-512-TI',
+            'option_signature' => 'color:titanium;storage:512gb',
+            'price' => 32000000,
+            'is_active' => true,
+        ]);
+        Inventory::create([
+            'product_variant_id' => $secondVariant->id,
+            'on_hand_quantity' => 8,
+            'reserved_quantity' => 0,
+            'min_stock' => 2,
+        ]);
+
+        $cart = Cart::create([
+            'user_id' => $this->user->id,
+            'status' => 'active',
+        ]);
+
+        // Insert in reverse order; checkout must still acquire inventory locks
+        // in the same order for every cart containing these variants.
+        CartItem::create([
+            'cart_id' => $cart->id,
+            'product_variant_id' => $secondVariant->id,
+            'quantity' => 1,
+        ]);
+        CartItem::create([
+            'cart_id' => $cart->id,
+            'product_variant_id' => $this->variant->id,
+            'quantity' => 1,
+        ]);
+
+        $response = $this->actingAs($this->user)->postJson('/api/orders', [
+            'shipping_name' => 'Nguyen Van A',
+            'shipping_phone' => '0987654321',
+            'shipping_address_line' => '123 Cau Giay',
+            'shipping_method_id' => $this->shippingMethod->id,
+            'payment_method' => 'COD',
+        ])->assertCreated();
+
+        $reservationVariantIds = InventoryTransaction::query()
+            ->where('reference_type', 'order')
+            ->where('reference_id', $response->json('data.id'))
+            ->where('type', 'reserve')
+            ->orderBy('id')
+            ->pluck('product_variant_id')
+            ->map(static fn ($id): int => (int) $id)
+            ->all();
+
+        $this->assertSame([$this->variant->id, $secondVariant->id], $reservationVariantIds);
     }
 }

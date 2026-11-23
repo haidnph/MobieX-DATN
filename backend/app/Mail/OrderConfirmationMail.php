@@ -6,7 +6,7 @@ use App\Models\Order;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
-use Illuminate\Mail\Mailables\Address;
+use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
@@ -75,7 +75,7 @@ class OrderConfirmationMail extends Mailable implements ShouldQueue
     /**
      * Get the attachments for the message.
      *
-     * @return array<int, \Illuminate\Mail\Mailables\Attachment>
+     * @return array<int, Attachment>
      */
     public function attachments(): array
     {
@@ -176,6 +176,11 @@ class OrderConfirmationMail extends Mailable implements ShouldQueue
                 'text' => 'Đang vận chuyển',
                 'badge_color' => '#0284c7',
                 'badge_bg' => '#e0f2fe',
+            ],
+            'received' => [
+                'text' => 'Khách đã nhận hàng',
+                'badge_color' => '#0891b2',
+                'badge_bg' => '#cffafe',
             ],
             'delivered' => [
                 'text' => 'Giao hàng thành công',

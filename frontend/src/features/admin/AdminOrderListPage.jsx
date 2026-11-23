@@ -16,6 +16,7 @@ const STATUS_CONFIG = {
   confirmed:  { label: 'Đã xác nhận',   variant: 'info',    icon: 'task_alt' },
   processing: { label: 'Đang chuẩn bị', variant: 'info',    icon: 'package_2' },
   shipping:   { label: 'Đang giao',     variant: 'warning', icon: 'local_shipping' },
+  received:   { label: 'Đã nhận hàng',  variant: 'info', icon: 'inventory' },
   delivered:  { label: 'Giao thành công', variant: 'success', icon: 'check_circle' },
   cancelled:  { label: 'Đã hủy',        variant: 'error',   icon: 'cancel' },
 }
@@ -26,6 +27,7 @@ const STATUS_TABS = [
   { key: 'confirmed',  label: 'Đã xác nhận' },
   { key: 'processing', label: 'Đang chuẩn bị' },
   { key: 'shipping',   label: 'Đang giao' },
+  { key: 'received',   label: 'Đã nhận hàng' },
   { key: 'delivered',  label: 'Hoàn thành' },
   { key: 'cancelled',  label: 'Đã hủy' },
 ]

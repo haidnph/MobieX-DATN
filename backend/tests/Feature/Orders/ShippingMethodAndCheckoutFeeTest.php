@@ -165,4 +165,63 @@ class ShippingMethodAndCheckoutFeeTest extends TestCase
         $this->assertEquals(40000.00, (float) $order->total_amount);
         $this->assertEquals($this->standardShipping->id, $order->shipping_method_id);
     }
+
+    public function test_checkout_rejects_an_inactive_selected_shipping_method(): void
+    {
+        Sanctum::actingAs($this->user);
+        $this->expressShipping->update(['is_active' => false]);
+
+        $cart = Cart::create(['user_id' => $this->user->id, 'status' => 'active']);
+        CartItem::create(['cart_id' => $cart->id, 'variant_id' => $this->variant->id, 'quantity' => 1]);
+
+        $this->postJson('/api/orders', [
+            'shipping_name' => 'Nguyễn Văn A',
+            'shipping_phone' => '0912345678',
+            'shipping_address' => 'Số 123 đường Cầu Giấy, Hà Nội',
+            'payment_method' => 'cod',
+            'shipping_method_id' => $this->expressShipping->id,
+        ])->assertUnprocessable()->assertJsonValidationErrors('shipping_method_id');
+
+        $this->assertDatabaseCount('orders', 0);
+    }
+
+    public function test_checkout_fails_instead_of_creating_a_free_shipping_method_when_none_are_active(): void
+    {
+        Sanctum::actingAs($this->user);
+        ShippingMethod::query()->update(['is_active' => false]);
+
+        $cart = Cart::create(['user_id' => $this->user->id, 'status' => 'active']);
+        CartItem::create(['cart_id' => $cart->id, 'variant_id' => $this->variant->id, 'quantity' => 1]);
+
+        $this->postJson('/api/orders', [
+            'shipping_name' => 'Nguyễn Văn A',
+            'shipping_phone' => '0912345678',
+            'shipping_address' => 'Số 123 đường Cầu Giấy, Hà Nội',
+            'payment_method' => 'cod',
+        ])->assertUnprocessable()->assertJsonValidationErrors('shipping_method_id');
+
+        $this->assertDatabaseCount('shipping_methods', 2);
+        $this->assertDatabaseCount('orders', 0);
+    }
+
+    public function test_online_order_reservation_expiration_uses_configured_duration(): void
+    {
+        Sanctum::actingAs($this->user);
+        config(['orders.reservation_expiration_minutes' => 45]);
+
+        $cart = Cart::create(['user_id' => $this->user->id, 'status' => 'active']);
+        CartItem::create(['cart_id' => $cart->id, 'variant_id' => $this->variant->id, 'quantity' => 1]);
+
+        $this->postJson('/api/orders', [
+            'shipping_name' => 'Nguyễn Văn A',
+            'shipping_phone' => '0912345678',
+            'shipping_address' => 'Số 123 đường Cầu Giấy, Hà Nội',
+            'payment_method' => 'vnpay',
+            'shipping_method_id' => $this->standardShipping->id,
+        ])->assertCreated();
+
+        $expiresAt = Order::latest()->firstOrFail()->reservation_expires_at;
+        $this->assertNotNull($expiresAt);
+        $this->assertTrue($expiresAt->between(now()->addMinutes(44), now()->addMinutes(46)));
+    }
 }

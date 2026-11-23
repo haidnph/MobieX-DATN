@@ -18,7 +18,8 @@ const STATUS_CONFIG = {
   confirmed: { label: 'Đã xác nhận', variant: 'info', icon: 'check_circle', step: 2 },
   processing: { label: 'Đang đóng gói', variant: 'info', icon: 'inventory', step: 3 },
   shipping: { label: 'Đang giao hàng', variant: 'warning', icon: 'local_shipping', step: 4 },
-  delivered: { label: 'Giao thành công', variant: 'success', icon: 'verified', step: 5 },
+  received: { label: 'Đã nhận hàng', variant: 'info', icon: 'inventory', step: 5 },
+  delivered: { label: 'Giao thành công', variant: 'success', icon: 'verified', step: 6 },
   cancelled: { label: 'Đã hủy', variant: 'error', icon: 'cancel', step: 0 },
 }
 
@@ -27,7 +28,8 @@ const TIMELINE_STEPS = [
   { key: 'confirmed', label: 'Xác nhận' },
   { key: 'processing', label: 'Đóng gói' },
   { key: 'shipping', label: 'Vận chuyển' },
-  { key: 'delivered', label: 'Giao hàng' },
+  { key: 'received', label: 'Đã nhận hàng' },
+  { key: 'delivered', label: 'Giao thành công' },
 ]
 
 export default function OrderTrackingPage() {

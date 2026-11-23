@@ -134,7 +134,8 @@ class GuestOrderLookupTest extends TestCase
                     'items',
                     'status_histories',
                 ],
-            ]);
+            ])
+            ->assertJsonMissingPath('data.payments');
     }
 
     public function test_guest_cannot_lookup_with_wrong_phone(): void
@@ -148,6 +149,17 @@ class GuestOrderLookupTest extends TestCase
             ->assertJson([
                 'status' => false,
             ]);
+    }
+
+    public function test_guest_cannot_lookup_with_only_a_partial_phone_number(): void
+    {
+        $response = $this->postJson('/api/orders/lookup', [
+            'order_code' => 'ORD-TRACK-123456',
+            'phone' => '098765',
+        ]);
+
+        $response->assertNotFound()
+            ->assertJson(['status' => false]);
     }
 
     public function test_lookup_validates_required_fields(): void

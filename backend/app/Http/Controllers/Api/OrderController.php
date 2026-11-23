@@ -6,13 +6,18 @@ use App\Http\Controllers\Controller;
 use App\Models\Cart;
 use App\Models\Coupon;
 use App\Models\CouponRedemption;
+use App\Models\FlashSaleItem;
 use App\Models\Inventory;
 use App\Models\InventoryTransaction;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\OrderStatusHistory;
+use App\Models\Payment;
 use App\Models\ProductVariant;
 use App\Models\ShippingMethod;
+use App\Services\CouponRules;
+use App\Services\FlashSaleOrderService;
+use App\Services\OrderMailService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,6 +27,8 @@ use Illuminate\Validation\ValidationException;
 
 class OrderController extends Controller
 {
+    public function __construct(private readonly CouponRules $couponRules) {}
+
     public function index(Request $request): JsonResponse
     {
         $userId = $request->user()->id;
@@ -83,13 +90,9 @@ class OrderController extends Controller
             'items.variant.product',
             'statusHistories',
             'shippingMethod',
-            'payments',
         ])
             ->where('order_code', $orderCode)
-            ->where(function ($q) use ($phone) {
-                $q->where('shipping_phone', $phone)
-                    ->orWhere('shipping_phone', 'like', "%{$phone}%");
-            })
+            ->where('shipping_phone', $phone)
             ->first();
 
         if (! $order) {
@@ -119,7 +122,7 @@ class OrderController extends Controller
             ], 403);
         }
 
-        if ($order->status !== 'pending') {
+        if ($order->status !== 'pending' || $order->payment_status === 'paid') {
             return response()->json([
                 'message' => 'Chỉ có thể hủy đơn hàng khi đơn đang ở trạng thái chờ xử lý (pending).',
             ], 422);
@@ -129,6 +132,18 @@ class OrderController extends Controller
         $reason = $validated['cancel_reason'] ?? 'Khách hàng yêu cầu hủy đơn';
 
         DB::transaction(function () use ($order, $userId, $reason) {
+            $order = Order::query()
+                ->whereKey($order->id)
+                ->lockForUpdate()
+                ->with('items')
+                ->firstOrFail();
+
+            if ($order->status !== 'pending' || $order->payment_status === 'paid') {
+                throw ValidationException::withMessages([
+                    'status' => 'Đơn hàng không còn ở trạng thái có thể hủy.',
+                ]);
+            }
+
             $fromStatus = $order->status;
 
             $order->update([
@@ -136,31 +151,41 @@ class OrderController extends Controller
                 'cancelled_at' => now(),
                 'cancel_reason' => $reason,
             ]);
+            Payment::query()
+                ->where('order_id', $order->id)
+                ->where('status', 'pending')
+                ->update(['status' => 'cancelled']);
 
             foreach ($order->items as $item) {
                 $inventory = Inventory::where('product_variant_id', $item->product_variant_id)
                     ->lockForUpdate()
                     ->first();
 
-                if ($inventory) {
-                    $inventory->reserved_quantity = max(0, (int) $inventory->reserved_quantity - (int) $item->quantity);
-                    $inventory->save();
-
-                    InventoryTransaction::create([
-                        'product_variant_id' => $item->product_variant_id,
-                        'user_id' => $userId,
-                        'type' => 'release',
-                        'quantity_delta' => 0,
-                        'reserved_delta' => -((int) $item->quantity),
-                        'unit_cost' => $item->cost_price_snapshot,
-                        'reference_type' => 'order',
-                        'reference_id' => $order->id,
-                        'idempotency_key' => "order_{$order->id}_var_{$item->product_variant_id}_release",
-                        'note' => 'Hoàn trả tồn kho do đơn hàng '.$order->order_code.' bị hủy',
-                        'created_at' => now(),
+                if (! $inventory || (int) $inventory->reserved_quantity < (int) $item->quantity) {
+                    throw ValidationException::withMessages([
+                        'inventory' => 'Không thể hủy đơn vì số lượng giữ chỗ kho không khớp. Vui lòng liên hệ hỗ trợ.',
                     ]);
                 }
+
+                $inventory->reserved_quantity -= (int) $item->quantity;
+                $inventory->save();
+
+                InventoryTransaction::create([
+                    'product_variant_id' => $item->product_variant_id,
+                    'user_id' => $userId,
+                    'type' => 'release',
+                    'quantity_delta' => 0,
+                    'reserved_delta' => -((int) $item->quantity),
+                    'unit_cost' => $item->cost_price_snapshot,
+                    'reference_type' => 'order',
+                    'reference_id' => $order->id,
+                    'idempotency_key' => "order_{$order->id}_var_{$item->product_variant_id}_release",
+                    'note' => 'Hoàn trả tồn kho do đơn hàng '.$order->order_code.' bị hủy',
+                    'created_at' => now(),
+                ]);
             }
+
+            app(FlashSaleOrderService::class)->releaseOrderReservations($order);
 
             // Release coupon reservation if any
             if ($order->coupon_id) {
@@ -188,11 +213,42 @@ class OrderController extends Controller
             ]);
         });
 
-        $order->load(['items.variant.product', 'statusHistories']);
+        $order->refresh()->load(['items.variant.product', 'statusHistories']);
 
         return response()->json([
             'message' => 'Hủy đơn hàng thành công.',
             'data' => $order,
+        ]);
+    }
+
+    public function confirmReceived(Request $request, int|string $id): JsonResponse
+    {
+        $order = DB::transaction(function () use ($request, $id) {
+            $order = Order::query()->whereKey($id)->lockForUpdate()->firstOrFail();
+            if ((int) $order->user_id !== (int) $request->user()->id) {
+                abort(403, 'Bạn không có quyền xác nhận đơn hàng này.');
+            }
+            if ($order->status !== 'shipping') {
+                throw ValidationException::withMessages([
+                    'status' => 'Chỉ có thể xác nhận đã nhận hàng khi đơn đang được giao.',
+                ]);
+            }
+
+            $order->update(['status' => 'received']);
+            OrderStatusHistory::create([
+                'order_id' => $order->id,
+                'user_id' => $request->user()->id,
+                'from_status' => 'shipping',
+                'status' => 'received',
+                'note' => 'Khách hàng xác nhận đã nhận hàng',
+                'created_at' => now(),
+            ]);
+            return $order;
+        });
+
+        return response()->json([
+            'message' => 'Đã xác nhận nhận hàng. Quản trị viên có thể chốt giao hàng thành công.',
+            'data' => $order->refresh()->load('statusHistories.user'),
         ]);
     }
 
@@ -260,7 +316,7 @@ class OrderController extends Controller
 
             $cartItems = $cart->items()->with([
                 'variant.product',
-            ])->get();
+            ])->orderBy('product_variant_id')->get();
 
             if ($cartItems->isEmpty()) {
                 throw ValidationException::withMessages([
@@ -270,17 +326,23 @@ class OrderController extends Controller
 
             $shippingMethod = null;
             if (! empty($validated['shipping_method_id'])) {
-                $shippingMethod = ShippingMethod::find($validated['shipping_method_id']);
+                $shippingMethod = ShippingMethod::query()
+                    ->whereKey($validated['shipping_method_id'])
+                    ->where('is_active', true)
+                    ->first();
+
+                if (! $shippingMethod) {
+                    throw ValidationException::withMessages([
+                        'shipping_method_id' => 'Phương thức giao hàng này hiện không khả dụng.',
+                    ]);
+                }
             }
             if (! $shippingMethod) {
                 $shippingMethod = ShippingMethod::where('is_active', true)->first();
             }
             if (! $shippingMethod) {
-                $shippingMethod = ShippingMethod::create([
-                    'name' => 'Giao hàng tiêu chuẩn',
-                    'code' => 'STANDARD',
-                    'fee' => 0.00,
-                    'is_active' => true,
+                throw ValidationException::withMessages([
+                    'shipping_method_id' => 'Hiện chưa có phương thức giao hàng khả dụng. Vui lòng liên hệ cửa hàng.',
                 ]);
             }
 
@@ -321,6 +383,41 @@ class OrderController extends Controller
                     ]);
                 }
 
+                $flashSaleItems = FlashSaleItem::query()
+                    ->where('product_variant_id', $variant->id)
+                    ->whereHas('flashSale', function ($query): void {
+                        $query->whereIn('status', ['scheduled', 'active'])
+                            ->where('start_at', '<=', now())
+                            ->where('end_at', '>', now());
+                    })
+                    ->orderBy('flash_sale_id')
+                    ->lockForUpdate()
+                    ->get();
+
+                $flashSaleItem = $flashSaleItems->first(function (FlashSaleItem $item) use ($variant, $inventory): bool {
+                    if ((float) $item->sale_price >= (float) $variant->price) {
+                        return false;
+                    }
+
+                    $saleRemaining = $item->quantity_limit === null
+                        ? (int) $inventory->available_quantity
+                        : (int) $item->quantity_limit - (int) $item->quantity_reserved - (int) $item->quantity_sold;
+
+                    return min((int) $inventory->available_quantity, $saleRemaining) > 0;
+                });
+
+                if ($flashSaleItem) {
+                    $remainingSaleQuantity = $flashSaleItem->quantity_limit === null
+                        ? (int) $inventory->available_quantity
+                        : (int) $flashSaleItem->quantity_limit
+                            - (int) $flashSaleItem->quantity_reserved
+                            - (int) $flashSaleItem->quantity_sold;
+
+                    if ((int) $cartItem->quantity > min((int) $inventory->available_quantity, $remainingSaleQuantity)) {
+                        $flashSaleItem = null;
+                    }
+                }
+
                 $variantName = $variant->option_signature ?: null;
                 if (! $variantName && method_exists($variant, 'attributeValues')) {
                     try {
@@ -333,7 +430,7 @@ class OrderController extends Controller
                     }
                 }
 
-                $price = (float) $variant->price;
+                $price = (float) ($flashSaleItem?->sale_price ?? $variant->price);
                 $itemSubtotal = $price * (int) $cartItem->quantity;
                 $subtotal += $itemSubtotal;
 
@@ -347,6 +444,7 @@ class OrderController extends Controller
                     'price' => $price,
                     'quantity' => (int) $cartItem->quantity,
                     'subtotal' => $itemSubtotal,
+                    'flash_sale_item' => $flashSaleItem,
                 ];
             }
 
@@ -391,20 +489,32 @@ class OrderController extends Controller
                     ]);
                 }
 
-                if ($subtotal < (float) $coupon->min_order_amount) {
+                if ($this->couponRules->customerLimitReached($coupon, (int) $userId)) {
+                    throw ValidationException::withMessages([
+                        'coupon_code' => 'Bạn đã sử dụng hết lượt áp dụng mã giảm giá này.',
+                    ]);
+                }
+
+                $eligibleSubtotal = $this->couponRules->eligibleSubtotal(
+                    $coupon,
+                    $preparedItems,
+                    static fn (array $item): int => (int) $item['product']->id,
+                    static fn (array $item): float => $item['flash_sale_item'] ? 0.0 : (float) $item['subtotal'],
+                );
+
+                if ($eligibleSubtotal <= 0) {
+                    throw ValidationException::withMessages([
+                        'coupon_code' => 'Mã giảm giá không áp dụng cho sản phẩm trong giỏ hàng.',
+                    ]);
+                }
+
+                if ($eligibleSubtotal < (float) $coupon->min_order_amount) {
                     throw ValidationException::withMessages([
                         'coupon_code' => 'Giá trị đơn hàng chưa đạt mức tối thiểu '.number_format((float) $coupon->min_order_amount).' VND để áp dụng mã.',
                     ]);
                 }
 
-                if ($coupon->discount_type === 'percent') {
-                    $discountAmount = round(($subtotal * (float) $coupon->discount_value) / 100, 2);
-                    if ($coupon->max_discount !== null && $discountAmount > (float) $coupon->max_discount) {
-                        $discountAmount = (float) $coupon->max_discount;
-                    }
-                } elseif ($coupon->discount_type === 'fixed') {
-                    $discountAmount = min((float) $coupon->discount_value, $subtotal);
-                }
+                $discountAmount = $this->couponRules->discountAmount($coupon, $eligibleSubtotal);
 
                 $coupon->reserved_count += 1;
                 $coupon->save();
@@ -429,14 +539,19 @@ class OrderController extends Controller
                 'shipping_name' => $validated['shipping_name'],
                 'shipping_phone' => $validated['shipping_phone'],
                 'shipping_address_line' => $addressLine,
-                'shipping_province_code' => $validated['shipping_province_code'] ?? 'VN-HN',
-                'shipping_province_name' => $validated['shipping_province_name'] ?? $validated['shipping_city'] ?? 'Hà Nội',
-                'shipping_ward_code' => $validated['shipping_ward_code'] ?? '001',
-                'shipping_ward_name' => $validated['shipping_ward_name'] ?? $validated['shipping_ward'] ?? 'Dịch Vọng Hậu',
+                // Address codes must come from a verified address source. Do not
+                // silently map unstructured customer input to Hanoi codes.
+                'shipping_province_code' => $validated['shipping_province_code'] ?? '',
+                'shipping_province_name' => $validated['shipping_province_name'] ?? $validated['shipping_city'] ?? '',
+                'shipping_ward_code' => $validated['shipping_ward_code'] ?? '',
+                'shipping_ward_name' => $validated['shipping_ward_name'] ?? $validated['shipping_ward'] ?? '',
                 'payment_method' => strtolower($validated['payment_method']),
                 'payment_status' => 'pending',
                 'status' => 'pending',
                 'customer_note' => $validated['customer_note'] ?? null,
+                'reservation_expires_at' => strtolower($validated['payment_method']) === 'cod'
+                    ? null
+                    : now()->addMinutes((int) config('orders.reservation_expiration_minutes')),
             ]);
 
             if ($coupon) {
@@ -454,6 +569,7 @@ class OrderController extends Controller
                     'order_id' => $order->id,
                     'product_id' => $item['product']->id,
                     'product_variant_id' => $item['variant']->id,
+                    'flash_sale_id' => $item['flash_sale_item']?->flash_sale_id,
                     'product_name' => $item['product_name'],
                     'variant_name' => $item['variant_name'],
                     'sku' => $item['sku'],
@@ -470,6 +586,11 @@ class OrderController extends Controller
                 $inventory = $item['inventory'];
                 $inventory->reserved_quantity += $item['quantity'];
                 $inventory->save();
+
+                if ($item['flash_sale_item']) {
+                    $item['flash_sale_item']->quantity_reserved += $item['quantity'];
+                    $item['flash_sale_item']->save();
+                }
 
                 InventoryTransaction::create([
                     'product_variant_id' => $item['variant']->id,
@@ -498,7 +619,7 @@ class OrderController extends Controller
             $cart->items()->delete();
 
             DB::afterCommit(function () use ($order) {
-                app(\App\Services\OrderMailService::class)->sendOrderConfirmation($order);
+                app(OrderMailService::class)->sendOrderConfirmation($order);
             });
 
             return $order;
