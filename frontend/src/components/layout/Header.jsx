@@ -803,7 +803,7 @@ export default function Header() {
 
         {/* ── GROUP B: UTILITIES (Exact Order: Language -> Theme -> Compare -> Wishlist -> Cart -> Account) ── */}
         <div className="flex flex-nowrap items-center gap-1 xl:gap-1.5 shrink-0">
-          <Link to="/tracking" className="px-2 py-2 rounded-xl text-[11px] xl:text-xs font-semibold text-on-surface-variant hover:text-primary hover:bg-surface-container whitespace-nowrap">Tra cứu đơn hàng</Link>
+          <Link to="/tracking" className="px-2 py-2 rounded-xl text-xs xl:text-sm font-semibold text-on-surface-variant hover:text-primary hover:bg-surface-container whitespace-nowrap">Tra cứu đơn hàng</Link>
           {/* 1. Language Selector (GTranslate Official Integration) */}
 
           {/* 2. Theme Toggle (Light / Dark mode) */}
@@ -822,7 +822,7 @@ export default function Header() {
             }
             className="h-9 px-2 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-primary active:scale-95 cursor-pointer transition-all flex items-center justify-center shrink-0 focus-visible:outline-2 focus-visible:outline-primary"
           >
-            <span className="text-xs font-semibold whitespace-nowrap">{isDark ? 'Giao diện sáng' : 'Giao diện tối'}</span>
+            <span className="text-xs xl:text-sm font-semibold whitespace-nowrap">{isDark ? 'Giao diện sáng' : 'Giao diện tối'}</span>
           </button>
 
           {/* 3. Product Compare with count badge */}
@@ -832,7 +832,7 @@ export default function Header() {
             title="So sánh sản phẩm"
             className="relative h-9 px-2 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-primary active:scale-95 cursor-pointer transition-all flex items-center justify-center shrink-0 focus-visible:outline-2 focus-visible:outline-primary"
           >
-            <span className="text-xs font-semibold">So sánh</span>
+            <span className="text-xs xl:text-sm font-semibold">So sánh</span>
             {compareCount > 0 && (
               <span translate="no" className="absolute -top-1 -right-1 flex min-w-[1.125rem] h-[1.125rem] px-1 items-center justify-center rounded-full bg-primary text-on-primary text-[10px] font-bold shadow-sm notranslate select-none">
                 {compareCount}
@@ -847,7 +847,7 @@ export default function Header() {
             title="Danh sách yêu thích"
             className="relative h-9 px-2 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-primary active:scale-95 cursor-pointer transition-all flex items-center justify-center shrink-0 focus-visible:outline-2 focus-visible:outline-primary"
           >
-            <span className="text-xs font-semibold">Yêu thích</span>
+            <span className="text-xs xl:text-sm font-semibold">Yêu thích</span>
             {wishlistCount > 0 && (
               <span translate="no" className="absolute -top-1 -right-1 flex min-w-[1.125rem] h-[1.125rem] px-1 items-center justify-center rounded-full bg-[#ef4444] text-white text-[10px] font-bold shadow-sm animate-in zoom-in-75 notranslate select-none">
                 {wishlistCount}
@@ -862,7 +862,7 @@ export default function Header() {
             title="Giỏ hàng"
             className="relative h-9 px-2 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-primary active:scale-95 cursor-pointer transition-all flex items-center justify-center shrink-0 focus-visible:outline-2 focus-visible:outline-primary"
           >
-            <span className="text-xs font-semibold">Giỏ hàng</span>
+            <span className="text-xs xl:text-sm font-semibold">Giỏ hàng</span>
             {itemCount > 0 && (
               <span translate="no" className="absolute -top-1 -right-1 flex min-w-[1.125rem] h-[1.125rem] px-1 items-center justify-center rounded-full bg-[#ef4444] text-white text-[10px] font-bold shadow-sm animate-in zoom-in-75 notranslate">
                 {cartBadgeCount}
