@@ -184,6 +184,11 @@ function HeroBannerCarousel({ banners = [], autoplayInterval = 4000 }) {
 function CategoryDiscoverySection({ section }) {
   const categories = section.items || []
   if (categories.length === 0) return null
+  const categoryImageOverrides = [
+    { match: 'điện thoại', image: 'https://images2.thanhnien.vn/528068263637045248/2026/4/15/camera-17762255561921796534711.jpg' },
+    { match: 'phụ kiện', image: 'https://phukienhoangde.com/wp-content/uploads/2022/04/phu-kien-dien-thoai-iphone-quan-2-667x400.jpg' },
+    { match: 'máy tính bảng', image: 'https://phucanhcdn.com/media/lib/25-03-2025/58070_may_tinh_bang_lenovo_tab_zaeh0147vn_3.jpg' },
+  ]
 
   return (
     <section className="space-y-4">
@@ -196,7 +201,9 @@ function CategoryDiscoverySection({ section }) {
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
         {categories.map((cat) => {
-          const imgUrl = resolveImageUrl(cat.image_path || cat.image)
+          const categoryName = (cat.name || '').toLocaleLowerCase('vi')
+          const imageOverride = categoryImageOverrides.find(({ match }) => categoryName.includes(match))?.image
+          const imgUrl = imageOverride || resolveImageUrl(cat.image_path || cat.image)
           return (
             <Link
               key={cat.id}
