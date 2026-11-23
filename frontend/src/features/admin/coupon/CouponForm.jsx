@@ -4,6 +4,8 @@
 // usage statistics panel, start/end datetime pickers, and sticky bottom action bar.
 
 import { useEffect, useMemo, useState } from 'react'
+import axiosClient from '../../../api/axiosClient'
+import EP from '../../../api/endpoints'
 import Button from '../../../components/common/Button'
 import Input from '../../../components/common/Input'
 import Badge from '../../../components/common/Badge'
@@ -60,6 +62,8 @@ export default function CouponForm({
     min_order_amount: '0',
     max_discount: '',
     usage_limit: '',
+    max_uses_per_customer: '',
+    product_ids: [],
     start_at: '',
     end_at: '',
     is_active: true,
@@ -68,6 +72,37 @@ export default function CouponForm({
   const [isDirty, setIsDirty] = useState(false)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [clientErrors, setClientErrors] = useState({})
+  const [productSearch, setProductSearch] = useState('')
+  const [productOptions, setProductOptions] = useState([])
+  const [productLoadError, setProductLoadError] = useState('')
+
+  useEffect(() => {
+    let active = true
+    const timer = setTimeout(() => {
+      axiosClient.get(EP.PRODUCTS, {
+        params: { keyword: productSearch || undefined, per_page: 100 },
+      }).then(({ data }) => {
+        if (!active) return
+        const rows = data?.data?.data ?? data?.data ?? []
+        const selected = initialData?.products ?? []
+        setProductOptions((current) => {
+          const byId = new Map(
+            [...current, ...selected, ...(Array.isArray(rows) ? rows : [])].map((product) => [product.id, product]),
+          )
+          return [...byId.values()]
+        })
+        setProductLoadError('')
+      }).catch(() => {
+        if (!active) return
+        setProductLoadError('Không tải được danh sách sản phẩm. Quy tắc sản phẩm hiện đã lưu vẫn được giữ nguyên.')
+      })
+    }, 250)
+
+    return () => {
+      active = false
+      clearTimeout(timer)
+    }
+  }, [productSearch, initialData])
 
   // Populate data when editing
   useEffect(() => {
@@ -83,6 +118,9 @@ export default function CouponForm({
           initialData.max_discount != null ? String(initialData.max_discount) : '',
         usage_limit:
           initialData.usage_limit != null ? String(initialData.usage_limit) : '',
+        max_uses_per_customer:
+          initialData.max_uses_per_customer != null ? String(initialData.max_uses_per_customer) : '',
+        product_ids: (initialData.products ?? []).map((product) => Number(product.id)),
         start_at: toDatetimeLocal(initialData.start_at),
         end_at: toDatetimeLocal(initialData.end_at),
         is_active: Boolean(initialData.is_active ?? true),
@@ -144,6 +182,10 @@ export default function CouponForm({
       errs.usage_limit = 'Giới hạn lượt dùng phải từ 1 trở lên.'
     }
 
+    if (form.max_uses_per_customer && Number(form.max_uses_per_customer) < 1) {
+      errs.max_uses_per_customer = 'Giới hạn mỗi khách phải từ 1 trở lên.'
+    }
+
     if (form.start_at && form.end_at) {
       const start = new Date(form.start_at).getTime()
       const end = new Date(form.end_at).getTime()
@@ -170,6 +212,8 @@ export default function CouponForm({
           ? Number(form.max_discount)
           : null,
       usage_limit: form.usage_limit ? Number(form.usage_limit) : null,
+      max_uses_per_customer: form.max_uses_per_customer ? Number(form.max_uses_per_customer) : null,
+      product_ids: form.product_ids,
       start_at: form.start_at ? form.start_at.replace('T', ' ') + ':00' : null,
       end_at: form.end_at ? form.end_at.replace('T', ' ') + ':00' : null,
       is_active: Boolean(form.is_active),
@@ -214,6 +258,9 @@ export default function CouponForm({
     let limitStr = form.usage_limit
       ? `Tối đa ${form.usage_limit} lượt dùng`
       : 'Không giới hạn lượt dùng'
+    if (form.max_uses_per_customer) {
+      limitStr += ` · tối đa ${form.max_uses_per_customer}/khách`
+    }
 
     let timeStr = 'Áp dụng vô thời hạn'
     if (form.start_at && form.end_at) {
@@ -492,6 +539,74 @@ export default function CouponForm({
               />
               <p className="text-[11px] text-outline">
                 Tổng số lượt khách hàng có thể sử dụng mã này trên toàn hệ thống MobieX.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block">
+                Lượt sử dụng tối đa mỗi khách
+              </label>
+              <Input
+                type="number"
+                name="max_uses_per_customer"
+                value={form.max_uses_per_customer}
+                onChange={(e) => handleFieldChange('max_uses_per_customer', e.target.value)}
+                placeholder="Để trống nếu không giới hạn"
+                error={getFieldError('max_uses_per_customer')}
+                min="1"
+              />
+              <p className="text-[11px] text-outline">
+                Đếm cả lượt đã giữ chỗ và lượt đã sử dụng; lượt của đơn bị hủy được giải phóng.
+              </p>
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <label htmlFor="coupon-product-search" className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block">
+                Sản phẩm được áp dụng
+              </label>
+              <input
+                id="coupon-product-search"
+                type="search"
+                value={productSearch}
+                onChange={(event) => setProductSearch(event.target.value)}
+                placeholder="Tìm sản phẩm theo tên hoặc SKU"
+                className="w-full bg-surface-container-low text-on-surface rounded-xl px-4 py-2.5 text-sm border border-outline-variant/50 focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              <div className="max-h-56 overflow-y-auto rounded-xl border border-outline-variant/30 divide-y divide-outline-variant/15">
+                {productOptions.map((product) => {
+                  const productId = Number(product.id)
+                  const selected = form.product_ids.includes(productId)
+
+                  return (
+                    <label key={product.id} className="flex items-center gap-3 px-3 py-2.5 hover:bg-surface-container-high cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={(event) => {
+                          const next = event.target.checked
+                            ? [...form.product_ids, productId]
+                            : form.product_ids.filter((id) => id !== productId)
+                          handleFieldChange('product_ids', next)
+                        }}
+                        className="accent-primary"
+                      />
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm text-on-surface">{product.name}</span>
+                        <span className="block text-xs text-outline">{product.sku || product.slug || `#${product.id}`}</span>
+                      </span>
+                    </label>
+                  )
+                })}
+                {productOptions.length === 0 && !productLoadError && (
+                  <p className="p-3 text-sm text-outline">Không có sản phẩm khớp với tìm kiếm.</p>
+                )}
+              </div>
+              {productLoadError && <p role="alert" className="text-xs text-error">{productLoadError}</p>}
+              {getFieldError('product_ids') && <p className="text-xs text-error">{getFieldError('product_ids')}</p>}
+              <p className="text-[11px] text-outline">
+                {form.product_ids.length === 0
+                  ? 'Không chọn sản phẩm: mã áp dụng cho toàn bộ sản phẩm trong đơn.'
+                  : `Mã chỉ giảm giá trên ${form.product_ids.length} sản phẩm đã chọn; điều kiện đơn tối thiểu tính trên các sản phẩm này.`}
               </p>
             </div>
           </div>

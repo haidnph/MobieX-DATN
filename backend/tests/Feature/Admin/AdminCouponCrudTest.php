@@ -2,9 +2,12 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Models\Brand;
+use App\Models\Category;
 use App\Models\Coupon;
 use App\Models\Order;
 use App\Models\Permission;
+use App\Models\Product;
 use App\Models\Role;
 use App\Models\ShippingMethod;
 use App\Models\User;
@@ -55,6 +58,16 @@ class AdminCouponCrudTest extends TestCase
 
     public function test_admin_can_create_coupon(): void
     {
+        $category = Category::create(['name' => 'Phones', 'slug' => 'coupon-phones', 'is_active' => true]);
+        $brand = Brand::create(['name' => 'Apple', 'slug' => 'coupon-apple', 'is_active' => true]);
+        $product = Product::create([
+            'category_id' => $category->id,
+            'brand_id' => $brand->id,
+            'product_type' => 'phone',
+            'name' => 'Coupon Test Phone',
+            'slug' => 'coupon-test-phone',
+            'status' => 'active',
+        ]);
         $payload = [
             'code' => 'SUMMER2026',
             'discount_type' => 'percent',
@@ -62,6 +75,8 @@ class AdminCouponCrudTest extends TestCase
             'min_order_amount' => 1000000,
             'max_discount' => 500000,
             'usage_limit' => 100,
+            'max_uses_per_customer' => 2,
+            'product_ids' => [$product->id],
             'is_active' => true,
         ];
 
@@ -80,6 +95,11 @@ class AdminCouponCrudTest extends TestCase
         $this->assertDatabaseHas('coupons', [
             'code' => 'SUMMER2026',
             'discount_type' => 'percent',
+            'max_uses_per_customer' => 2,
+        ]);
+        $this->assertDatabaseHas('coupon_products', [
+            'coupon_id' => $response->json('data.id'),
+            'product_id' => $product->id,
         ]);
     }
 

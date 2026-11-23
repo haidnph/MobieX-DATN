@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Coupon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class AdminCouponController extends Controller
@@ -35,7 +36,7 @@ class AdminCouponController extends Controller
 
     public function show(int|string $id): JsonResponse
     {
-        $coupon = Coupon::withCount(['orders', 'redemptions'])->findOrFail($id);
+        $coupon = Coupon::with(['products:id,name'])->withCount(['orders', 'redemptions'])->findOrFail($id);
 
         return response()->json([
             'data' => $coupon,
@@ -64,6 +65,9 @@ class AdminCouponController extends Controller
             'min_order_amount' => ['nullable', 'numeric', 'min:0'],
             'max_discount' => ['nullable', 'numeric', 'min:0'],
             'usage_limit' => ['nullable', 'integer', 'min:1'],
+            'max_uses_per_customer' => ['nullable', 'integer', 'min:1'],
+            'product_ids' => ['nullable', 'array'],
+            'product_ids.*' => ['integer', 'distinct', 'exists:products,id'],
             'start_at' => ['nullable', 'date'],
             'end_at' => ['nullable', 'date', 'after_or_equal:start_at'],
             'is_active' => ['nullable', 'boolean'],
@@ -73,7 +77,14 @@ class AdminCouponController extends Controller
         $validated['is_active'] = $validated['is_active'] ?? true;
         $validated['min_order_amount'] = $validated['min_order_amount'] ?? 0;
 
-        $coupon = Coupon::create($validated);
+        $productIds = $validated['product_ids'] ?? [];
+        unset($validated['product_ids']);
+        $coupon = DB::transaction(function () use ($validated, $productIds): Coupon {
+            $coupon = Coupon::create($validated);
+            $coupon->products()->sync($productIds);
+
+            return $coupon->load('products:id,name');
+        });
 
         return response()->json([
             'message' => 'Tạo mã giảm giá thành công.',
@@ -105,6 +116,9 @@ class AdminCouponController extends Controller
             'min_order_amount' => ['nullable', 'numeric', 'min:0'],
             'max_discount' => ['nullable', 'numeric', 'min:0'],
             'usage_limit' => ['nullable', 'integer', 'min:1'],
+            'max_uses_per_customer' => ['sometimes', 'nullable', 'integer', 'min:1'],
+            'product_ids' => ['sometimes', 'nullable', 'array'],
+            'product_ids.*' => ['integer', 'distinct', 'exists:products,id'],
             'start_at' => ['nullable', 'date'],
             'end_at' => ['nullable', 'date', 'after_or_equal:start_at'],
             'is_active' => ['nullable', 'boolean'],
@@ -114,11 +128,23 @@ class AdminCouponController extends Controller
             $validated['code'] = strtoupper(trim($validated['code']));
         }
 
-        $coupon->update($validated);
+        $syncProducts = array_key_exists('product_ids', $validated);
+        $productIds = $validated['product_ids'] ?? [];
+        unset($validated['product_ids']);
+        $couponId = $coupon->id;
+        $coupon = DB::transaction(function () use ($couponId, $validated, $syncProducts, $productIds): Coupon {
+            $coupon = Coupon::query()->whereKey($couponId)->lockForUpdate()->firstOrFail();
+            $coupon->update($validated);
+            if ($syncProducts) {
+                $coupon->products()->sync($productIds);
+            }
+
+            return $coupon->fresh()->load('products:id,name');
+        });
 
         return response()->json([
             'message' => 'Cập nhật mã giảm giá thành công.',
-            'data' => $coupon->fresh(),
+            'data' => $coupon->fresh()->load('products:id,name'),
         ]);
     }
 

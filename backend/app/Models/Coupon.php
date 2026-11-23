@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -18,6 +19,7 @@ class Coupon extends Model
         'min_order_amount',
         'max_discount',
         'usage_limit',
+        'max_uses_per_customer',
         'reserved_count',
         'used_count',
         'start_at',
@@ -32,6 +34,7 @@ class Coupon extends Model
             'min_order_amount' => 'decimal:2',
             'max_discount' => 'decimal:2',
             'usage_limit' => 'integer',
+            'max_uses_per_customer' => 'integer',
             'reserved_count' => 'integer',
             'used_count' => 'integer',
             'start_at' => 'datetime',
@@ -48,5 +51,10 @@ class Coupon extends Model
     public function redemptions(): HasMany
     {
         return $this->hasMany(CouponRedemption::class);
+    }
+
+    public function products(): BelongsToMany
+    {
+        return $this->belongsToMany(Product::class, 'coupon_products');
     }
 }

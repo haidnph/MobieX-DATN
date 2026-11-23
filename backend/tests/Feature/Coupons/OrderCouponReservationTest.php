@@ -115,7 +115,7 @@ class OrderCouponReservationTest extends TestCase
 
     public function test_checkout_with_coupon_reserves_slot_and_records_redemption(): void
     {
-        $this->setupCart(1);
+        $cart = $this->setupCart(1);
 
         $coupon = Coupon::create([
             'code' => 'SALE500K',
@@ -198,6 +198,108 @@ class OrderCouponReservationTest extends TestCase
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['coupon_code']);
+    }
+
+    public function test_checkout_enforces_per_customer_limit_including_reserved_uses(): void
+    {
+        $cart = $this->setupCart(1);
+        $coupon = Coupon::create([
+            'code' => 'ONEPERUSER',
+            'discount_type' => 'fixed',
+            'discount_value' => 100000,
+            'max_uses_per_customer' => 1,
+            'is_active' => true,
+        ]);
+        $payload = [
+            'shipping_name' => 'Nguyen Van B',
+            'shipping_phone' => '0987654321',
+            'shipping_address' => '456 Le Loi',
+            'shipping_method_id' => $this->shippingMethod->id,
+            'payment_method' => 'COD',
+            'coupon_code' => 'ONEPERUSER',
+        ];
+
+        $firstOrderId = $this->actingAs($this->user, 'sanctum')
+            ->postJson('/api/orders', $payload)
+            ->assertCreated()
+            ->json('data.id');
+
+        CartItem::create([
+            'cart_id' => $cart->id,
+            'variant_id' => $this->variant->id,
+            'quantity' => 1,
+        ]);
+        $this->actingAs($this->user, 'sanctum')
+            ->postJson('/api/orders', $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['coupon_code']);
+
+        $this->assertSame(1, $coupon->fresh()->reserved_count);
+        $this->assertSame(1, $coupon->redemptions()->where('user_id', $this->user->id)->count());
+
+        $this->actingAs($this->user, 'sanctum')
+            ->postJson("/api/orders/{$firstOrderId}/cancel", ['reason' => 'Test release'])
+            ->assertOk();
+        $this->assertSame(0, $coupon->fresh()->reserved_count);
+
+        $this->actingAs($this->user, 'sanctum')
+            ->postJson('/api/orders', $payload)
+            ->assertCreated();
+        $this->assertSame(1, $coupon->fresh()->reserved_count);
+    }
+
+    public function test_product_specific_coupon_only_discounts_eligible_product_subtotal(): void
+    {
+        $cart = $this->setupCart(1);
+        $category = Category::where('slug', 'dien-thoai')->firstOrFail();
+        $brand = Brand::where('slug', 'apple')->firstOrFail();
+        $otherProduct = Product::create([
+            'category_id' => $category->id,
+            'brand_id' => $brand->id,
+            'product_type' => 'phone',
+            'name' => 'iPhone 15 Pro',
+            'slug' => 'iphone-15-pro-coupon-test',
+            'status' => 'active',
+        ]);
+        $otherVariant = ProductVariant::create([
+            'product_id' => $otherProduct->id,
+            'sku' => 'IP15-PRO-COUPON',
+            'price' => 10000000,
+            'cost_price' => 8000000,
+            'is_active' => true,
+        ]);
+        Inventory::create([
+            'product_variant_id' => $otherVariant->id,
+            'on_hand_quantity' => 5,
+            'reserved_quantity' => 0,
+            'min_stock' => 1,
+        ]);
+        CartItem::create([
+            'cart_id' => $cart->id,
+            'variant_id' => $otherVariant->id,
+            'quantity' => 1,
+        ]);
+        $coupon = Coupon::create([
+            'code' => 'PHONEONLY10',
+            'discount_type' => 'percent',
+            'discount_value' => 10,
+            'is_active' => true,
+        ]);
+        $coupon->products()->attach($this->variant->product_id);
+
+        $response = $this->actingAs($this->user, 'sanctum')->postJson('/api/orders', [
+            'shipping_name' => 'Nguyen Van B',
+            'shipping_phone' => '0987654321',
+            'shipping_address' => '456 Le Loi',
+            'shipping_method_id' => $this->shippingMethod->id,
+            'payment_method' => 'COD',
+            'coupon_code' => 'PHONEONLY10',
+        ]);
+
+        $response->assertCreated();
+        $this->assertEquals(30000000, $response->json('data.subtotal'));
+        $this->assertEquals(2000000, $response->json('data.discount_amount'));
+        $this->assertEquals(28030000, $response->json('data.total_amount'));
     }
 
     public function test_customer_cancelling_order_releases_reserved_coupon(): void

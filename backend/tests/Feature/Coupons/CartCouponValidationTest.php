@@ -268,4 +268,52 @@ class CartCouponValidationTest extends TestCase
         $this->assertNotNull($data['coupon_invalid_reason']);
         $this->assertStringContainsString('tối thiểu', $data['coupon_invalid_reason']);
     }
+
+    public function test_product_specific_coupon_only_discounts_eligible_lines_in_cart_and_apply_response(): void
+    {
+        $cart = $this->createCartWithSubtotal();
+        $category = Category::where('slug', 'phones')->firstOrFail();
+        $brand = Brand::where('slug', 'apple')->firstOrFail();
+        $otherProduct = Product::create([
+            'category_id' => $category->id,
+            'brand_id' => $brand->id,
+            'product_type' => 'phone',
+            'name' => 'Other iPhone',
+            'slug' => 'other-iphone-coupon-test',
+            'status' => 'active',
+        ]);
+        $otherVariant = ProductVariant::create([
+            'product_id' => $otherProduct->id,
+            'sku' => 'OTHER-IP-COUPON',
+            'price' => 10000000,
+            'is_active' => true,
+        ]);
+        CartItem::create([
+            'cart_id' => $cart->id,
+            'variant_id' => $otherVariant->id,
+            'quantity' => 1,
+        ]);
+        $coupon = Coupon::create([
+            'code' => 'TARGET10',
+            'discount_type' => 'percent',
+            'discount_value' => 10,
+            'is_active' => true,
+        ]);
+        $coupon->products()->attach($this->variant->product_id);
+
+        $this->actingAs($this->user, 'sanctum')
+            ->getJson('/api/cart?coupon_code=TARGET10')
+            ->assertOk()
+            ->assertJsonPath('data.subtotal', 30000000)
+            ->assertJsonPath('data.discount', 2000000)
+            ->assertJsonPath('data.total', 28000000)
+            ->assertJsonPath('data.coupon_invalid_reason', null);
+
+        $this->actingAs($this->user, 'sanctum')
+            ->postJson('/api/cart/apply-coupon', ['coupon_code' => 'target10'])
+            ->assertOk()
+            ->assertJsonPath('data.eligible_subtotal', 20000000)
+            ->assertJsonPath('data.discount_amount', 2000000)
+            ->assertJsonPath('data.final_total', 28000000);
+    }
 }

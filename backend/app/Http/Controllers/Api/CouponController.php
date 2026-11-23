@@ -5,11 +5,15 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Cart;
 use App\Models\Coupon;
+use App\Services\CouponRules;
+use App\Services\FlashSalePricing;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class CouponController extends Controller
 {
+    public function __construct(private readonly CouponRules $couponRules) {}
+
     /**
      * Validate and calculate coupon discount for the current active cart.
      */
@@ -22,7 +26,7 @@ class CouponController extends Controller
         $userId = $request->user()->id;
         $cart = Cart::where('user_id', $userId)
             ->where('status', 'active')
-            ->with(['items.variant'])
+            ->with(['items.variant.inventory'])
             ->first();
 
         if (! $cart || $cart->items->isEmpty()) {
@@ -31,11 +35,18 @@ class CouponController extends Controller
             ], 422);
         }
 
+        $saleItems = app(FlashSalePricing::class)->activeItemsForVariants(
+            $cart->items->pluck('variant_id')->map(static fn ($id): int => (int) $id)->all(),
+        );
         $subtotal = 0;
         foreach ($cart->items as $item) {
             $variant = $item->variant;
             if ($variant && $variant->is_active) {
-                $subtotal += (float) $variant->price * (int) $item->quantity;
+                $saleItem = $saleItems->get($variant->id);
+                $saleApplies = $saleItem
+                    && app(FlashSalePricing::class)->remainingQuantity($saleItem) >= (int) $item->quantity;
+                $unitPrice = $saleApplies ? (float) $saleItem->sale_price : (float) $variant->price;
+                $subtotal += $unitPrice * (int) $item->quantity;
             }
         }
 
@@ -45,7 +56,7 @@ class CouponController extends Controller
             ], 422);
         }
 
-        $code = trim($validated['coupon_code']);
+        $code = strtoupper(trim($validated['coupon_code']));
         $coupon = Coupon::where('code', $code)->first();
 
         if (! $coupon) {
@@ -79,22 +90,44 @@ class CouponController extends Controller
             ], 422);
         }
 
-        if ($subtotal < (float) $coupon->min_order_amount) {
+        if ($this->couponRules->customerLimitReached($coupon, (int) $userId)) {
+            return response()->json([
+                'message' => 'Bạn đã sử dụng hết lượt áp dụng mã giảm giá này.',
+            ], 422);
+        }
+
+        $eligibleSubtotal = $this->couponRules->eligibleSubtotal(
+            $coupon,
+            $cart->items,
+            static fn ($item): int => (int) ($item->variant?->product_id ?? 0),
+            function ($item) use ($saleItems): float {
+                $variant = $item->variant;
+                if (! $variant || ! $variant->is_active) {
+                    return 0.0;
+                }
+
+                $saleItem = $saleItems->get($variant->id);
+                if ($saleItem && app(FlashSalePricing::class)->remainingQuantity($saleItem) >= (int) $item->quantity) {
+                    return 0.0;
+                }
+
+                return (float) $variant->price * (int) $item->quantity;
+            },
+        );
+
+        if ($eligibleSubtotal <= 0) {
+            return response()->json([
+                'message' => 'Mã giảm giá không áp dụng cho sản phẩm trong giỏ hàng.',
+            ], 422);
+        }
+
+        if ($eligibleSubtotal < (float) $coupon->min_order_amount) {
             return response()->json([
                 'message' => 'Giá trị đơn hàng chưa đạt mức tối thiểu '.number_format((float) $coupon->min_order_amount).' VND để áp dụng mã.',
             ], 422);
         }
 
-        // Calculate discount
-        $discountAmount = 0.0;
-        if ($coupon->discount_type === 'percent') {
-            $discountAmount = round(($subtotal * (float) $coupon->discount_value) / 100, 2);
-            if ($coupon->max_discount !== null && $discountAmount > (float) $coupon->max_discount) {
-                $discountAmount = (float) $coupon->max_discount;
-            }
-        } elseif ($coupon->discount_type === 'fixed') {
-            $discountAmount = min((float) $coupon->discount_value, $subtotal);
-        }
+        $discountAmount = $this->couponRules->discountAmount($coupon, $eligibleSubtotal);
 
         $finalTotal = max(0.0, round($subtotal - $discountAmount, 2));
 
@@ -107,6 +140,7 @@ class CouponController extends Controller
                 'discount_type' => $coupon->discount_type,
                 'discount_value' => (float) $coupon->discount_value,
                 'subtotal' => $subtotal,
+                'eligible_subtotal' => $eligibleSubtotal,
                 'discount_amount' => $discountAmount,
                 'final_total' => $finalTotal,
             ],
