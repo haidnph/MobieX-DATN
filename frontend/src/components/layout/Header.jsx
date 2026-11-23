@@ -802,8 +802,8 @@ export default function Header() {
         </div>
 
         {/* ── GROUP B: UTILITIES (Exact Order: Language -> Theme -> Compare -> Wishlist -> Cart -> Account) ── */}
-        <div className="flex flex-nowrap items-center gap-1.5 xl:gap-2.5 shrink-0">
-          <Link to="/tracking" className="px-2 py-2 rounded-xl text-xs font-semibold text-on-surface-variant hover:text-primary hover:bg-surface-container whitespace-nowrap">Tra cứu đơn hàng</Link>
+        <div className="flex flex-nowrap items-center gap-1 xl:gap-1.5 shrink-0">
+          <Link to="/tracking" className="px-2 py-2 rounded-xl text-[11px] xl:text-xs font-semibold text-on-surface-variant hover:text-primary hover:bg-surface-container whitespace-nowrap">Tra cứu đơn hàng</Link>
           {/* 1. Language Selector (GTranslate Official Integration) */}
 
           {/* 2. Theme Toggle (Light / Dark mode) */}
@@ -830,7 +830,7 @@ export default function Header() {
             to="/compare"
             aria-label="So sánh sản phẩm"
             title="So sánh sản phẩm"
-            className="relative h-9 w-9 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-primary active:scale-95 cursor-pointer transition-all flex items-center justify-center shrink-0 focus-visible:outline-2 focus-visible:outline-primary"
+            className="relative h-9 px-2 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-primary active:scale-95 cursor-pointer transition-all flex items-center justify-center shrink-0 focus-visible:outline-2 focus-visible:outline-primary"
           >
             <span className="text-xs font-semibold">So sánh</span>
             {compareCount > 0 && (
@@ -845,7 +845,7 @@ export default function Header() {
             to="/wishlist"
             aria-label="Danh sách yêu thích"
             title="Danh sách yêu thích"
-            className="relative h-9 w-9 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-primary active:scale-95 cursor-pointer transition-all flex items-center justify-center shrink-0 focus-visible:outline-2 focus-visible:outline-primary"
+            className="relative h-9 px-2 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-primary active:scale-95 cursor-pointer transition-all flex items-center justify-center shrink-0 focus-visible:outline-2 focus-visible:outline-primary"
           >
             <span className="text-xs font-semibold">Yêu thích</span>
             {wishlistCount > 0 && (
@@ -860,7 +860,7 @@ export default function Header() {
             to="/cart"
             aria-label="Giỏ hàng"
             title="Giỏ hàng"
-            className="relative h-9 w-9 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-primary active:scale-95 cursor-pointer transition-all flex items-center justify-center shrink-0 focus-visible:outline-2 focus-visible:outline-primary"
+            className="relative h-9 px-2 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-primary active:scale-95 cursor-pointer transition-all flex items-center justify-center shrink-0 focus-visible:outline-2 focus-visible:outline-primary"
           >
             <span className="text-xs font-semibold">Giỏ hàng</span>
             {itemCount > 0 && (
