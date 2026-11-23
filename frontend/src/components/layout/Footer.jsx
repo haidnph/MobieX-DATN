@@ -39,7 +39,7 @@ export default function Footer() {
               <li>
                 <Link
                   to="/tracking"
-                  className="text-sm text-on-surface-variant font-medium hover:text-on-surface hover:underline"
+                  className="text-sm text-on-surface-variant font-medium"
                 >
                   Tra cứu đơn hàng
                 </Link>
