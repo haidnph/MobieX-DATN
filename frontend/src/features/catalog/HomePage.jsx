@@ -188,6 +188,8 @@ function CategoryDiscoverySection({ section }) {
     { match: 'điện thoại', image: 'https://images2.thanhnien.vn/528068263637045248/2026/4/15/camera-17762255561921796534711.jpg' },
     { match: 'phụ kiện', image: 'https://phukienhoangde.com/wp-content/uploads/2022/04/phu-kien-dien-thoai-iphone-quan-2-667x400.jpg' },
     { match: 'máy tính bảng', image: 'https://phucanhcdn.com/media/lib/25-03-2025/58070_may_tinh_bang_lenovo_tab_zaeh0147vn_3.jpg' },
+    { match: 'smartwatch', image: 'https://cdn.tgdd.vn/Files/2021/12/10/1403648/apple-watch-7-cover-_1600x900-800-resize.jpg' },
+    { match: 'đồng hồ thông minh', image: 'https://cdn.tgdd.vn/Files/2021/12/10/1403648/apple-watch-7-cover-_1600x900-800-resize.jpg' },
   ]
 
   return (
