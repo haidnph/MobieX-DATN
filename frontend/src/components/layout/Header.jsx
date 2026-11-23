@@ -852,6 +852,17 @@ export default function Header() {
             )}
           </Link>
 
+          {/* Theme Toggle immediately before account/login */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={isDark ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
+            title={isDark ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
+            className="h-9 px-2 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-primary active:scale-95 cursor-pointer transition-all flex items-center justify-center shrink-0 focus-visible:outline-2 focus-visible:outline-primary"
+          >
+            <span className="inline-flex items-center gap-1.5 text-xs xl:text-sm font-semibold whitespace-nowrap"><span className="material-symbols-outlined text-lg">{isDark ? 'light_mode' : 'dark_mode'}</span>{isDark ? 'Giao diện sáng' : 'Giao diện tối'}</span>
+          </button>
+
           {/* 6. User Account Menu or Login Button */}
           {user ? (
             <div className="relative" ref={userMenuRef}>
@@ -954,15 +965,6 @@ export default function Header() {
               Đăng nhập
             </Link>
           )}
-          <button
-            type="button"
-            onClick={toggleTheme}
-            aria-label={isDark ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
-            title={isDark ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
-            className="h-9 px-2 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-primary active:scale-95 cursor-pointer transition-all flex items-center justify-center shrink-0 focus-visible:outline-2 focus-visible:outline-primary"
-          >
-            <span className="inline-flex items-center gap-1.5 text-xs xl:text-sm font-semibold whitespace-nowrap"><span className="material-symbols-outlined text-lg">{isDark ? 'light_mode' : 'dark_mode'}</span>{isDark ? 'Giao diện sáng' : 'Giao diện tối'}</span>
-          </button>
         </div>
       </div>
 
