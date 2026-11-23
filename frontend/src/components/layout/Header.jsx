@@ -23,7 +23,6 @@ import {
   clearRecentSearches,
   POPULAR_SEARCHES,
 } from '../../utils/searchHistory'
-import LanguageSelector from './LanguageSelector'
 import CategoryMegaMenu, {
   buildCategoryTree,
   getCategoryIcon,
@@ -816,7 +815,6 @@ export default function Header() {
         {/* ── GROUP B: UTILITIES (Exact Order: Language -> Theme -> Compare -> Wishlist -> Cart -> Account) ── */}
         <div className="flex flex-nowrap items-center gap-1.5 xl:gap-2.5 shrink-0">
           {/* 1. Language Selector (GTranslate Official Integration) */}
-          <LanguageSelector />
 
           {/* 2. Theme Toggle (Light / Dark mode) */}
           <button
@@ -1014,7 +1012,6 @@ export default function Header() {
           {/* Quick Actions on Mobile */}
           <div className="flex items-center gap-1.5 shrink-0">
             {/* Language Selector */}
-            <LanguageSelector />
 
             {/* Wishlist Icon */}
             <Link
