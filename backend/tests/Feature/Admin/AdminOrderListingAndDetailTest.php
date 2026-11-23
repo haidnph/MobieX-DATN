@@ -6,6 +6,7 @@ use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\Payment;
 use App\Models\Permission;
 use App\Models\Product;
 use App\Models\ProductVariant;
@@ -160,11 +161,28 @@ class AdminOrderListingAndDetailTest extends TestCase
     public function test_admin_can_view_order_details(): void
     {
         $order = $this->createOrder($this->regularUser, 'MX-ORD-DETAIL');
+        Payment::create([
+            'order_id' => $order->id,
+            'transaction_code' => 'PAY-ADMIN-DETAIL',
+            'idempotency_key' => 'payment-admin-detail',
+            'method' => 'vnpay',
+            'amount' => $order->total_amount,
+            'currency_code' => 'VND',
+            'status' => 'success',
+            'response_data' => ['vnp_TransactionNo' => 'TX-ADMIN-123'],
+            'refund_required' => true,
+            'refund_note' => 'Manual reconciliation pending',
+            'refund_confirmed_by' => $this->adminUser->id,
+        ]);
 
         $response = $this->actingAs($this->adminUser)->getJson("/api/admin/orders/{$order->id}");
 
         $response->assertOk();
         $response->assertJsonPath('data.order_code', 'MX-ORD-DETAIL');
         $response->assertJsonPath('data.items.0.sku', $this->variant->sku);
+        $response->assertJsonPath('data.payments.0.response_data.vnp_TransactionNo', 'TX-ADMIN-123');
+        $response->assertJsonPath('data.payments.0.refund_required', true);
+        $response->assertJsonPath('data.payments.0.refund_note', 'Manual reconciliation pending');
+        $response->assertJsonPath('data.payments.0.refund_confirmed_by', $this->adminUser->id);
     }
 }

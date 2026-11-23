@@ -48,7 +48,7 @@ class AdminDashboardController extends Controller
             ->pluck('count', 'status')
             ->toArray();
 
-        $allStatuses = ['pending', 'confirmed', 'shipping', 'delivered', 'cancelled'];
+        $allStatuses = ['pending', 'confirmed', 'processing', 'shipping', 'received', 'delivered', 'cancelled'];
         $orderStatusDistribution = [];
         foreach ($allStatuses as $st) {
             $count = (int) ($statusCounts[$st] ?? 0);

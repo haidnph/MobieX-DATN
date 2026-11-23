@@ -8,6 +8,7 @@ import EP from '../../api/endpoints'
 import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
 import { formatDateTime } from '../../utils/formatDate'
 import { useToast } from '../../contexts/ToastContext'
+import { getProviderTransactionReference } from './paymentRefundReference'
 import { useAuth } from '../../contexts/AuthContext'
 import Badge from '../../components/common/Badge'
 import Button from '../../components/common/Button'
@@ -18,6 +19,7 @@ const STATUS_CONFIG = {
   confirmed: { label: 'Đã xác nhận', variant: 'info' },
   processing: { label: 'Đang chuẩn bị hàng', variant: 'info' },
   shipping: { label: 'Đang giao hàng (Xuất kho)', variant: 'warning' },
+  received: { label: 'Khách đã nhận hàng', variant: 'info' },
   delivered: { label: 'Giao hàng thành công', variant: 'success' },
   cancelled: { label: 'Đã hủy (Giải phóng kho)', variant: 'error' },
 }
@@ -27,7 +29,8 @@ const VALID_TRANSITIONS = {
   pending: ['confirmed', 'cancelled'],
   confirmed: ['processing', 'cancelled'],
   processing: ['shipping', 'cancelled'],
-  shipping: ['delivered'],
+  shipping: [],
+  received: ['delivered'],
   delivered: [],
   cancelled: [],
 }
@@ -45,6 +48,10 @@ export default function AdminOrderDetailPage() {
   const [transitionNote, setTransitionNote] = useState('')
   const [updating, setUpdating] = useState(false)
   const [simulatingPayment, setSimulatingPayment] = useState(false)
+  const [refundDrafts, setRefundDrafts] = useState({})
+  const [savingRefundPaymentId, setSavingRefundPaymentId] = useState(null)
+  const [gatewayRefundPaymentId, setGatewayRefundPaymentId] = useState(null)
+  const [refreshingGatewayRefundPaymentId, setRefreshingGatewayRefundPaymentId] = useState(null)
 
   const fetchOrder = () => {
     setLoading(true)
@@ -98,6 +105,57 @@ export default function AdminOrderDetailPage() {
       showToast(err.message || 'Không thể mô phỏng thanh toán.', 'error')
     } finally {
       setSimulatingPayment(false)
+    }
+  }
+
+  const handleConfirmRefund = async (event, payment) => {
+    event.preventDefault()
+    const draft = refundDrafts[payment.id] || {}
+    setSavingRefundPaymentId(payment.id)
+    try {
+      await axiosClient.post(EP.ADMIN_CONFIRM_PAYMENT_REFUND(payment.id), {
+        refund_transaction_id: draft.transactionId,
+        refund_amount: payment.amount,
+        refund_note: draft.note,
+      })
+      showToast('Đã ghi nhận giao dịch hoàn tiền đã thực hiện trên cổng thanh toán.', 'success')
+      fetchOrder()
+    } catch (err) {
+      showToast(err.message || 'Không thể ghi nhận đối soát hoàn tiền.', 'error')
+    } finally {
+      setSavingRefundPaymentId(null)
+    }
+  }
+
+  const handleGatewayRefund = async (payment) => {
+    const note = refundDrafts[payment.id]?.note?.trim()
+    if (!note || note.length < 5) {
+      showToast('Nhập lý do hoàn tiền (ít nhất 5 ký tự) trước khi gửi cổng thanh toán.', 'error')
+      return
+    }
+    setGatewayRefundPaymentId(payment.id)
+    try {
+      const { data } = await axiosClient.post(EP.ADMIN_REQUEST_PAYMENT_REFUND(payment.id), { note })
+      showToast(data.message || 'Đã gửi yêu cầu hoàn tiền.', data.data?.status === 'succeeded' ? 'success' : 'info')
+      fetchOrder()
+    } catch (err) {
+      showToast(err.message || 'Không thể gửi yêu cầu hoàn tiền.', 'error')
+      fetchOrder()
+    } finally {
+      setGatewayRefundPaymentId(null)
+    }
+  }
+
+  const handleRefreshGatewayRefund = async (payment) => {
+    setRefreshingGatewayRefundPaymentId(payment.id)
+    try {
+      const { data } = await axiosClient.post(EP.ADMIN_REFRESH_PAYMENT_REFUND(payment.id))
+      showToast(data.message || 'Đã cập nhật trạng thái hoàn tiền.', data.data?.status === 'succeeded' ? 'success' : 'info')
+      fetchOrder()
+    } catch (err) {
+      showToast(err.message || 'Không thể truy vấn trạng thái hoàn tiền.', 'error')
+    } finally {
+      setRefreshingGatewayRefundPaymentId(null)
     }
   }
 
@@ -178,9 +236,110 @@ export default function AdminOrderDetailPage() {
               <div className="flex justify-between text-xs">
                 <span className="text-outline">Trạng thái:</span>
                 <span className="font-semibold text-secondary">
-                  {order.payment_status === 'settled' || order.payment_status === 'paid' ? 'Đã thu tiền' : 'Chưa thu tiền'}
+                  {order.payment_status === 'refunded'
+                    ? 'Đã hoàn tiền'
+                    : order.payment_status === 'settled' || order.payment_status === 'paid'
+                      ? 'Đã thu tiền'
+                      : 'Chưa thu tiền'}
                 </span>
               </div>
+              {(order.payments || []).filter((payment) => (
+                payment.refund_required
+                || payment.status === 'refunded'
+                || (payment.status === 'success' && order.payment_status === 'paid')
+              )).map((payment) => (
+                (() => {
+                  const refund = payment.refunds?.[0]
+                  const refundInProgress = refund && ['pending', 'processing', 'unknown'].includes(refund.status)
+                  return (
+                <div key={payment.id} role="alert" className="rounded-xl border border-error/30 bg-error-container/40 p-3 text-xs text-on-error-container">
+                  <p className="font-bold">
+                    {payment.refund_required
+                      ? 'Giao dịch capture trùng — cần hoàn tiền/đối soát'
+                      : payment.status === 'refunded'
+                        ? 'Đã đối soát hoàn tiền'
+                        : 'Giao dịch đã thu tiền — cần hoàn tiền nếu hủy đơn'}
+                  </p>
+                  <p className="mt-1">{payment.method?.toUpperCase()} · {formatCurrencyVND(payment.amount)}</p>
+                  <p className="mt-1 break-all font-mono">
+                    Mã giao dịch gốc: {getProviderTransactionReference(payment) || 'Chưa có mã giao dịch từ cổng'}
+                  </p>
+                  {payment.status === 'refunded' ? (
+                    <div className="mt-2 space-y-1">
+                      <p>Mã hoàn tiền: <span className="font-mono">{payment.refund_transaction_id}</span></p>
+                      <p>Ghi nhận lúc: {formatDateTime(payment.refunded_at)}</p>
+                      <p>{payment.refund_note}</p>
+                    </div>
+                  ) : hasPermission('orders.manage') ? (
+                    <form className="mt-3 space-y-2 border-t border-error/20 pt-3" onSubmit={(event) => handleConfirmRefund(event, payment)}>
+                      {refund && (
+                        <div className="rounded-lg border border-outline-variant bg-surface/70 p-2">
+                          <p>Yêu cầu hoàn tự động: <strong>{refund.status}</strong></p>
+                          {refundInProgress && (
+                            <button
+                              type="button"
+                              onClick={() => handleRefreshGatewayRefund(payment)}
+                              disabled={refreshingGatewayRefundPaymentId === payment.id}
+                              className="mt-2 rounded-lg border border-outline-variant px-3 py-2 font-semibold disabled:opacity-60"
+                            >
+                              {refreshingGatewayRefundPaymentId === payment.id ? 'Đang truy vấn…' : 'Truy vấn trạng thái cổng'}
+                            </button>
+                          )}
+                          {refund.status === 'failed' && <p className="mt-1">Cổng từ chối yêu cầu. Có thể tiếp tục hoàn ngoài cổng rồi ghi nhận bên dưới.</p>}
+                        </div>
+                      )}
+                      {!refund && ['vnpay', 'momo', 'zalopay'].includes(payment.method) && (
+                        <button
+                          type="button"
+                          onClick={() => handleGatewayRefund(payment)}
+                          disabled={gatewayRefundPaymentId === payment.id}
+                          className="w-full rounded-lg bg-error px-3 py-2 font-semibold text-white disabled:opacity-60"
+                        >
+                          {gatewayRefundPaymentId === payment.id ? 'Đang gửi yêu cầu…' : `Gửi yêu cầu hoàn ${payment.method.toUpperCase()}`}
+                        </button>
+                      )}
+                      {!refundInProgress && (
+                      <>
+                      <p className="font-semibold">Chỉ ghi nhận sau khi đã hoàn tiền thật trên cổng thanh toán.</p>
+                      <input
+                        required
+                        maxLength={100}
+                        value={refundDrafts[payment.id]?.transactionId || ''}
+                        onChange={(event) => setRefundDrafts((current) => ({
+                          ...current,
+                          [payment.id]: { ...current[payment.id], transactionId: event.target.value },
+                        }))}
+                        placeholder="Mã giao dịch hoàn tiền từ cổng"
+                        className="w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-on-surface"
+                      />
+                      <textarea
+                        required
+                        minLength={5}
+                        maxLength={1000}
+                        value={refundDrafts[payment.id]?.note || ''}
+                        onChange={(event) => setRefundDrafts((current) => ({
+                          ...current,
+                          [payment.id]: { ...current[payment.id], note: event.target.value },
+                        }))}
+                        placeholder="Ghi chú đối soát"
+                        rows={2}
+                        className="w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-on-surface"
+                      />
+                      <button
+                        type="submit"
+                        disabled={savingRefundPaymentId === payment.id}
+                        className="rounded-lg bg-error px-3 py-2 font-semibold text-white disabled:opacity-60"
+                      >
+                        {savingRefundPaymentId === payment.id ? 'Đang lưu…' : 'Ghi nhận đã hoàn tiền'}
+                      </button>
+                      </>
+                      )}
+                    </form>
+                  ) : null}
+                </div>
+                  )
+                })()
+              ))}
               {order.coupon_code && (
                 <div className="flex justify-between text-xs">
                   <span className="text-outline">Voucher áp dụng:</span>
@@ -308,7 +467,11 @@ export default function AdminOrderDetailPage() {
               </p>
             </div>
 
-            {allowedNext.length === 0 ? (
+            {order.status === 'shipping' ? (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center text-sm text-amber-900">
+                Đang chờ khách hàng xác nhận đã nhận hàng. Sau đó quản trị viên mới có thể chốt giao thành công.
+              </div>
+            ) : allowedNext.length === 0 ? (
               <div className="bg-surface-container-low rounded-xl p-4 text-center text-xs text-outline space-y-1">
                 <span className="material-symbols-outlined text-2xl text-secondary block">lock</span>
                 Đơn hàng đã ở trạng thái kết thúc (<strong>{cfg.label}</strong>). Không thể chuyển tiếp.

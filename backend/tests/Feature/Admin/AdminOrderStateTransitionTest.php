@@ -4,6 +4,8 @@ namespace Tests\Feature\Admin;
 
 use App\Models\Brand;
 use App\Models\Category;
+use App\Models\Coupon;
+use App\Models\CouponRedemption;
 use App\Models\Inventory;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -152,6 +154,22 @@ class AdminOrderStateTransitionTest extends TestCase
         $response->assertStatus(403);
     }
 
+    public function test_unpaid_online_order_cannot_enter_fulfillment(): void
+    {
+        $order = $this->createOrderWithItem('pending');
+        $order->update(['payment_method' => 'vnpay', 'payment_status' => 'pending']);
+
+        $this->actingAs($this->adminUser, 'sanctum')
+            ->patchJson("/api/admin/orders/{$order->id}/status", ['status' => 'confirmed'])
+            ->assertUnprocessable();
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $order->id,
+            'status' => 'pending',
+            'payment_status' => 'pending',
+        ]);
+    }
+
     public function test_valid_sequential_transitions_up_to_delivered(): void
     {
         $order = $this->createOrderWithItem('pending', 2);
@@ -211,6 +229,13 @@ class AdminOrderStateTransitionTest extends TestCase
         $res4->assertStatus(200);
         $this->assertEquals('delivered', $order->fresh()->status);
         $this->assertNotNull($order->fresh()->delivered_at);
+        $this->assertEquals('paid', $order->fresh()->payment_status);
+        $this->assertDatabaseHas('payments', [
+            'order_id' => $order->id,
+            'method' => 'cod',
+            'status' => 'success',
+            'amount' => $order->total_amount,
+        ]);
 
         // Ensure stock was NOT modified again at delivered
         $this->assertEquals(18, $this->inventory->fresh()->on_hand_quantity);
@@ -231,6 +256,29 @@ class AdminOrderStateTransitionTest extends TestCase
         $this->assertEquals('pending', $order->fresh()->status);
     }
 
+    public function test_dispatch_is_rejected_when_order_reservation_is_insufficient(): void
+    {
+        $order = $this->createOrderWithItem('processing', 2);
+        $this->inventory->update(['reserved_quantity' => 1]);
+
+        $this->actingAs($this->adminUser, 'sanctum')
+            ->patchJson("/api/admin/orders/{$order->id}/status", ['status' => 'shipping'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['status']);
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $order->id,
+            'status' => 'processing',
+        ]);
+        $this->assertSame(20, (int) $this->inventory->fresh()->on_hand_quantity);
+        $this->assertSame(1, (int) $this->inventory->fresh()->reserved_quantity);
+        $this->assertDatabaseMissing('inventory_transactions', [
+            'reference_type' => 'order',
+            'reference_id' => $order->id,
+            'type' => 'dispatch',
+        ]);
+    }
+
     public function test_backward_transition_from_delivered_is_rejected(): void
     {
         $order = $this->createOrderWithItem('delivered', 2);
@@ -241,6 +289,43 @@ class AdminOrderStateTransitionTest extends TestCase
             ]);
 
         $response->assertStatus(422);
+    }
+
+    public function test_delivering_order_does_not_consume_coupon_a_second_time(): void
+    {
+        $coupon = Coupon::create([
+            'code' => 'ALREADY-USED',
+            'discount_type' => 'fixed',
+            'discount_value' => 1000,
+            'is_active' => true,
+            'reserved_count' => 0,
+            'used_count' => 1,
+        ]);
+        $order = $this->createOrderWithItem('pending');
+        $order->update(['coupon_id' => $coupon->id, 'coupon_code' => $coupon->code]);
+        CouponRedemption::create([
+            'coupon_id' => $coupon->id,
+            'order_id' => $order->id,
+            'user_id' => $this->regularUser->id,
+            'discount_amount' => 1000,
+            'status' => 'consumed',
+        ]);
+
+        foreach (['confirmed', 'processing', 'shipping', 'delivered'] as $status) {
+            $this->actingAs($this->adminUser, 'sanctum')
+                ->patchJson("/api/admin/orders/{$order->id}/status", ['status' => $status])
+                ->assertOk();
+        }
+
+        $this->assertDatabaseHas('coupons', [
+            'id' => $coupon->id,
+            'reserved_count' => 0,
+            'used_count' => 1,
+        ]);
+        $this->assertDatabaseHas('coupon_redemptions', [
+            'order_id' => $order->id,
+            'status' => 'consumed',
+        ]);
     }
 
     public function test_admin_cancel_order_releases_reserved_stock(): void
@@ -268,6 +353,70 @@ class AdminOrderStateTransitionTest extends TestCase
             'reserved_delta' => -2,
             'reference_type' => 'order',
             'reference_id' => $order->id,
+        ]);
+    }
+
+    public function test_admin_cancellation_rolls_back_when_reserved_stock_is_insufficient(): void
+    {
+        $order = $this->createOrderWithItem('pending', 2);
+        $this->inventory->update(['reserved_quantity' => 1]);
+
+        $this->actingAs($this->adminUser, 'sanctum')
+            ->patchJson("/api/admin/orders/{$order->id}/status", ['status' => 'cancelled'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['status']);
+
+        $this->assertSame('pending', $order->fresh()->status);
+        $this->assertSame(1, $this->inventory->fresh()->reserved_quantity);
+        $this->assertDatabaseMissing('inventory_transactions', [
+            'reference_id' => $order->id,
+            'type' => 'release',
+        ]);
+    }
+
+    public function test_cancelled_bank_transfer_order_cannot_be_marked_paid(): void
+    {
+        $order = $this->createOrderWithItem('cancelled');
+        $order->update(['payment_method' => 'bank_transfer', 'payment_status' => 'pending']);
+
+        $this->actingAs($this->adminUser, 'sanctum')
+            ->postJson("/api/admin/orders/{$order->id}/confirm-bank-transfer", [
+                'transaction_no' => 'BANK-TEST-1',
+            ])
+            ->assertUnprocessable();
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $order->id,
+            'status' => 'cancelled',
+            'payment_status' => 'pending',
+        ]);
+        $this->assertDatabaseMissing('payments', [
+            'order_id' => $order->id,
+            'status' => 'success',
+        ]);
+    }
+
+    public function test_admin_cannot_cancel_paid_order_without_refund_flow(): void
+    {
+        $order = $this->createOrderWithItem('pending');
+        $order->update(['payment_method' => 'vnpay', 'payment_status' => 'paid']);
+
+        $this->actingAs($this->adminUser, 'sanctum')
+            ->patchJson("/api/admin/orders/{$order->id}/status", [
+                'status' => 'cancelled',
+                'cancel_reason' => 'Customer changed their mind',
+            ])
+            ->assertUnprocessable();
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $order->id,
+            'status' => 'pending',
+            'payment_status' => 'paid',
+        ]);
+        $this->assertSame(2, (int) $this->inventory->fresh()->reserved_quantity);
+        $this->assertDatabaseMissing('inventory_transactions', [
+            'reference_id' => $order->id,
+            'type' => 'release',
         ]);
     }
 }
