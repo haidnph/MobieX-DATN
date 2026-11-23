@@ -4,6 +4,7 @@ namespace Tests\Feature\Admin;
 
 use App\Models\Brand;
 use App\Models\Category;
+use App\Models\Permission;
 use App\Models\Product;
 use App\Models\ProductSpecification;
 use App\Models\ProductSpecificationDefinition;
@@ -36,6 +37,12 @@ class ProductSpecificationSyncTest extends TestCase
             ['slug' => 'admin'],
             ['name' => 'Quản trị viên', 'description' => 'Admin role', 'is_system' => true]
         );
+
+        $manageProducts = Permission::firstOrCreate(
+            ['slug' => 'products.manage'],
+            ['name' => 'Manage products']
+        );
+        $adminRole->permissions()->syncWithoutDetaching([$manageProducts->id]);
 
         $this->adminUser = User::factory()->create(['is_active' => true]);
         $this->adminUser->roles()->attach($adminRole->id);
@@ -209,6 +216,34 @@ class ProductSpecificationSyncTest extends TestCase
 
         $this->assertDatabaseMissing('product_specification_definitions', [
             'id' => $newId,
+        ]);
+    }
+
+    public function test_customer_cannot_manage_product_specification_definitions(): void
+    {
+        $this->actingAs($this->regularUser, 'sanctum')
+            ->getJson('/api/admin/spec-definitions')
+            ->assertForbidden();
+
+        $this->actingAs($this->regularUser, 'sanctum')
+            ->postJson('/api/admin/spec-definitions', [
+                'name' => 'Unauthorized spec',
+                'value_type' => 'text',
+                'applies_to' => 'all',
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($this->regularUser, 'sanctum')
+            ->putJson('/api/admin/spec-definitions/'.$this->defCpu->id, ['name' => 'Tampered CPU'])
+            ->assertForbidden();
+
+        $this->actingAs($this->regularUser, 'sanctum')
+            ->deleteJson('/api/admin/spec-definitions/'.$this->defCpu->id)
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('product_specification_definitions', [
+            'id' => $this->defCpu->id,
+            'name' => $this->defCpu->name,
         ]);
     }
 }

@@ -3,8 +3,15 @@
 namespace Tests\Feature\Homepage;
 
 use App\Models\Banner;
+use App\Models\Brand;
+use App\Models\Category;
+use App\Models\FlashSale;
+use App\Models\FlashSaleItem;
 use App\Models\HomepageSection;
+use App\Models\Inventory;
 use App\Models\Permission;
+use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\HomepageService;
@@ -76,6 +83,61 @@ class HomepageManagementTest extends TestCase
         $sectionKeys = collect($sections)->pluck('section_key')->toArray();
         $this->assertContains('hero_banner', $sectionKeys);
         $this->assertContains('featured_products', $sectionKeys);
+    }
+
+    public function test_public_flash_sale_section_contains_only_real_active_sale_items(): void
+    {
+        Cache::flush();
+        $category = Category::create(['name' => 'Phones', 'slug' => 'phones', 'is_active' => true]);
+        $brand = Brand::create(['name' => 'MobieX', 'slug' => 'mobiex', 'is_active' => true]);
+        $product = Product::create([
+            'category_id' => $category->id,
+            'brand_id' => $brand->id,
+            'product_type' => 'phone',
+            'name' => 'Real sale phone',
+            'slug' => 'real-sale-phone',
+            'status' => 'active',
+        ]);
+        $variant = ProductVariant::create([
+            'product_id' => $product->id,
+            'sku' => 'REAL-SALE-1',
+            'price' => 1000000,
+            'is_active' => true,
+        ]);
+        Inventory::create([
+            'product_variant_id' => $variant->id,
+            'on_hand_quantity' => 5,
+            'reserved_quantity' => 0,
+            'min_stock' => 1,
+        ]);
+        $sale = FlashSale::create([
+            'name' => 'Live campaign',
+            'slug' => 'live-campaign',
+            'description' => 'Campaign description',
+            'start_at' => now()->subMinute(),
+            'end_at' => now()->addHour(),
+            'status' => 'active',
+        ]);
+        FlashSaleItem::create([
+            'flash_sale_id' => $sale->id,
+            'product_variant_id' => $variant->id,
+            'sale_price' => 800000,
+            'quantity_limit' => 3,
+            'quantity_sold' => 1,
+        ]);
+
+        $response = $this->getJson('/api/homepage')->assertOk();
+        $section = collect($response->json('data.sections'))
+            ->firstWhere('section_key', 'flash_sale');
+
+        $this->assertSame('Live campaign', $section['title']);
+        $this->assertCount(1, $section['items']);
+        $this->assertSame('Real sale phone', $section['items'][0]['name']);
+        $this->assertSame(800000, $section['items'][0]['flash_sale']['sale_price']);
+        $this->assertSame(1000000, $section['items'][0]['flash_sale']['original_price']);
+        $this->assertSame(1, $section['items'][0]['flash_sale']['quantity_sold']);
+        $this->assertSame(2, $section['items'][0]['flash_sale']['quantity_remaining']);
+        $this->assertSame($variant->id, $section['items'][0]['flash_sale']['product_variant_id']);
     }
 
     public function test_regular_user_cannot_access_admin_homepage(): void

@@ -26,6 +26,9 @@ describe('API Endpoints Definition', () => {
     expect(EP.ADMIN_COUPON_DETAIL(3)).toBe('/admin/coupons/3')
     expect(EP.ADMIN_BANNER_DETAIL(2)).toBe('/admin/banners/2')
     expect(EP.ADMIN_PRODUCT_DETAIL(1)).toBe('/admin/products/1')
+    expect(EP.ADMIN_FLASH_SALES).toBe('/admin/flash-sales')
+    expect(EP.ADMIN_FLASH_SALE_DETAIL(8)).toBe('/admin/flash-sales/8')
+    expect(EP.ADMIN_FLASH_SALE_VARIANTS).toBe('/admin/flash-sales/variant-options')
   })
 
   it('contains cart and payment endpoints', () => {
