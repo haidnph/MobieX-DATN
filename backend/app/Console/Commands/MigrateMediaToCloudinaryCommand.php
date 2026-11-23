@@ -48,6 +48,7 @@ class MigrateMediaToCloudinaryCommand extends Command
 
         if ($isRun && ! $mediaService->isCloudinaryConfigured()) {
             $this->error('Cloudinary is not configured. Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in your .env file.');
+
             return self::FAILURE;
         }
 
@@ -58,7 +59,7 @@ class MigrateMediaToCloudinaryCommand extends Command
             $query = ProductImage::query()
                 ->where(function ($q) {
                     $q->whereNull('storage_provider')
-                      ->orWhere('storage_provider', '!=', 'cloudinary');
+                        ->orWhere('storage_provider', '!=', 'cloudinary');
                 });
 
             if ($limit > 0) {
@@ -94,7 +95,7 @@ class MigrateMediaToCloudinaryCommand extends Command
             $bannerQuery = Banner::query()
                 ->where(function ($q) {
                     $q->whereNull('storage_provider')
-                      ->orWhere('storage_provider', '!=', 'cloudinary');
+                        ->orWhere('storage_provider', '!=', 'cloudinary');
                 });
 
             if ($limit > 0 && count($items) >= $limit) {
@@ -125,6 +126,7 @@ class MigrateMediaToCloudinaryCommand extends Command
 
         if (empty($items)) {
             $this->info('No local media items found requiring migration to Cloudinary.');
+
             return self::SUCCESS;
         }
 
@@ -153,6 +155,7 @@ class MigrateMediaToCloudinaryCommand extends Command
             $this->newLine();
             $this->warn('DRY RUN COMPLETE. No assets were uploaded or modified in database.');
             $this->line('To perform actual migration, run: <fg=green>php artisan media:migrate-cloudinary --run</>');
+
             return self::SUCCESS;
         }
 
@@ -168,6 +171,7 @@ class MigrateMediaToCloudinaryCommand extends Command
             if (! $item['exists']) {
                 $skipped++;
                 $progressBar->advance();
+
                 continue;
             }
 

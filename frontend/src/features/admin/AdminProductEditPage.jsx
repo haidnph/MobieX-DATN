@@ -35,7 +35,7 @@ export default function AdminProductEditPage() {
     setNotFound(false)
 
     Promise.allSettled([
-      axiosClient.get(EP.PRODUCT_DETAIL(id)),
+      axiosClient.get(EP.ADMIN_PRODUCT_DETAIL(id)),
       axiosClient.get(EP.BRANDS),
       axiosClient.get(EP.CATEGORIES),
       axiosClient.get(EP.SPEC_DEFINITIONS),
@@ -128,7 +128,7 @@ export default function AdminProductEditPage() {
 
       showToast(`Cập nhật thông tin sản phẩm #${id} thành công!`, 'success')
       // Refetch latest product details
-      const refreshRes = await axiosClient.get(EP.PRODUCT_DETAIL(id))
+      const refreshRes = await axiosClient.get(EP.ADMIN_PRODUCT_DETAIL(id))
       const updated = refreshRes.data?.data ?? refreshRes.data
       setProduct(updated)
       return true

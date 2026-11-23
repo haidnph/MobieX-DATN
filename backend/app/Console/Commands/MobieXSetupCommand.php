@@ -54,6 +54,7 @@ class MobieXSetupCommand extends Command
         if (! $this->checkDatabaseConnection()) {
             $this->error('  ✗  Cannot connect to database. Check DB_* settings in .env');
             $this->line('  <fg=gray>  → DB_HOST, DB_PORT, DB_DATABASE, DB_USERNAME, DB_PASSWORD</>');
+
             return self::FAILURE;
         }
         $this->line('  <fg=green>✓</> Database connection OK.');
@@ -61,6 +62,7 @@ class MobieXSetupCommand extends Command
         if ($this->option('fresh')) {
             if (! $this->confirm('  ⚠  --fresh will DROP all tables and DELETE all data. Continue?', false)) {
                 $this->line('  Cancelled.');
+
                 return self::SUCCESS;
             }
             $this->info('  Running migrate:fresh --seed...');
@@ -97,10 +99,9 @@ class MobieXSetupCommand extends Command
         $this->line('  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         $this->line('  <fg=green;options=bold>✓  MobieX setup completed successfully!</>');
         $this->newLine();
-        $this->line('  <fg=white;options=bold>Demo Accounts:</>');
-        $this->line('  <fg=gray>  Admin:      admin@mobilex.tech    / AdminPass123456!</>');
-        $this->line('  <fg=gray>  SuperAdmin: superadmin@gmail.com  / superadmin1234567890</>');
-        $this->line('  <fg=gray>  Customer:   customer@mobilex.tech / Password123456!</>');
+        $this->line('  <fg=white;options=bold>Admin account:</>');
+        $this->line('  <fg=gray>  Configure RBAC_ADMIN_NAME, RBAC_ADMIN_EMAIL, and RBAC_ADMIN_PASSWORD locally.</>');
+        $this->line('  <fg=gray>  Seeded demo customer accounts do not have a known password.</>');
         $this->newLine();
         $this->line('  <fg=white;options=bold>Start the development servers:</>');
         $this->line('  <fg=gray>  Backend:  php artisan serve          → http://127.0.0.1:8000</>');
@@ -114,13 +115,14 @@ class MobieXSetupCommand extends Command
     {
         $this->newLine();
         $this->line("  <fg=cyan;options=bold>Step {$step}:</> <fg=white;options=bold>{$title}</>");
-        $this->line('  ' . str_repeat('─', 50));
+        $this->line('  '.str_repeat('─', 50));
     }
 
     private function checkDatabaseConnection(): bool
     {
         try {
             DB::connection()->getPdo();
+
             return true;
         } catch (\Exception) {
             return false;

@@ -93,7 +93,7 @@ export default function ProductImageGallery({
       const params = { product_id: productId }
       if (variantId) params.product_variant_id = variantId
 
-      const { data } = await axiosClient.get(EP.PRODUCT_IMAGES, { params })
+      const { data } = await axiosClient.get(EP.ADMIN_PRODUCT_IMAGES, { params })
 
       // Check if this request is still current
       if (currentReqId !== activeRequestIdRef.current) return
@@ -183,7 +183,7 @@ export default function ProductImageGallery({
       if (variantId) formData.append('variant_id', variantId)
       files.forEach((f) => formData.append('images[]', f))
 
-      await axiosClient.post(EP.PRODUCT_IMAGES, formData, {
+      await axiosClient.post(EP.ADMIN_PRODUCT_IMAGES, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         onUploadProgress: (e) => {
           const pct = Math.round((e.loaded * 100) / (e.total || 1))
@@ -243,7 +243,7 @@ export default function ProductImageGallery({
 
     // Live Mode
     try {
-      await axiosClient.patch(EP.PRODUCT_IMAGE_PRIMARY(targetItem.id))
+      await axiosClient.patch(EP.ADMIN_PRODUCT_IMAGE_PRIMARY(targetItem.id))
       showToast('Đã đặt làm ảnh đại diện.')
       await fetchImages()
     } catch {
@@ -279,7 +279,7 @@ export default function ProductImageGallery({
   const handleConfirmLiveDelete = async () => {
     if (!confirmDelete) return
     try {
-      await axiosClient.delete(EP.PRODUCT_IMAGE_DETAIL(confirmDelete.id))
+      await axiosClient.delete(EP.ADMIN_PRODUCT_IMAGE_DETAIL(confirmDelete.id))
       showToast('Đã xóa ảnh thành công.')
       setConfirmDelete(null)
       await fetchImages()
@@ -306,7 +306,7 @@ export default function ProductImageGallery({
     // Live Mode: optimistic update
     setLiveImages(withOrder)
     try {
-      await axiosClient.patch(EP.PRODUCT_IMAGE_REORDER, {
+      await axiosClient.patch(EP.ADMIN_PRODUCT_IMAGE_REORDER, {
         images: withOrder.map(({ id, sort_order }) => ({ id, sort_order })),
       })
     } catch {

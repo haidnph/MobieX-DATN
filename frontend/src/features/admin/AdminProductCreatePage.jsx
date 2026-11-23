@@ -79,7 +79,7 @@ export default function AdminProductCreatePage() {
           imgFormData.append('primary_index', draftGallery.primaryIndex ?? 0)
           draftGallery.files.forEach((file) => imgFormData.append('images[]', file))
 
-          await axiosClient.post(EP.PRODUCT_IMAGES, imgFormData, {
+          await axiosClient.post(EP.ADMIN_PRODUCT_IMAGES, imgFormData, {
             headers: { 'Content-Type': 'multipart/form-data' },
           })
         } catch (imgErr) {

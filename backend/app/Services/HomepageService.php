@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\Banner;
 use App\Models\Brand;
 use App\Models\Category;
+use App\Models\FlashSale;
+use App\Models\FlashSaleItem;
 use App\Models\HomepageAuditLog;
 use App\Models\HomepageSection;
 use App\Models\Product;
@@ -16,7 +18,7 @@ use Illuminate\Support\Facades\Request;
 
 class HomepageService
 {
-    public const CACHE_KEY = 'homepage_storefront_data';
+    public const CACHE_KEY = 'homepage_storefront_data_v2';
 
     /**
      * Canonical default sections.
@@ -415,7 +417,7 @@ class HomepageService
             $this->clearCache();
         }
 
-        return Cache::remember(self::CACHE_KEY, 3600, function () {
+        return Cache::remember(self::CACHE_KEY, 60, function () {
             $sections = HomepageSection::all();
 
             $publishedSections = $sections->filter(function ($section) {
@@ -570,6 +572,7 @@ class HomepageService
 
                 $query = Product::with([
                     'images',
+                    'variants' => fn ($variantQuery) => $variantQuery->where('is_active', true),
                     'variants.inventory',
                     'brand',
                     'category',
@@ -590,19 +593,75 @@ class HomepageService
                     }
                     $items = $query->limit($limit)->get();
                 }
+                app(ProductComparisonService::class)->attachGroups($items);
                 break;
 
             case 'flash_sale':
-                // Query active products with potential discounts
-                $items = Product::with([
-                    'images',
-                    'variants.inventory',
-                    'brand',
-                    'category',
-                ])
-                    ->where('status', 'active')
-                    ->limit($limit)
-                    ->get();
+                $sale = FlashSale::query()
+                    ->whereIn('status', ['scheduled', 'active'])
+                    ->where('start_at', '<=', now())
+                    ->where('end_at', '>', now())
+                    ->with([
+                        'items.variant.inventory',
+                        'items.variant.product.images',
+                        'items.variant.product.brand',
+                        'items.variant.product.category',
+                    ])
+                    ->orderBy('end_at')
+                    ->first();
+
+                if ($sale) {
+                    app(ProductComparisonService::class)->attachGroups(
+                        $sale->items->map(fn (FlashSaleItem $item) => $item->variant?->product)->filter()
+                    );
+                    $source['title'] = $sale->name;
+                    $source['subtitle'] = $sale->description ?: $source['subtitle'];
+                    $items = $sale->items
+                        ->filter(function (FlashSaleItem $saleItem): bool {
+                            $variant = $saleItem->variant;
+                            $product = $variant?->product;
+
+                            if (! $variant || ! $product || ! $variant->is_active || $product->status !== 'active') {
+                                return false;
+                            }
+
+                            $availableStock = (int) ($variant->inventory?->available_quantity ?? 0);
+                            $availableSaleQuantity = $saleItem->quantity_limit === null
+                                ? $availableStock
+                                : (int) $saleItem->quantity_limit - (int) $saleItem->quantity_reserved - (int) $saleItem->quantity_sold;
+
+                            return (float) $saleItem->sale_price < (float) $variant->price
+                                && $availableStock > 0
+                                && $availableSaleQuantity > 0;
+                        })
+                        ->take($limit)
+                        ->map(function (FlashSaleItem $saleItem) use ($sale): array {
+                            $variant = $saleItem->variant;
+                            $product = $variant->product;
+                            $availableStock = (int) ($variant->inventory?->available_quantity ?? 0);
+                            $availableSaleQuantity = $saleItem->quantity_limit === null
+                                ? $availableStock
+                                : (int) $saleItem->quantity_limit - (int) $saleItem->quantity_reserved - (int) $saleItem->quantity_sold;
+
+                            return array_merge($product->toArray(), [
+                                'flash_sale' => [
+                                    'id' => $sale->id,
+                                    'name' => $sale->name,
+                                    'end_at' => $sale->end_at->toIso8601String(),
+                                    'item_id' => $saleItem->id,
+                                    'product_variant_id' => $variant->id,
+                                    'sale_price' => (float) $saleItem->sale_price,
+                                    'original_price' => (float) $variant->price,
+                                    'quantity_sold' => (int) $saleItem->quantity_sold,
+                                    'quantity_remaining' => min($availableStock, $availableSaleQuantity),
+                                    'quantity_limit' => $saleItem->quantity_limit,
+                                ],
+                            ]);
+                        })
+                        ->values();
+                } else {
+                    $items = collect();
+                }
                 break;
 
             case 'banner_promo':

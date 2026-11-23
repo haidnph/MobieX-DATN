@@ -115,6 +115,21 @@ export function CompareProvider({ children }) {
         return false
       }
 
+      const compareGroup = product.compare_group || product.compareGroup || null
+      if (!compareGroup) {
+        if (!silent) showToast('Không xác định được nhóm danh mục của sản phẩm nên chưa thể thêm vào so sánh.', 'warning')
+        return false
+      }
+      if (compareItems.length > 0) {
+        const existingGroup = compareItems[0].compare_group || compareItems[0].compareGroup || null
+        if (!compareGroup || !existingGroup || compareGroup !== existingGroup) {
+          if (!silent) {
+            showToast('Chỉ có thể so sánh sản phẩm cùng nhóm danh mục. Hãy xóa lựa chọn khác loại trước.', 'warning')
+          }
+          return false
+        }
+      }
+
       const primaryImg = getProductThumbnail(product)
       const minPrice =
         product.base_price ||
@@ -130,6 +145,8 @@ export function CompareProvider({ children }) {
         brand_name: product.brand?.name || product.brand_name || 'MobieX',
         price: Number(minPrice),
         image_url: primaryImg,
+        compare_group: compareGroup,
+        category_id: product.category_id || product.category?.id || null,
       }
 
       setCompareItems((prev) => [...prev, item])
@@ -162,6 +179,8 @@ export function CompareProvider({ children }) {
         brand_name: i.brand?.name || i.brand_name || 'MobieX',
         price: Number(i.price || i.base_price || i.min_price || 0),
         image_url: getProductThumbnail(i),
+        compare_group: i.compare_group || i.compareGroup || null,
+        category_id: i.category_id || i.category?.id || null,
       }))
     setCompareItems(sanitized)
   }, [])

@@ -3,6 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\Banner;
+use App\Models\Brand;
+use App\Models\Category;
+use App\Models\Permission;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\Role;
@@ -26,7 +29,7 @@ class MediaStorageTest extends TestCase
 
     public function test_default_driver_is_local(): void
     {
-        $service = new MediaStorageService();
+        $service = new MediaStorageService;
         $this->assertEquals('local', $service->getDriver());
     }
 
@@ -147,8 +150,8 @@ class MediaStorageTest extends TestCase
 
     public function test_product_image_model_url_accessors_support_both_local_and_cloudinary(): void
     {
-        $category = \App\Models\Category::factory()->create();
-        $brand = \App\Models\Brand::factory()->create();
+        $category = Category::factory()->create();
+        $brand = Brand::factory()->create();
         $product = Product::create([
             'category_id' => $category->id,
             'brand_id' => $brand->id,
@@ -219,7 +222,7 @@ class MediaStorageTest extends TestCase
             ['name' => 'Test Admin', 'description' => 'Test Admin Role']
         );
 
-        $perm = \App\Models\Permission::firstOrCreate(
+        $perm = Permission::firstOrCreate(
             ['name' => $permissionName],
             ['slug' => $permissionName, 'description' => $permissionName, 'module' => 'admin']
         );

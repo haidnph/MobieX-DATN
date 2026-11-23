@@ -15,11 +15,30 @@ class ProductImageController extends Controller
     public function __construct(
         protected MediaStorageService $mediaService
     ) {}
+
     // Lấy danh sách hình ảnh
     public function index(Request $request)
     {
+        return $this->imageIndexResponse($request, false);
+    }
+
+    public function adminIndex(Request $request)
+    {
+        return $this->imageIndexResponse($request, true);
+    }
+
+    private function imageIndexResponse(Request $request, bool $includeHiddenProducts)
+    {
         $query = ProductImage::with(['product', 'variant'])
             ->orderBy('sort_order');
+
+        if (! $includeHiddenProducts) {
+            $query->whereHas('product', fn ($productQuery) => $productQuery->whereIn('status', ['active', 'out_of_stock']))
+                ->where(function ($imageQuery) {
+                    $imageQuery->whereNull('product_variant_id')
+                        ->orWhereHas('variant', fn ($variantQuery) => $variantQuery->where('is_active', true));
+                });
+        }
 
         if ($request->filled('product_id')) {
             $query->where('product_id', $request->product_id);

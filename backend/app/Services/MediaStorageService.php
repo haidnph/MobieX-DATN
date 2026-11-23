@@ -11,6 +11,7 @@ use Illuminate\Support\Str;
 class MediaStorageService
 {
     protected string $driver;
+
     protected ?Cloudinary $cloudinary = null;
 
     public function __construct(?string $driver = null)
@@ -32,6 +33,7 @@ class MediaStorageService
     public function setDriver(string $driver): self
     {
         $this->driver = $driver;
+
         return $this;
     }
 
@@ -64,6 +66,7 @@ class MediaStorageService
         $url = config('media.drivers.cloudinary.url');
         if (! empty($url)) {
             $this->cloudinary = new Cloudinary($url);
+
             return $this->cloudinary;
         }
 
@@ -79,6 +82,7 @@ class MediaStorageService
         ];
 
         $this->cloudinary = new Cloudinary($config);
+
         return $this->cloudinary;
     }
 
@@ -88,6 +92,7 @@ class MediaStorageService
     public function setCloudinaryClient(Cloudinary $client): self
     {
         $this->cloudinary = $client;
+
         return $this;
     }
 
@@ -117,6 +122,7 @@ class MediaStorageService
             if (! $this->isCloudinaryConfigured()) {
                 if (config('media.fallback_to_local', true)) {
                     Log::warning('[MediaStorageService] Cloudinary credentials missing; falling back to local storage.');
+
                     return $this->uploadLocal($file, $folder, $options, $originalName, $extension, $size, $mimeType);
                 }
                 throw new \InvalidArgumentException('Cloudinary credentials are not configured.');
@@ -127,6 +133,7 @@ class MediaStorageService
             } catch (\Throwable $e) {
                 if (config('media.fallback_to_local', true)) {
                     Log::error('[MediaStorageService] Cloudinary upload failed: '.$e->getMessage().'; falling back to local disk.');
+
                     return $this->uploadLocal($file, $folder, $options, $originalName, $extension, $size, $mimeType);
                 }
                 throw $e;
@@ -277,6 +284,7 @@ class MediaStorageService
     {
         if (! $this->isCloudinaryConfigured()) {
             Log::warning('[MediaStorageService] Cannot delete Cloudinary asset; credentials missing.');
+
             return false;
         }
 
@@ -287,9 +295,11 @@ class MediaStorageService
 
         try {
             $response = $this->getCloudinaryClient()->uploadApi()->destroy($publicId, ['invalidate' => true]);
+
             return ($response['result'] ?? '') === 'ok';
         } catch (\Throwable $e) {
             Log::error('[MediaStorageService] Cloudinary delete failed for '.$publicId.': '.$e->getMessage());
+
             return false;
         }
     }
@@ -338,6 +348,7 @@ class MediaStorageService
                 $transforms = ! empty($transformations)
                     ? implode(',', array_map(fn ($k, $v) => "{$k}_{$v}", array_keys($transformations), $transformations)).'/'
                     : 'f_auto,q_auto/';
+
                 return "https://res.cloudinary.com/{$cloudName}/image/upload/{$transforms}{$pathOrPublicId}";
             }
         }
@@ -367,6 +378,7 @@ class MediaStorageService
         }
 
         $normalized = $this->normalizeLocalPath($pathOrPublicId);
+
         return Storage::disk('public')->exists($normalized);
     }
 

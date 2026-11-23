@@ -14,6 +14,8 @@ class ProductVariant extends Model
 {
     use HasFactory, SoftDeletes;
 
+    protected $hidden = ['cost_price'];
+
     protected $fillable = [
         'product_id',
         'sku',

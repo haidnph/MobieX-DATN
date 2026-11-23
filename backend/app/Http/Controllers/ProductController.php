@@ -4,11 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Brand;
 use App\Models\Category;
+use App\Models\FlashSaleItem;
 use App\Models\InventoryTransaction;
 use App\Models\Product;
 use App\Models\ProductSpecification;
 use App\Models\ProductSpecificationDefinition;
 use App\Models\ProductVariant;
+use App\Services\MediaStorageService;
+use App\Services\ProductComparisonService;
 use App\Services\Search\SearchIntentParser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -111,10 +114,11 @@ class ProductController extends Controller
         }
 
         InventoryTransaction::create([
-            'variant_id' => $variant->id,
+            'product_variant_id' => $variant->id,
             'user_id' => Auth::id(),
-            'transaction_type' => $type,
-            'quantity' => $quantity,
+            'type' => $type,
+            'quantity_delta' => in_array($type, ['export', 'dispatch'], true) ? -$quantity : $quantity,
+            'unit_cost' => $variant->cost_price,
             'reference_type' => 'product_update',
             'reference_id' => $productId,
             'idempotency_key' => 'tx_'.(string) Str::uuid(),
@@ -151,7 +155,7 @@ class ProductController extends Controller
             });
         }
         $brands = $brandQuery
-            ->withCount(['products' => fn ($pq) => $pq->where('status', 'active')])
+            ->withCount(['products' => fn ($pq) => $pq->whereIn('status', ['active', 'out_of_stock'])])
             ->limit(3)
             ->get(['id', 'name', 'slug', 'logo_path']);
 
@@ -170,13 +174,13 @@ class ProductController extends Controller
             });
         }
         $categories = $categoryQuery
-            ->withCount(['products' => fn ($pq) => $pq->where('status', 'active')])
+            ->withCount(['products' => fn ($pq) => $pq->whereIn('status', ['active', 'out_of_stock'])])
             ->limit(3)
             ->get(['id', 'name', 'slug', 'parent_id']);
 
         // 3. Gợi ý sản phẩm phù hợp nhất (áp dụng relevance ranking)
         $productQuery = Product::query()
-            ->where('status', 'active');
+            ->whereIn('status', ['active', 'out_of_stock']);
 
         // Apply detected brand/category if found
         if ($intent->brandId) {
@@ -237,7 +241,9 @@ class ProductController extends Controller
                 'brand:id,name,slug',
                 'category:id,name,slug',
                 'images' => fn ($iq) => $iq->select('id', 'product_id', 'image_path', 'is_primary')->orderBy('sort_order'),
-                'variants' => fn ($vq) => $vq->select('id', 'product_id', 'price', 'compare_price', 'is_active'),
+                'variants' => fn ($vq) => $vq
+                    ->where('is_active', true)
+                    ->select('id', 'product_id', 'price', 'compare_price', 'is_active'),
             ])
             ->orderByRaw(
                 'CASE 
@@ -279,7 +285,7 @@ class ProductController extends Controller
     /**
      * API hiển thị danh sách sản phẩm.
      */
-    public function index(Request $request)
+    public function index(Request $request, ProductComparisonService $comparison)
     {
         if ($request->filled('q') && ! $request->filled('keyword')) {
             $request->merge(['keyword' => $request->q]);
@@ -320,9 +326,10 @@ class ProductController extends Controller
             return $this->searchSuggestions($validated['keyword']);
         }
 
-        $query = Product::with([
+        $query = Product::whereIn('status', ['active', 'out_of_stock'])->with([
             'brand',
             'category',
+            'variants' => fn ($variantQuery) => $variantQuery->where('is_active', true),
             'variants.inventory',
             'variants.attributeValues.attribute',
             'images',
@@ -653,6 +660,8 @@ class ProductController extends Controller
             ->paginate($perPage)
             ->withQueryString();
 
+        $comparison->attachGroups($products->getCollection());
+
         return response()->json([
             'status' => true,
             'message' => 'Lấy danh sách sản phẩm thành công',
@@ -662,9 +671,44 @@ class ProductController extends Controller
     }
 
     /**
+     * Return hidden products only through the permission-protected admin API.
+     */
+    public function adminShow(int $id)
+    {
+        $product = Product::with([
+            'brand',
+            'category',
+            'images',
+            'specifications.definition',
+            'variants.inventory',
+            'variants.images',
+            'variants.attributeValues.attribute',
+        ])->find($id);
+
+        if (! $product) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Không tìm thấy sản phẩm',
+            ], 404);
+        }
+
+        foreach ($product->variants as $variant) {
+            $variant->makeVisible('cost_price');
+        }
+
+        $this->attachFlashSalePricing($product);
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Lấy chi tiết sản phẩm thành công',
+            'data' => $product,
+        ]);
+    }
+
+    /**
      * API so sánh sản phẩm.
      */
-    public function compare(Request $request)
+    public function compare(Request $request, ProductComparisonService $comparison)
     {
         $idsParam = $request->input('ids');
 
@@ -692,14 +736,29 @@ class ProductController extends Controller
             ], 422);
         }
 
-        $products = Product::with([
+        $products = Product::whereIn('status', ['active', 'out_of_stock'])->with([
             'brand',
             'category',
             'images',
             'specifications.definition',
+            'variants' => fn ($variantQuery) => $variantQuery->where('is_active', true),
             'variants.inventory',
             'variants.attributeValues.attribute',
         ])->whereIn('id', $ids)->get();
+
+        $groups = $products
+            ->map(fn (Product $product) => $comparison->groupForCategory($product->category_id))
+            ->unique()
+            ->values();
+
+        if ($groups->count() > 1) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Chỉ có thể so sánh các sản phẩm cùng nhóm danh mục. Hãy bỏ sản phẩm khác loại khỏi danh sách.',
+            ], 422);
+        }
+
+        $comparison->attachGroups($products);
 
         // Bảo toàn thứ tự ID sản phẩm người dùng chọn
         $products = $products->sortBy(function ($p) use ($ids) {
@@ -798,13 +857,14 @@ class ProductController extends Controller
     /**
      * API lấy chi tiết sản phẩm.
      */
-    public function show(string $id)
+    public function show(string $id, ProductComparisonService $comparison)
     {
-        $query = Product::with([
+        $query = Product::whereIn('status', ['active', 'out_of_stock'])->with([
             'brand',
             'category',
             'images',
             'specifications.definition',
+            'variants' => fn ($variantQuery) => $variantQuery->where('is_active', true),
             'variants.inventory',
             'variants.images',
             'variants.attributeValues.attribute',
@@ -824,6 +884,10 @@ class ProductController extends Controller
             ], 404);
         }
 
+        $comparison->attachGroups([$product]);
+
+        $this->attachFlashSalePricing($product);
+
         return response()->json([
             'status' => true,
             'message' => 'Lấy chi tiết sản phẩm thành công',
@@ -831,11 +895,54 @@ class ProductController extends Controller
         ], 200);
     }
 
+    private function attachFlashSalePricing(Product $product): void
+    {
+        if ($product->status !== 'active') {
+            return;
+        }
+
+        $saleItems = FlashSaleItem::query()
+            ->whereIn('product_variant_id', $product->variants->pluck('id'))
+            ->whereHas('flashSale', function ($saleQuery): void {
+                $saleQuery->whereIn('status', ['scheduled', 'active'])
+                    ->where('start_at', '<=', now())
+                    ->where('end_at', '>', now());
+            })
+            ->with('flashSale')
+            ->orderBy('flash_sale_id')
+            ->get()
+            ->unique('product_variant_id')
+            ->keyBy('product_variant_id');
+
+        foreach ($product->variants as $variant) {
+            $saleItem = $saleItems->get($variant->id);
+            if (! $saleItem || (float) $saleItem->sale_price >= (float) $variant->price) {
+                continue;
+            }
+
+            $remainingQuantity = $saleItem->quantity_limit === null
+                ? (int) ($variant->inventory?->available_quantity ?? 0)
+                : (int) $saleItem->quantity_limit - (int) $saleItem->quantity_reserved - (int) $saleItem->quantity_sold;
+
+            if ($remainingQuantity <= 0 || (int) ($variant->inventory?->available_quantity ?? 0) <= 0) {
+                continue;
+            }
+
+            $variant->setAttribute('flash_sale_price', (float) $saleItem->sale_price);
+            $variant->setAttribute('flash_sale_original_price', (float) $variant->price);
+            $variant->setAttribute('flash_sale_end_at', $saleItem->flashSale->end_at->toIso8601String());
+        }
+    }
+
     /**
      * API thêm sản phẩm mới.
      */
     public function store(Request $request)
     {
+        if ($request->exists('status') && ! $request->user()->hasPermission('products.publish')) {
+            return response()->json(['message' => 'You do not have permission to publish products.'], 403);
+        }
+
         $isAccessory = $this->isAccessoryCategory(
             $request->filled('category_id')
                 ? (int) $request->input('category_id')
@@ -924,7 +1031,7 @@ class ProductController extends Controller
             if ($request->hasFile('images')) {
                 $files = $request->file('images');
                 $primaryIdx = $request->has('primary_index') ? (int) $request->input('primary_index') : 0;
-                $mediaService = app(\App\Services\MediaStorageService::class);
+                $mediaService = app(MediaStorageService::class);
                 foreach ($files as $idx => $file) {
                     $uploadResult = $mediaService->upload($file, 'products');
                     $product->images()->create([
@@ -978,6 +1085,10 @@ class ProductController extends Controller
      */
     public function update(Request $request, $id)
     {
+        if ($request->exists('status') && ! $request->user()->hasPermission('products.publish')) {
+            return response()->json(['message' => 'You do not have permission to publish products.'], 403);
+        }
+
         $product = Product::find($id);
 
         if (! $product) {

@@ -3,9 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\AttributeValue;
+use App\Models\Inventory;
 use App\Models\InventoryTransaction;
 use App\Models\Product;
+use App\Models\ProductImage;
 use App\Models\ProductVariant;
+use App\Services\MediaStorageService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -22,6 +25,10 @@ class ProductVariantController extends Controller
             'attributeValues.attribute',
             'inventory',
         ])->latest()->paginate(10);
+
+        foreach ($variants->items() as $variant) {
+            $variant->makeVisible('cost_price');
+        }
 
         return response()->json([
             'status' => true,
@@ -99,12 +106,11 @@ class ProductVariantController extends Controller
             // Tạo tồn kho ban đầu
             $initialQuantity = $validated['quantity'] ?? 0;
 
-            DB::table('inventories')->insert([
-                'variant_id' => $variant->id,
-                'quantity' => $initialQuantity,
+            Inventory::create([
+                'product_variant_id' => $variant->id,
+                'on_hand_quantity' => $initialQuantity,
                 'reserved_quantity' => 0,
                 'min_stock' => $validated['min_stock'] ?? 0,
-                'updated_at' => now(),
             ]);
 
             // Ghi lịch sử nhập kho ban đầu nếu có số lượng
@@ -151,6 +157,8 @@ class ProductVariantController extends Controller
                 'message' => 'Không tìm thấy biến thể sản phẩm',
             ], 404);
         }
+
+        $variant->makeVisible('cost_price');
 
         return response()->json([
             'status' => true,
@@ -245,30 +253,22 @@ class ProductVariantController extends Controller
                 || array_key_exists('min_stock', $validated)
             ) {
                 // Khóa bản ghi tồn kho để tránh cập nhật đồng thời
-                $inventory = DB::table('inventories')
-                    ->where('variant_id', $variant->id)
+                $inventory = Inventory::query()
+                    ->where('product_variant_id', $variant->id)
                     ->lockForUpdate()
                     ->first();
 
                 // Tạo tồn kho nếu chưa tồn tại
                 if (! $inventory) {
-                    DB::table('inventories')->insert([
-                        'variant_id' => $variant->id,
-                        'quantity' => 0,
+                    $inventory = Inventory::create([
+                        'product_variant_id' => $variant->id,
+                        'on_hand_quantity' => 0,
                         'reserved_quantity' => 0,
-                        'min_stock' => 0,
-                        'updated_at' => now(),
+                        'min_stock' => $validated['min_stock'] ?? 0,
                     ]);
-
-                    $inventory = DB::table('inventories')
-                        ->where('variant_id', $variant->id)
-                        ->lockForUpdate()
-                        ->first();
                 }
 
-                $inventoryData = [
-                    'updated_at' => now(),
-                ];
+                $inventoryData = [];
 
                 // Cập nhật số lượng tồn tối thiểu
                 if (array_key_exists('min_stock', $validated)) {
@@ -277,7 +277,7 @@ class ProductVariantController extends Controller
 
                 // Cập nhật số lượng tồn kho
                 if (array_key_exists('quantity', $validated)) {
-                    $oldQuantity = (int) $inventory->quantity;
+                    $oldQuantity = (int) $inventory->on_hand_quantity;
                     $newQuantity = (int) $validated['quantity'];
                     $reservedQuantity = (int) $inventory->reserved_quantity;
 
@@ -292,7 +292,7 @@ class ProductVariantController extends Controller
 
                     $difference = $newQuantity - $oldQuantity;
 
-                    $inventoryData['quantity'] = $newQuantity;
+                    $inventoryData['on_hand_quantity'] = $newQuantity;
 
                     // Ghi lịch sử nhập kho khi tăng số lượng
                     if ($difference > 0) {
@@ -319,9 +319,7 @@ class ProductVariantController extends Controller
                     }
                 }
 
-                DB::table('inventories')
-                    ->where('variant_id', $variant->id)
-                    ->update($inventoryData);
+                $inventory->update($inventoryData);
             }
         });
 
@@ -344,88 +342,69 @@ class ProductVariantController extends Controller
     // API xóa biến thể sản phẩm
     public function destroy($id)
     {
-        try {
-            $result = DB::transaction(function () use ($id) {
-                // Tìm và khóa biến thể trong quá trình xóa
-                $variant = ProductVariant::where('id', $id)
-                    ->lockForUpdate()
-                    ->first();
+        $imagesToDelete = [];
+        $result = DB::transaction(function () use ($id, &$imagesToDelete) {
+            $variant = ProductVariant::query()
+                ->whereKey($id)
+                ->lockForUpdate()
+                ->first();
 
-                if (! $variant) {
-                    return [
-                        'status' => false,
-                        'code' => 404,
-                        'message' => 'Không tìm thấy biến thể sản phẩm',
-                    ];
-                }
-
-                // Kiểm tra dữ liệu liên quan trong giỏ hàng
-                $hasCart = DB::table('cart_items')
-                    ->where('product_variant_id', $id)
-                    ->exists();
-
-                // Kiểm tra dữ liệu liên quan trong flash sale
-                $hasFlashSale = DB::table('flash_sale_items')
-                    ->where('product_variant_id', $id)
-                    ->exists();
-
-                // Kiểm tra dữ liệu liên quan trong đơn hàng
-                $hasOrder = DB::table('order_items')
-                    ->where('product_variant_id', $id)
-                    ->exists();
-
-                // Kiểm tra lịch sử giao dịch kho
-                $hasTransactions = DB::table('inventory_transactions')
-                    ->where('variant_id', $id)
-                    ->exists();
-
-                if (
-                    $hasCart
-                    || $hasFlashSale
-                    || $hasOrder
-                    || $hasTransactions
-                ) {
-                    return [
-                        'status' => false,
-                        'code' => 409,
-                        'message' => 'Không thể xóa biến thể vì đang có dữ liệu liên quan',
-                    ];
-                }
-
-                // Xóa các dữ liệu phụ thuộc
-                DB::table('variant_attribute_values')
-                    ->where('variant_id', $id)
-                    ->delete();
-
-                DB::table('inventories')
-                    ->where('variant_id', $id)
-                    ->delete();
-
-                DB::table('product_images')
-                    ->where('variant_id', $id)
-                    ->delete();
-
-                // Xóa biến thể
-                $variant->delete();
-
+            if (! $variant) {
                 return [
-                    'status' => true,
-                    'code' => 200,
-                    'message' => 'Xóa biến thể sản phẩm thành công',
+                    'status' => false,
+                    'code' => 404,
+                    'message' => 'Không tìm thấy biến thể sản phẩm',
                 ];
-            });
+            }
 
-            return response()->json([
-                'status' => $result['status'],
-                'message' => $result['message'],
-            ], $result['code']);
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Xóa biến thể thất bại',
-                'error' => $e->getMessage(),
-            ], 500);
+            $hasCart = DB::table('cart_items')
+                ->where('product_variant_id', $id)
+                ->exists();
+            $hasFlashSale = DB::table('flash_sale_items')
+                ->where('product_variant_id', $id)
+                ->exists();
+            $hasOrder = DB::table('order_items')
+                ->where('product_variant_id', $id)
+                ->exists();
+            $hasTransactions = DB::table('inventory_transactions')
+                ->where('product_variant_id', $id)
+                ->exists();
+
+            if ($hasCart || $hasFlashSale || $hasOrder || $hasTransactions) {
+                return [
+                    'status' => false,
+                    'code' => 409,
+                    'message' => 'Không thể xóa biến thể vì đang có dữ liệu liên quan',
+                ];
+            }
+
+            $imagesToDelete = ProductImage::query()
+                ->where('product_variant_id', $id)
+                ->get(['image_path', 'storage_provider']);
+
+            $variant->attributeValues()->detach();
+            $variant->inventory()->delete();
+            ProductImage::query()->where('product_variant_id', $id)->delete();
+            $variant->delete();
+
+            return [
+                'status' => true,
+                'code' => 200,
+                'message' => 'Xóa biến thể sản phẩm thành công',
+            ];
+        });
+
+        if ($result['status']) {
+            $mediaStorage = app(MediaStorageService::class);
+            foreach ($imagesToDelete as $image) {
+                $mediaStorage->delete($image->image_path, $image->storage_provider);
+            }
         }
+
+        return response()->json([
+            'status' => $result['status'],
+            'message' => $result['message'],
+        ], $result['code']);
     }
 
     /**
@@ -440,12 +419,14 @@ class ProductVariantController extends Controller
         string $note
     ): void {
         InventoryTransaction::create([
-            'variant_id' => $variantId,
+            'product_variant_id' => $variantId,
             'user_id' => Auth::id(),
-            'transaction_type' => $transactionType,
-            'quantity' => $quantity,
+            'type' => $transactionType,
+            'quantity_delta' => in_array($transactionType, ['export', 'dispatch'], true) ? -$quantity : $quantity,
+            'unit_cost' => ProductVariant::find($variantId)?->cost_price,
             'reference_type' => $referenceType,
             'reference_id' => $referenceId,
+            'idempotency_key' => $referenceType.'_'.$referenceId.'_'.Str::uuid(),
             'note' => $note,
         ]);
     }

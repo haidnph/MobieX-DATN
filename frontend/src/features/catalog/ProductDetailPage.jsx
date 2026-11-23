@@ -2,7 +2,7 @@
 // Detailed product page with variant selector, stock display, gallery, and approved reviews.
 
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useSearchParams } from 'react-router-dom'
 import axiosClient from '../../api/axiosClient'
 import EP from '../../api/endpoints'
 import { useCart } from '../../contexts/CartContext'
@@ -19,6 +19,8 @@ import { useRecentlyViewed } from '../../hooks/useRecentlyViewed'
 
 export default function ProductDetailPage() {
   const { id } = useParams()
+  const [searchParams] = useSearchParams()
+  const requestedVariantId = searchParams.get('variant')
   const { addToCart } = useCart()
   const { toggleCompare, isInCompare } = useCompare()
   const { toggleWishlist, isInWishlist } = useWishlist()
@@ -51,7 +53,8 @@ export default function ProductDetailPage() {
           addViewed(productData)
 
           // Default to first available or active variant
-          const firstVariant =
+          const requestedVariant = productData.variants?.find((variant) => String(variant.id) === requestedVariantId)
+          const firstVariant = requestedVariant ||
             productData.variants?.find((v) => (v.is_active ?? true) && ((v.inventory?.available_quantity ?? v.available_quantity ?? 0) > 0)) ||
             productData.variants?.[0] ||
             null
@@ -108,7 +111,7 @@ export default function ProductDetailPage() {
         })
       })
       .finally(() => setLoading(false))
-  }, [id])
+  }, [id, requestedVariantId])
 
   if (loading) {
     return (
@@ -142,8 +145,8 @@ export default function ProductDetailPage() {
 
   const availableStock = selectedVariant?.inventory?.available_quantity ?? selectedVariant?.available_quantity ?? 0
   const isSelectedVariantOutOfStock = isDiscontinued || hasNoVariants || availableStock <= 0
-  const currentPrice = selectedVariant?.price ?? product.min_price ?? product.base_price ?? 0
-  const originalPrice = selectedVariant?.compare_price ?? selectedVariant?.original_price ?? product.max_price ?? null
+  const currentPrice = selectedVariant?.flash_sale_price ?? selectedVariant?.price ?? product.min_price ?? product.base_price ?? 0
+  const originalPrice = selectedVariant?.flash_sale_original_price ?? selectedVariant?.compare_price ?? selectedVariant?.original_price ?? product.max_price ?? null
   const isOutOfStock = isDiscontinued || allVariantsOutOfStock || hasNoVariants
 
   const handleVariantSelect = async (variant) => {

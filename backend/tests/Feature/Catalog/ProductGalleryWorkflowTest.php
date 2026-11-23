@@ -4,8 +4,10 @@ namespace Tests\Feature\Catalog;
 
 use App\Models\Brand;
 use App\Models\Category;
+use App\Models\Permission;
 use App\Models\Product;
 use App\Models\ProductImage;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -31,6 +33,21 @@ class ProductGalleryWorkflowTest extends TestCase
         $this->admin = User::factory()->create([
             'is_active' => true,
         ]);
+
+        $permission = Permission::firstOrCreate(
+            ['slug' => 'products.manage'],
+            ['name' => 'Manage products']
+        );
+        $publishPermission = Permission::firstOrCreate(
+            ['slug' => 'products.publish'],
+            ['name' => 'Publish products']
+        );
+        $role = Role::firstOrCreate(
+            ['slug' => 'product-manager-gallery-test'],
+            ['name' => 'Product manager', 'is_system' => false]
+        );
+        $role->permissions()->syncWithoutDetaching([$permission->id, $publishPermission->id]);
+        $this->admin->roles()->attach($role->id);
 
         $this->category = Category::create([
             'name' => 'Điện thoại',
@@ -241,6 +258,7 @@ class ProductGalleryWorkflowTest extends TestCase
             'compare_price' => 28990000,
             'stock_quantity' => 15,
             'sku' => 'S25P-256G-BLK',
+            'status' => 'active',
         ]);
 
         $res->assertStatus(201);

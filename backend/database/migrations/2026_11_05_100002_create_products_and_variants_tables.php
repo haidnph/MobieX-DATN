@@ -24,7 +24,7 @@ return new class extends Migration
                 $table->string('name', 255);
                 $table->string('slug', 255)->unique('uq_products_slug');
                 $table->longText('description')->nullable();
-                $table->enum('status', ['draft', 'active', 'inactive'])->default('draft');
+                $table->enum('status', ['draft', 'active', 'inactive', 'out_of_stock'])->default('draft');
                 $table->timestamps();
 
                 $table->index(['category_id', 'status', 'created_at'], 'idx_products_category_status_created');

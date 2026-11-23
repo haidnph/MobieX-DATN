@@ -61,6 +61,20 @@ class ProductDetailSlugTest extends TestCase
             ->assertJsonPath('data.slug', 'iphone-16-pro-max');
     }
 
+    public function test_product_detail_sanitizes_legacy_description_html_before_returning_it(): void
+    {
+        // Query builder update bypasses the model mutator to represent legacy rows.
+        Product::query()->whereKey($this->product->id)->update([
+            'description' => '<p onclick="alert(1)">Safe text<script>alert(2)</script></p>',
+        ]);
+
+        $response = $this->getJson("/api/products/{$this->product->id}");
+
+        $response->assertOk()
+            ->assertJsonPath('data.description', '<p>Safe text</p>');
+        $this->assertStringNotContainsString('alert', $response->getContent());
+    }
+
     public function test_view_product_detail_returns_404_for_invalid_slug(): void
     {
         $response = $this->getJson('/api/products/non-existent-product-slug-xyz');

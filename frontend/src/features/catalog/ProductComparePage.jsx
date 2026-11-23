@@ -554,35 +554,42 @@ export default function ProductComparePage() {
         const data = res.data?.data || {}
         setProductsData(data.products || [])
         setDefinitions(data.comparable_definitions || [])
+        if (compareItems.some((item) => !item.compare_group) && data.products?.length) {
+          replaceCompareItems(data.products)
+        }
       })
       .catch((err) => {
         console.error('Failed to load compare data', err)
+        if (err.response?.status === 422) {
+          clearCompare()
+          setProductsData([])
+          setDefinitions([])
+        }
         showToast('Không thể tải dữ liệu so sánh sản phẩm', 'error')
       })
       .finally(() => {
         setLoading(false)
       })
-  }, [compareItems, showToast])
+  }, [compareItems, showToast, replaceCompareItems, clearCompare])
 
   // 5. Search products in modal with debounce
   useEffect(() => {
     if (!showSearchModal) return
 
     if (!searchKeyword.trim()) {
-      // Suggest top flagship models (iPhone 16 Pro Max, Samsung S24 Ultra, Xiaomi 14 Pro, iPhone 15)
+      // Suggest items from the current product category so the picker never mixes incompatible types.
       setSearching(true)
+      const firstCategoryId = compareItems[0]?.category_id
       axiosClient
-        .get(EP.PRODUCT_COMPARE, { params: { ids: '1,2,3,4' } })
-        .then((res) => {
-          const list = res.data?.data?.products || []
-          setSearchResults(list)
+        .get(EP.PRODUCTS, {
+          params: {
+            per_page: 5,
+            sort_by: 'popular',
+            ...(firstCategoryId ? { category_id: firstCategoryId } : {}),
+          },
         })
-        .catch(() => {
-          axiosClient
-            .get(EP.PRODUCTS, { params: { per_page: 5, sort: 'popular' } })
-            .then((r) => setSearchResults(r.data?.data?.data || []))
-            .catch(() => setSearchResults([]))
-        })
+        .then((res) => setSearchResults(res.data?.data?.data || []))
+        .catch(() => setSearchResults([]))
         .finally(() => setSearching(false))
       return
     }
@@ -600,7 +607,7 @@ export default function ProductComparePage() {
     }, 280)
 
     return () => clearTimeout(timer)
-  }, [searchKeyword, showSearchModal])
+  }, [searchKeyword, showSearchModal, compareItems])
 
   // Quick add to cart
   const handleQuickAddToCart = async (product) => {
@@ -1422,6 +1429,8 @@ export default function ProductComparePage() {
               ) : (
                 searchResults.map((p) => {
                   const alreadyIn = compareItems.some((i) => Number(i.id) === Number(p.id))
+                  const isIncompatible = compareItems.length > 0 &&
+                    (!p.compare_group || !compareItems[0].compare_group || p.compare_group !== compareItems[0].compare_group)
                   const primaryImg = getProductThumbnail(p)
                   const price = p.base_price || p.min_price || p.price || p.variants?.[0]?.price || 0
 
@@ -1443,7 +1452,7 @@ export default function ProductComparePage() {
                       <Button
                         size="sm"
                         variant={alreadyIn ? 'ghost' : 'outline'}
-                        disabled={alreadyIn}
+                        disabled={alreadyIn || isIncompatible}
                         onClick={() => {
                           const added = addToCompare(p)
                           if (added) {
@@ -1452,7 +1461,7 @@ export default function ProductComparePage() {
                         }}
                         className="shrink-0 rounded-xl text-xs font-semibold"
                       >
-                        {alreadyIn ? t.alreadyAdded : t.selectToCompare}
+                        {alreadyIn ? t.alreadyAdded : isIncompatible ? 'Khác nhóm sản phẩm' : t.selectToCompare}
                       </Button>
                     </div>
                   )

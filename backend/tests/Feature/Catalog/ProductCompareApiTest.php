@@ -119,6 +119,35 @@ class ProductCompareApiTest extends TestCase
             ->assertJsonCount(2, 'data.products');
     }
 
+    public function test_compare_rejects_products_from_different_category_groups(): void
+    {
+        $phone = $this->createSampleProduct('iPhone 16', 'iphone-16');
+        $accessories = Category::create([
+            'name' => 'Phụ kiện',
+            'slug' => 'phu-kien',
+            'status' => true,
+        ]);
+        $headphones = Category::create([
+            'name' => 'Tai nghe',
+            'slug' => 'tai-nghe',
+            'parent_id' => $accessories->id,
+            'status' => true,
+        ]);
+        $accessory = Product::create([
+            'name' => 'Tai nghe thử nghiệm',
+            'slug' => 'tai-nghe-thu-nghiem',
+            'category_id' => $headphones->id,
+            'brand_id' => $this->brand->id,
+            'product_type' => 'accessory',
+            'status' => 'active',
+            'base_price' => 1000000,
+        ]);
+
+        $this->getJson("/api/products/compare?ids={$phone->id},{$accessory->id}")
+            ->assertStatus(422)
+            ->assertJsonPath('status', false);
+    }
+
     public function test_compare_caps_at_maximum_four_products(): void
     {
         $products = [];

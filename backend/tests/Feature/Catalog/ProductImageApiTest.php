@@ -4,9 +4,11 @@ namespace Tests\Feature\Catalog;
 
 use App\Models\Brand;
 use App\Models\Category;
+use App\Models\Permission;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\ProductVariant;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -30,6 +32,17 @@ class ProductImageApiTest extends TestCase
         $this->admin = User::factory()->create([
             'is_active' => true,
         ]);
+
+        $permission = Permission::firstOrCreate(
+            ['slug' => 'products.manage'],
+            ['name' => 'Manage products']
+        );
+        $role = Role::firstOrCreate(
+            ['slug' => 'product-manager-test'],
+            ['name' => 'Product manager', 'is_system' => false]
+        );
+        $role->permissions()->syncWithoutDetaching([$permission->id]);
+        $this->admin->roles()->attach($role->id);
 
         $category = Category::create([
             'name' => 'Phones',
@@ -56,6 +69,81 @@ class ProductImageApiTest extends TestCase
     private function makeImage(string $name = 'photo.jpg', int $kilobytes = 100): UploadedFile
     {
         return UploadedFile::fake()->image($name, 100, 100)->size($kilobytes);
+    }
+
+    public function test_public_image_index_hides_images_for_inactive_products(): void
+    {
+        $hiddenProduct = Product::create([
+            'category_id' => $this->product->category_id,
+            'brand_id' => $this->product->brand_id,
+            'product_type' => 'phone',
+            'name' => 'Unreleased phone',
+            'slug' => 'unreleased-phone',
+            'status' => 'inactive',
+        ]);
+        $hiddenImage = ProductImage::create([
+            'product_id' => $hiddenProduct->id,
+            'image_path' => 'products/unreleased.jpg',
+            'sort_order' => 0,
+        ]);
+
+        $this->getJson('/api/product-images?product_id='.$hiddenProduct->id)
+            ->assertOk()
+            ->assertJsonMissing(['id' => $hiddenImage->id]);
+
+        $this->actingAs($this->admin, 'sanctum')
+            ->getJson('/api/admin/product-images?product_id='.$hiddenProduct->id)
+            ->assertOk()
+            ->assertJsonFragment(['id' => $hiddenImage->id]);
+    }
+
+    public function test_public_image_index_filters_variant_images_using_is_active_column(): void
+    {
+        $activeVariant = ProductVariant::create([
+            'product_id' => $this->product->id,
+            'sku' => 'SKU-IMG-ACTIVE-01',
+            'option_signature' => 'color:black',
+            'price' => 10000000,
+            'is_active' => true,
+        ]);
+
+        $inactiveVariant = ProductVariant::create([
+            'product_id' => $this->product->id,
+            'sku' => 'SKU-IMG-INACTIVE-01',
+            'option_signature' => 'color:white',
+            'price' => 10000000,
+            'is_active' => false,
+        ]);
+
+        $activeImage = ProductImage::create([
+            'product_id' => $this->product->id,
+            'product_variant_id' => $activeVariant->id,
+            'image_path' => 'products/active-variant.jpg',
+            'sort_order' => 1,
+        ]);
+
+        $inactiveImage = ProductImage::create([
+            'product_id' => $this->product->id,
+            'product_variant_id' => $inactiveVariant->id,
+            'image_path' => 'products/inactive-variant.jpg',
+            'sort_order' => 2,
+        ]);
+
+        $response = $this->getJson('/api/product-images?product_id='.$this->product->id);
+
+        $response->assertOk()
+            ->assertJsonPath('status', true)
+            ->assertJsonFragment(['id' => $activeImage->id])
+            ->assertJsonMissing(['id' => $inactiveImage->id]);
+    }
+
+    public function test_customer_cannot_access_admin_image_index(): void
+    {
+        $customer = User::factory()->create(['is_active' => true]);
+
+        $this->actingAs($customer, 'sanctum')
+            ->getJson('/api/admin/product-images')
+            ->assertForbidden();
     }
 
     // IMG-01: Upload 1 ảnh hợp lệ
