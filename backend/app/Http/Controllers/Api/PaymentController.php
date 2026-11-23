@@ -9,7 +9,9 @@ use App\Models\Order;
 use App\Models\OrderStatusHistory;
 use App\Models\Payment;
 use App\Models\PaymentWebhookEvent;
+use App\Services\FlashSaleOrderService;
 use App\Services\MoMoService;
+use App\Services\OrderMailService;
 use App\Services\VNPayService;
 use App\Services\ZaloPayService;
 use Illuminate\Http\JsonResponse;
@@ -56,6 +58,15 @@ class PaymentController extends Controller
             ], 422);
         }
 
+        if (! $this->vnpayService->isConfigured()) {
+            return response()->json(['message' => 'VNPay chưa được cấu hình thông tin merchant.'], 503);
+        }
+
+        $paymentWindow = $this->paymentWindowSeconds($order);
+        if ($paymentWindow === null) {
+            return response()->json(['message' => 'Thời hạn giữ hàng không đủ để bắt đầu thanh toán. Hãy đặt đơn hàng mới.'], 422);
+        }
+
         // Record or find pending payment attempt
         $payment = Payment::firstOrCreate(
             [
@@ -71,12 +82,20 @@ class PaymentController extends Controller
             ]
         );
 
+        $responseData = $payment->response_data ?? [];
+        $createDate = (string) ($responseData['vnp_CreateDate'] ?? now('Asia/Ho_Chi_Minh')->format('YmdHis'));
         $paymentUrl = $this->vnpayService->createPaymentUrl([
-            'order_code' => $order->order_code,
+            'order_code' => $payment->transaction_code,
             'amount' => $order->total_amount,
+            'create_date' => $createDate,
+            'expires_at' => now()->addSeconds(min(1200, $paymentWindow)),
             'ip_address' => $request->ip() ?? '127.0.0.1',
             'bank_code' => $validated['bank_code'] ?? null,
         ]);
+        if (empty($responseData['vnp_CreateDate'])) {
+            $responseData['vnp_CreateDate'] = $createDate;
+            $payment->update(['response_data' => $responseData]);
+        }
 
         return response()->json([
             'message' => 'Tạo URL thanh toán VNPay thành công.',
@@ -103,68 +122,58 @@ class PaymentController extends Controller
             ], 400);
         }
 
-        $orderCode = (string) $request->query('vnp_TxnRef');
+        $transactionReference = (string) $request->query('vnp_TxnRef');
         $responseCode = (string) $request->query('vnp_ResponseCode');
         $transactionNo = (string) $request->query('vnp_TransactionNo');
         $amount = ((float) $request->query('vnp_Amount', 0)) / 100;
 
         $isSuccess = ($responseCode === '00');
-        $order = Order::where('order_code', $orderCode)->first();
+        $payment = Payment::query()
+            ->where('method', 'vnpay')
+            ->where('transaction_code', $transactionReference)
+            ->with('order')
+            ->first();
+        $order = $payment?->order;
 
-        // Dual-confirmation: update order status directly upon return if not yet confirmed by IPN
-        if ($order && $isSuccess && $order->payment_status !== 'paid') {
-            DB::transaction(function () use ($order, $queryParams, $transactionNo) {
-                $payment = Payment::firstOrCreate(
-                    ['order_id' => $order->id, 'method' => 'vnpay'],
-                    [
-                        'transaction_code' => 'PAY-'.Str::upper(Str::random(16)),
-                        'idempotency_key' => 'vnpay_order_'.$order->id.'_'.uniqid(),
-                        'amount' => $order->total_amount,
-                        'currency_code' => 'VND',
-                    ]
-                );
-
-                $payment->update([
-                    'status' => 'success',
-                    'gateway_transaction_id' => $transactionNo,
-                    'response_data' => $queryParams,
-                    'paid_at' => now(),
-                ]);
-
-                $fromStatus = $order->status;
-                $newStatus = ($fromStatus === 'pending') ? 'confirmed' : $fromStatus;
-
-                $order->update([
-                    'payment_status' => 'paid',
-                    'status' => $newStatus,
-                ]);
-
-                $this->markCouponAsConsumed($order);
-
-                OrderStatusHistory::create([
-                    'order_id' => $order->id,
-                    'user_id' => null,
-                    'from_status' => $fromStatus,
-                    'status' => $newStatus,
-                    'note' => 'Thanh toán VNPay thành công (Return URL - Mã GD: '.$transactionNo.')',
-                    'created_at' => now(),
-                ]);
-
-                DB::afterCommit(function () use ($order) {
-                    app(\App\Services\OrderMailService::class)->sendOrderConfirmation($order);
-                });
-            });
+        if (! $order) {
+            $order = Order::where('order_code', $transactionReference)->first();
+            $payment = $order
+                ? Payment::where('order_id', $order->id)->where('method', 'vnpay')->first()
+                : null;
         }
 
+        if (! $order) {
+            return response()->json(['status' => 'error', 'message' => 'Không tìm thấy đơn hàng.'], 404);
+        }
+
+        if (! $payment) {
+            return response()->json(['status' => 'error', 'message' => 'VNPay payment attempt not found.'], 404);
+        }
+
+        $expectedAmount = (int) round((float) $order->total_amount * 100);
+        if ($order->payment_method !== 'vnpay' || $expectedAmount !== (int) $request->query('vnp_Amount', 0)) {
+            return response()->json(['status' => 'error', 'message' => 'Thông tin thanh toán không khớp đơn hàng.'], 422);
+        }
+
+        // Return URLs are browser callbacks. Only the signed server-to-server IPN
+        // is allowed to change the order/payment state.
+        $isConfirmed = $order->payment_status === 'paid';
+        $returnStatus = $isSuccess
+            ? ($isConfirmed ? 'success' : 'pending_confirmation')
+            : 'failed';
+
         return response()->json([
-            'status' => $isSuccess ? 'success' : 'failed',
-            'message' => $isSuccess ? 'Giao dịch thanh toán thành công.' : 'Giao dịch không thành công hoặc bị hủy.',
+            'status' => $returnStatus,
+            'message' => $isConfirmed
+                ? 'Thanh toán đã được hệ thống xác nhận.'
+                : ($isSuccess ? 'VNPay đã nhận giao dịch. Đơn hàng đang chờ hệ thống đối soát.' : 'Giao dịch không thành công hoặc bị hủy.'),
             'data' => [
-                'order_id' => $order?->id,
-                'order_code' => $orderCode,
+                'order_id' => $order->id,
+                'order_code' => $order->order_code,
                 'response_code' => $responseCode,
                 'transaction_no' => $transactionNo,
                 'amount' => $amount,
+                'payment_status' => $order->payment_status,
             ],
         ], $isSuccess ? 200 : 400);
     }
@@ -190,7 +199,20 @@ class PaymentController extends Controller
         $vnpTransactionNo = (string) $request->query('vnp_TransactionNo');
 
         // 2. Find Order
-        $order = Order::where('order_code', $vnpTxnRef)->first();
+        $paymentByReference = Payment::query()
+            ->where('method', 'vnpay')
+            ->where('transaction_code', $vnpTxnRef)
+            ->with('order')
+            ->first();
+        $order = $paymentByReference?->order;
+
+        // Keep callbacks created before unique provider references working.
+        if (! $order) {
+            $order = Order::where('order_code', $vnpTxnRef)->first();
+            $paymentByReference = $order
+                ? Payment::where('order_id', $order->id)->where('method', 'vnpay')->orderByDesc('id')->first()
+                : null;
+        }
         if (! $order) {
             return response()->json([
                 'RspCode' => '01',
@@ -198,7 +220,14 @@ class PaymentController extends Controller
             ]);
         }
 
-       // 3. Verify Amount
+        if ($order->payment_method !== 'vnpay') {
+            return response()->json([
+                'RspCode' => '04',
+                'Message' => 'Invalid payment method',
+            ]);
+        }
+
+        // 3. Verify Amount
         $expectedAmount = (int) round(((float) $order->total_amount) * 100);
         if ($expectedAmount !== $vnpAmount) {
             return response()->json([
@@ -207,23 +236,31 @@ class PaymentController extends Controller
             ]);
         }
 
-        // 4. Check if already confirmed/paid
-        if ($order->payment_status === 'paid') {
-            return response()->json([
-                'RspCode' => '02',
-                'Message' => 'Order already confirmed',
-            ]);
-        }
-
         // 5. Process Payment Update inside Database Transaction
-        DB::transaction(function () use ($order, $inputData, $vnpResponseCode, $vnpTransactionNo) {
-            // Find existing pending payment or create one
-            $payment = Payment::where('order_id', $order->id)
-                ->where('method', 'vnpay')
-                ->lockForUpdate()
-                ->first();
+        $callbackResult = DB::transaction(function () use ($order, $inputData, $vnpResponseCode, $vnpTransactionNo, $paymentByReference) {
+            $order = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
+            $payment = $paymentByReference
+                ? Payment::query()->whereKey($paymentByReference->id)->lockForUpdate()->first()
+                : Payment::query()->where('order_id', $order->id)->where('method', 'vnpay')->lockForUpdate()->first();
 
             $isSuccess = ($vnpResponseCode === '00');
+            if ($order->payment_status === 'paid' || $order->status === 'cancelled') {
+                if ($isSuccess && $payment && $payment->status !== 'success') {
+                    $this->recordDuplicateGatewaySuccess(
+                        $order,
+                        $payment,
+                        'vnpay',
+                        $vnpTransactionNo ?: $payment->gateway_transaction_id ?: $payment->transaction_code,
+                        $vnpTransactionNo ?: $payment->transaction_code,
+                        $inputData,
+                    );
+
+                    return 'duplicate_capture';
+                }
+
+                return $order->payment_status === 'paid' ? 'already_paid' : 'cancelled';
+            }
+
             $status = $isSuccess ? 'success' : 'failed';
 
             if (! $payment) {
@@ -236,14 +273,14 @@ class PaymentController extends Controller
                     'currency_code' => 'VND',
                     'status' => $status,
                     'gateway_transaction_id' => $vnpTransactionNo,
-                    'response_data' => $inputData,
+                    'response_data' => array_merge($payment->response_data ?? [], $inputData),
                     'paid_at' => $isSuccess ? now() : null,
                 ]);
             } else {
                 $payment->update([
                     'status' => $status,
                     'gateway_transaction_id' => $vnpTransactionNo,
-                    'response_data' => $inputData,
+                    'response_data' => array_merge($payment->response_data ?? [], $inputData),
                     'paid_at' => $isSuccess ? now() : null,
                 ]);
             }
@@ -285,16 +322,25 @@ class PaymentController extends Controller
                 ]);
 
                 DB::afterCommit(function () use ($order) {
-                    app(\App\Services\OrderMailService::class)->sendOrderConfirmation($order);
+                    app(OrderMailService::class)->sendOrderConfirmation($order);
                 });
             } else {
                 $order->update([
                     'payment_status' => 'failed',
                 ]);
             }
+
+            return 'processed';
         });
 
         // 6. Return response to VNPay
+        if ($callbackResult === 'already_paid') {
+            return response()->json([
+                'RspCode' => '02',
+                'Message' => 'Order already confirmed',
+            ]);
+        }
+
         return response()->json([
             'RspCode' => '00',
             'Message' => 'Confirm Success',
@@ -331,6 +377,15 @@ class PaymentController extends Controller
             ], 422);
         }
 
+        if (! $this->zalopayService->isConfigured()) {
+            return response()->json(['message' => 'ZaloPay chưa được cấu hình thông tin merchant.'], 503);
+        }
+
+        $paymentWindow = $this->paymentWindowSeconds($order);
+        if ($paymentWindow === null) {
+            return response()->json(['message' => 'Thời hạn giữ hàng không đủ để bắt đầu thanh toán. Hãy đặt đơn hàng mới.'], 422);
+        }
+
         $payment = Payment::firstOrCreate(
             [
                 'order_id' => $order->id,
@@ -355,14 +410,24 @@ class PaymentController extends Controller
             ];
         }
 
-        $zpResult = $this->zalopayService->createPaymentOrder([
-            'order_id' => $order->id,
-            'order_code' => $order->order_code,
-            'amount' => $order->total_amount,
-            'app_user' => (string) $request->user()->id,
-            'items' => $items,
-            'bank_code' => $validated['bank_code'] ?? null,
-        ]);
+        $savedCheckout = $payment->response_data ?? [];
+        $zpResult = ! empty($savedCheckout['order_url'])
+            ? [
+                'status' => 'success',
+                'order_url' => $savedCheckout['order_url'],
+                'zp_trans_token' => $savedCheckout['zp_trans_token'] ?? null,
+                'app_trans_id' => $payment->gateway_transaction_id,
+            ]
+            : $this->zalopayService->createPaymentOrder([
+                'order_id' => $order->id,
+                'order_code' => $order->order_code,
+                'payment_reference' => $payment->transaction_code,
+                'amount' => $order->total_amount,
+                'app_user' => (string) $request->user()->id,
+                'items' => $items,
+                'bank_code' => $validated['bank_code'] ?? null,
+                'expires_in_seconds' => $paymentWindow,
+            ]);
 
         if (! empty($zpResult['app_trans_id'])) {
             $payment->update([
@@ -374,7 +439,15 @@ class PaymentController extends Controller
             return response()->json([
                 'message' => $zpResult['sub_return_message'] ?? $zpResult['return_message'] ?? 'Không thể khởi tạo cổng thanh toán ZaloPay.',
                 'error' => $zpResult['return_message'] ?? 'Lỗi kết nối cổng thanh toán ZaloPay',
-            ], 422);
+            ], ($zpResult['error_code'] ?? null) === 'provider_unreachable' ? 503 : 422);
+        }
+
+        if (empty($savedCheckout['order_url'])) {
+            $payment->update(['response_data' => [
+                'order_url' => $zpResult['order_url'],
+                'zp_trans_token' => $zpResult['zp_trans_token'] ?? null,
+                'checkout_created_at' => now()->toIso8601String(),
+            ]]);
         }
 
         return response()->json([
@@ -420,70 +493,35 @@ class PaymentController extends Controller
         $bankCode = (string) $request->query('bankcode', 'ZALOPAY');
         $isSuccess = ($status === 1);
 
-        // Find order by order_id or order_code
+        // app_trans_id is generated as YYMMDD_<order_id>_<suffix>.
         $order = null;
-        if ($request->filled('order_id')) {
-            $order = Order::find($request->query('order_id'));
-        }
-        if (! $order && ! empty($appTransId)) {
-            $parts = explode('_', $appTransId);
-            if (count($parts) >= 2) {
-                $candidate = $parts[1];
-                if (is_numeric($candidate)) {
-                    $order = Order::find((int) $candidate);
-                } else {
-                    $order = Order::where('order_code', 'LIKE', "%{$candidate}%")->first();
-                }
-            }
+        if (preg_match('/^\d{6}_(\d+)_([a-f0-9]{6})$/i', $appTransId, $matches)) {
+            $order = Order::find((int) $matches[1]);
         }
 
-        if ($order && $isSuccess && $order->payment_status !== 'paid') {
-            DB::transaction(function () use ($order, $queryParams, $appTransId) {
-                $payment = Payment::firstOrCreate(
-                    ['order_id' => $order->id, 'method' => 'zalopay'],
-                    [
-                        'transaction_code' => 'PAY-ZP-'.Str::upper(Str::random(14)),
-                        'idempotency_key' => 'zalopay_order_'.$order->id.'_'.uniqid(),
-                        'amount' => $order->total_amount,
-                        'currency_code' => 'VND',
-                    ]
-                );
-
-                $payment->update([
-                    'status' => 'success',
-                    'gateway_transaction_id' => $appTransId,
-                    'response_data' => $queryParams,
-                    'paid_at' => now(),
-                ]);
-
-                $fromStatus = $order->status;
-                $newStatus = ($fromStatus === 'pending') ? 'confirmed' : $fromStatus;
-
-                $order->update([
-                    'payment_status' => 'paid',
-                    'status' => $newStatus,
-                ]);
-
-                $this->markCouponAsConsumed($order);
-
-                OrderStatusHistory::create([
-                    'order_id' => $order->id,
-                    'user_id' => null,
-                    'from_status' => $fromStatus,
-                    'status' => $newStatus,
-                    'note' => 'Thanh toán ZaloPay thành công (Return URL - Mã GD: '.$appTransId.')',
-                    'created_at' => now(),
-                ]);
-
-                DB::afterCommit(function () use ($order) {
-                    app(\App\Services\OrderMailService::class)->sendOrderConfirmation($order);
-                });
-            });
+        $payment = $order
+            ? Payment::where('order_id', $order->id)->where('method', 'zalopay')->where('gateway_transaction_id', $appTransId)->first()
+            : null;
+        if ($isSuccess && (
+            ! $order
+            || $order->payment_method !== 'zalopay'
+            || abs((float) $order->total_amount - $amount) >= 0.01
+            || ! $payment
+            || ! hash_equals((string) $payment->gateway_transaction_id, $appTransId)
+        )) {
+            return response()->json(['status' => 'error', 'message' => 'Thông tin giao dịch ZaloPay không khớp đơn hàng.'], 422);
         }
+
+        $isConfirmed = $order?->payment_status === 'paid';
+        $returnStatus = $isSuccess
+            ? ($isConfirmed ? 'success' : 'pending_confirmation')
+            : 'failed';
 
         return response()->json([
-            'status' => $isSuccess ? 'success' : 'failed',
-            'message' => $isSuccess ? 'Giao dịch ZaloPay thành công.' : 'Giao dịch ZaloPay không thành công hoặc bị hủy.',
+            'status' => $returnStatus,
+            'message' => $isConfirmed
+                ? 'Thanh toán đã được hệ thống xác nhận.'
+                : ($isSuccess ? 'ZaloPay đã nhận giao dịch. Đơn hàng đang chờ hệ thống đối soát.' : 'Giao dịch ZaloPay không thành công hoặc bị hủy.'),
             'data' => [
                 'order_id' => $order?->id,
                 'order_code' => $order?->order_code,
@@ -521,16 +559,10 @@ class PaymentController extends Controller
         $appTransId = (string) ($dataArr['app_trans_id'] ?? '');
         $zpTransId = (string) ($dataArr['zp_trans_id'] ?? '');
 
-        // Find Order
+        // app_trans_id is generated as YYMMDD_<order_id>_<suffix>.
         $order = null;
-        $parts = explode('_', $appTransId);
-        if (count($parts) >= 2) {
-            $candidate = $parts[1];
-            if (is_numeric($candidate)) {
-                $order = Order::find((int) $candidate);
-            } else {
-                $order = Order::where('order_code', 'LIKE', "%{$candidate}%")->first();
-            }
+        if (preg_match('/^\d{6}_(\d+)_([a-f0-9]{6})$/i', $appTransId, $matches)) {
+            $order = Order::whereKey((int) $matches[1])->lockForUpdate()->first();
         }
 
         if (! $order) {
@@ -540,27 +572,44 @@ class PaymentController extends Controller
             ]);
         }
 
-        if ($order->payment_status === 'paid') {
+        $callbackAmount = (int) ($dataArr['amount'] ?? 0);
+        $payment = Payment::where('order_id', $order->id)
+            ->where('method', 'zalopay')
+            ->where('gateway_transaction_id', $appTransId)
+            ->first();
+        if (
+            $order->payment_method !== 'zalopay'
+            || $callbackAmount !== (int) round((float) $order->total_amount)
+            || ! $payment
+            || ! hash_equals((string) $payment->gateway_transaction_id, $appTransId)
+        ) {
             return response()->json([
-                'return_code' => 1,
-                'return_message' => 'order already paid',
+                'return_code' => 2,
+                'return_message' => 'Payment details do not match the order.',
             ]);
         }
 
-        DB::transaction(function () use ($order, $dataArr, $appTransId, $zpTransId) {
-            $payment = Payment::firstOrCreate(
-                ['order_id' => $order->id, 'method' => 'zalopay'],
-                [
-                    'transaction_code' => 'PAY-ZP-'.Str::upper(Str::random(14)),
-                    'idempotency_key' => 'zalopay_order_'.$order->id.'_'.uniqid(),
-                    'amount' => $order->total_amount,
-                    'currency_code' => 'VND',
-                ]
-            );
+        DB::transaction(function () use ($order, $dataArr, $appTransId, $zpTransId, $payment) {
+            $order = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
+            $payment = Payment::query()->whereKey($payment->id)->lockForUpdate()->firstOrFail();
+            if ($order->payment_status === 'paid' || $order->status === 'cancelled') {
+                if ($payment->status !== 'success') {
+                    $this->recordDuplicateGatewaySuccess(
+                        $order,
+                        $payment,
+                        'zalopay',
+                        $zpTransId ?: $appTransId,
+                        $zpTransId ?: $appTransId,
+                        $dataArr,
+                    );
+                }
+
+                return;
+            }
 
             $payment->update([
                 'status' => 'success',
-                'gateway_transaction_id' => $zpTransId ?: $appTransId,
+                'gateway_transaction_id' => $appTransId,
                 'response_data' => $dataArr,
                 'paid_at' => now(),
             ]);
@@ -600,7 +649,7 @@ class PaymentController extends Controller
             ]);
 
             DB::afterCommit(function () use ($order) {
-                app(\App\Services\OrderMailService::class)->sendOrderConfirmation($order);
+                app(OrderMailService::class)->sendOrderConfirmation($order);
             });
         });
 
@@ -639,6 +688,15 @@ class PaymentController extends Controller
             ], 422);
         }
 
+        if (! $this->momoService->isConfigured()) {
+            return response()->json(['message' => 'MoMo chưa được cấu hình thông tin merchant.'], 503);
+        }
+
+        $paymentWindow = $this->paymentWindowSeconds($order);
+        if ($paymentWindow === null) {
+            return response()->json(['message' => 'Thời hạn giữ hàng không đủ để bắt đầu thanh toán. Hãy đặt đơn hàng mới.'], 422);
+        }
+
         $payment = Payment::firstOrCreate(
             [
                 'order_id' => $order->id,
@@ -653,12 +711,23 @@ class PaymentController extends Controller
             ]
         );
 
-        $mmResult = $this->momoService->createPaymentOrder([
-            'order_id' => $order->id,
-            'order_code' => $order->order_code,
-            'amount' => $order->total_amount,
-            'order_info' => 'MobieX - Thanh toán đơn hàng '.$order->order_code,
-        ]);
+        $savedCheckout = $payment->response_data ?? [];
+        $mmResult = ! empty($savedCheckout['order_url'])
+            ? [
+                'status' => 'success',
+                'order_url' => $savedCheckout['order_url'],
+                'qr_code_url' => $savedCheckout['qr_code_url'] ?? null,
+                'deeplink' => $savedCheckout['deeplink'] ?? null,
+                'order_id' => $payment->gateway_transaction_id,
+            ]
+            : $this->momoService->createPaymentOrder([
+                'order_id' => $order->id,
+                'order_code' => $order->order_code,
+                'payment_reference' => $payment->transaction_code,
+                'amount' => $order->total_amount,
+                'order_info' => 'MobieX - Thanh toán đơn hàng '.$order->order_code,
+                'expires_in_minutes' => min(30, intdiv($paymentWindow, 60)),
+            ]);
 
         if (! empty($mmResult['order_id'])) {
             $payment->update([
@@ -666,11 +735,23 @@ class PaymentController extends Controller
             ]);
         }
 
-        if (($mmResult['status'] ?? '') === 'failed' || (empty($mmResult['qr_code_url']) && empty($mmResult['deeplink']))) {
+        if (
+            ($mmResult['status'] ?? '') === 'failed'
+            || (empty($mmResult['order_url']) && empty($mmResult['qr_code_url']) && empty($mmResult['deeplink']))
+        ) {
             return response()->json([
                 'message' => $mmResult['message'] ?? 'Không thể khởi tạo cổng thanh toán MoMo.',
                 'error' => $mmResult['message'] ?? 'Lỗi kết nối cổng thanh toán MoMo',
-            ], 422);
+            ], ($mmResult['error_code'] ?? null) === 'provider_unreachable' ? 503 : 422);
+        }
+
+        if (empty($savedCheckout['order_url']) && ! empty($mmResult['order_url'])) {
+            $payment->update(['response_data' => [
+                'order_url' => $mmResult['order_url'],
+                'qr_code_url' => $mmResult['qr_code_url'] ?? null,
+                'deeplink' => $mmResult['deeplink'] ?? null,
+                'checkout_created_at' => now()->toIso8601String(),
+            ]]);
         }
 
         $momoConfig = config('payment_accounts.momo');
@@ -733,7 +814,7 @@ class PaymentController extends Controller
             }
         }
         $payment = $order
-            ? Payment::where('order_id', $order->id)->where('method', 'momo')->first()
+            ? Payment::where('order_id', $order->id)->where('method', 'momo')->where('gateway_transaction_id', $orderIdParam)->first()
             : null;
         if ($isSuccess && (
             ! $order ||
@@ -745,53 +826,16 @@ class PaymentController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Thông tin giao dịch MoMo không khớp đơn hàng.'], 422);
         }
 
-        if ($order && $isSuccess && $order->payment_status !== 'paid') {
-            DB::transaction(function () use ($order, $queryParams, $transId, $orderIdParam) {
-                $payment = Payment::firstOrCreate(
-                    ['order_id' => $order->id, 'method' => 'momo'],
-                    [
-                        'transaction_code' => 'PAY-MM-'.Str::upper(Str::random(14)),
-                        'idempotency_key' => 'momo_order_'.$order->id.'_'.uniqid(),
-                        'amount' => $order->total_amount,
-                        'currency_code' => 'VND',
-                    ]
-                );
-
-                $payment->update([
-                    'status' => 'success',
-                    'gateway_transaction_id' => $transId ?: $orderIdParam,
-                    'response_data' => $queryParams,
-                    'paid_at' => now(),
-                ]);
-
-                $fromStatus = $order->status;
-                $newStatus = ($fromStatus === 'pending') ? 'confirmed' : $fromStatus;
-
-                $order->update([
-                    'payment_status' => 'paid',
-                    'status' => $newStatus,
-                ]);
-
-                $this->markCouponAsConsumed($order);
-
-                OrderStatusHistory::create([
-                    'order_id' => $order->id,
-                    'user_id' => null,
-                    'from_status' => $fromStatus,
-                    'status' => $newStatus,
-                    'note' => 'Thanh toán MoMo thành công (Return URL - Mã GD: '.($transId ?: $orderIdParam).')',
-                    'created_at' => now(),
-                ]);
-
-                DB::afterCommit(function () use ($order) {
-                    app(\App\Services\OrderMailService::class)->sendOrderConfirmation($order);
-                });
-            });
-        }
+        $isConfirmed = $order?->payment_status === 'paid';
+        $returnStatus = $isSuccess
+            ? ($isConfirmed ? 'success' : 'pending_confirmation')
+            : 'failed';
 
         return response()->json([
-            'status' => $isSuccess ? 'success' : 'failed',
-            'message' => $isSuccess ? 'Giao dịch MoMo thành công.' : 'Giao dịch MoMo không thành công hoặc bị hủy.',
+            'status' => $returnStatus,
+            'message' => $isConfirmed
+                ? 'Thanh toán đã được hệ thống xác nhận.'
+                : ($isSuccess ? 'MoMo đã nhận giao dịch. Đơn hàng đang chờ hệ thống đối soát.' : 'Giao dịch MoMo không thành công hoặc bị hủy.'),
             'data' => [
                 'order_id' => $order?->id,
                 'order_code' => $order?->order_code,
@@ -839,7 +883,7 @@ class PaymentController extends Controller
         }
 
         $callbackAmount = (float) ($payload['amount'] ?? 0);
-        $payment = Payment::where('order_id', $order->id)->where('method', 'momo')->first();
+        $payment = Payment::where('order_id', $order->id)->where('method', 'momo')->where('gateway_transaction_id', $orderIdParam)->first();
         if (
             $order->payment_method !== 'momo' ||
             abs((float) $order->total_amount - $callbackAmount) >= 0.01 ||
@@ -849,28 +893,28 @@ class PaymentController extends Controller
             return response()->json(['resultCode' => 99, 'message' => 'Payment details do not match the order.'], 400);
         }
 
-        if ($order->payment_status === 'paid') {
-            return response()->json([
-                'resultCode' => 0,
-                'message' => 'Order already paid',
-            ]);
-        }
-
         if ($resultCode === 0) {
-            DB::transaction(function () use ($order, $payload, $transId, $orderIdParam) {
-                $payment = Payment::firstOrCreate(
-                    ['order_id' => $order->id, 'method' => 'momo'],
-                    [
-                        'transaction_code' => 'PAY-MM-'.Str::upper(Str::random(14)),
-                        'idempotency_key' => 'momo_order_'.$order->id.'_'.uniqid(),
-                        'amount' => $order->total_amount,
-                        'currency_code' => 'VND',
-                    ]
-                );
+            DB::transaction(function () use ($order, $payload, $transId, $orderIdParam, $payment) {
+                $order = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
+                $payment = Payment::query()->whereKey($payment->id)->lockForUpdate()->firstOrFail();
+                if ($order->payment_status === 'paid' || $order->status === 'cancelled') {
+                    if ($payment->status !== 'success') {
+                        $this->recordDuplicateGatewaySuccess(
+                            $order,
+                            $payment,
+                            'momo',
+                            $transId ?: $orderIdParam,
+                            $transId ?: $orderIdParam,
+                            $payload,
+                        );
+                    }
+
+                    return;
+                }
 
                 $payment->update([
                     'status' => 'success',
-                    'gateway_transaction_id' => $transId ?: $orderIdParam,
+                    'gateway_transaction_id' => $orderIdParam,
                     'response_data' => $payload,
                     'paid_at' => now(),
                 ]);
@@ -910,8 +954,42 @@ class PaymentController extends Controller
                 ]);
 
                 DB::afterCommit(function () use ($order) {
-                    app(\App\Services\OrderMailService::class)->sendOrderConfirmation($order);
+                    app(OrderMailService::class)->sendOrderConfirmation($order);
                 });
+            });
+        } else {
+            DB::transaction(function () use ($order, $payload, $transId, $orderIdParam, $resultCode, $payment) {
+                $order = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
+
+                if ($order->payment_status === 'paid') {
+                    return;
+                }
+
+                $payment = Payment::query()->whereKey($payment->id)->lockForUpdate()->firstOrFail();
+                $payment->update([
+                    'status' => 'failed',
+                    'gateway_transaction_id' => $orderIdParam,
+                    'response_data' => $payload,
+                    'paid_at' => null,
+                ]);
+
+                PaymentWebhookEvent::firstOrCreate(
+                    [
+                        'method' => 'momo',
+                        'event_key' => $transId ?: $orderIdParam,
+                    ],
+                    [
+                        'payment_id' => $payment->id,
+                        'provider_reference' => $transId ?: $orderIdParam,
+                        'signature_verified' => true,
+                        'processing_status' => 'failed',
+                        'event_payload' => $payload,
+                        'error_message' => 'MoMo reported unsuccessful payment (resultCode '.$resultCode.').',
+                        'processed_at' => now(),
+                    ]
+                );
+
+                $order->update(['payment_status' => 'failed']);
             });
         }
 
@@ -921,14 +999,80 @@ class PaymentController extends Controller
         ]);
     }
 
+    private function paymentWindowSeconds(Order $order): ?int
+    {
+        if (! $order->reservation_expires_at) {
+            return max(0, (int) config('orders.reservation_expiration_minutes', 30) * 60 - 30);
+        }
+
+        // Keep a small request-latency buffer so gateway links expire before
+        // the order releases its reserved inventory.
+        $remainingSeconds = $order->reservation_expires_at->getTimestamp() - now()->getTimestamp() - 30;
+
+        return $remainingSeconds >= 300 ? $remainingSeconds : null;
+    }
+
+    private function recordDuplicateGatewaySuccess(
+        Order $order,
+        Payment $payment,
+        string $method,
+        string $eventKey,
+        string $providerReference,
+        array $payload,
+    ): void {
+        if (in_array($payment->status, ['success', 'refunded'], true)) {
+            return;
+        }
+
+        $payment->update([
+            'refund_required' => true,
+            'gateway_succeeded_at' => now(),
+            'response_data' => array_merge($payment->response_data ?? [], [
+                'duplicate_success_payload' => $payload,
+                'refund_required' => true,
+                'refund_reason' => $order->status === 'cancelled'
+                    ? 'The gateway captured payment after the order was cancelled.'
+                    : 'Another payment attempt already paid this order.',
+            ]),
+            'paid_at' => now(),
+        ]);
+
+        PaymentWebhookEvent::updateOrCreate(
+            ['method' => $method, 'event_key' => $eventKey],
+            [
+                'payment_id' => $payment->id,
+                'provider_reference' => $providerReference,
+                'signature_verified' => true,
+                'processing_status' => 'failed',
+                'event_payload' => $payload,
+                'error_message' => 'A second gateway payment succeeded after the order was already paid. Refund or reconciliation is required.',
+                'processed_at' => now(),
+            ]
+        );
+    }
+
     /**
      * Mark coupon as consumed upon successful payment.
      */
     private function markCouponAsConsumed(Order $order): void
     {
+        app(FlashSaleOrderService::class)->consumeOrderReservations($order);
+
         if (! $order->coupon_id) {
             return;
         }
+
+        $redemption = CouponRedemption::query()
+            ->where('order_id', $order->id)
+            ->where('status', 'reserved')
+            ->lockForUpdate()
+            ->first();
+
+        if (! $redemption) {
+            return;
+        }
+
+        $redemption->update(['status' => 'consumed']);
 
         $coupon = Coupon::whereKey($order->coupon_id)
             ->lockForUpdate()
@@ -940,9 +1084,6 @@ class PaymentController extends Controller
             $coupon->save();
         }
 
-        CouponRedemption::where('order_id', $order->id)
-            ->where('status', 'reserved')
-            ->update(['status' => 'consumed']);
     }
 
     /**
@@ -1075,55 +1216,85 @@ class PaymentController extends Controller
             'order_id' => ['required', 'integer', 'exists:orders,id'],
         ]);
 
-        $order = Order::findOrFail($validated['order_id']);
+        $result = DB::transaction(function () use ($request, $validated): array {
+            $order = Order::query()
+                ->whereKey($validated['order_id'])
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        if ($order->payment_method !== 'bank_transfer') {
-            return response()->json(['message' => 'Phương thức thanh toán của đơn hàng không phải chuyển khoản ngân hàng.'], 422);
-        }
+            if ((int) $order->user_id !== (int) $request->user()->id) {
+                return ['status' => 403, 'message' => 'Bạn không có quyền thực hiện hành động này.'];
+            }
 
-        if ($request->user() && (int) $order->user_id !== (int) $request->user()->id) {
-            return response()->json([
-                'message' => 'Bạn không có quyền thực hiện hành động này.',
-            ], 403);
-        }
+            if ($order->payment_method !== 'bank_transfer') {
+                return ['status' => 422, 'message' => 'Đơn hàng không sử dụng chuyển khoản ngân hàng.'];
+            }
 
-        if ($order->payment_status === 'paid') {
-            return response()->json([
-                'message' => 'Đơn hàng này đã được xác nhận thanh toán trước đó.',
-                'data' => ['payment_status' => 'paid'],
-            ]);
-        }
+            if ($order->status === 'cancelled') {
+                return ['status' => 422, 'message' => 'Không thể báo chuyển khoản cho đơn hàng đã hủy.'];
+            }
 
-        $payment = Payment::where('order_id', $order->id)
-            ->where('method', 'bank_transfer')
-            ->first();
+            if ($order->payment_status === 'paid') {
+                return [
+                    'status' => 200,
+                    'message' => 'Đơn hàng này đã được xác nhận thanh toán trước đó.',
+                    'data' => ['payment_status' => 'paid'],
+                ];
+            }
 
-        if ($payment) {
+            $payment = Payment::query()
+                ->where('order_id', $order->id)
+                ->where('method', 'bank_transfer')
+                ->where('status', 'pending')
+                ->lockForUpdate()
+                ->first();
+
+            if (! $payment) {
+                return ['status' => 422, 'message' => 'Chưa có giao dịch chuyển khoản đang chờ cho đơn hàng này.'];
+            }
+
             $responseData = $payment->response_data ?? [];
-            $responseData['customer_reported_at'] = now()->toIso8601String();
-            $payment->update([
-                'response_data' => $responseData,
-            ]);
-        }
+            if (! empty($responseData['customer_reported_at'])) {
+                return [
+                    'status' => 200,
+                    'message' => 'Thông báo chuyển khoản của bạn đang chờ đối soát.',
+                    'data' => [
+                        'order_id' => $order->id,
+                        'order_code' => $order->order_code,
+                        'payment_status' => $order->payment_status,
+                        'is_waiting_confirmation' => true,
+                    ],
+                ];
+            }
 
-        OrderStatusHistory::create([
-            'order_id' => $order->id,
-            'user_id' => $request->user()?->id,
-            'from_status' => $order->status,
-            'status' => $order->status,
-            'note' => 'Khách hàng thông báo đã chuyển khoản qua VietQR. Đang chờ đối soát biến động số dư.',
-            'created_at' => now(),
-        ]);
+            $responseData['customer_reported_at'] = now()->toIso8601String();
+            $payment->update(['response_data' => $responseData]);
+
+            OrderStatusHistory::create([
+                'order_id' => $order->id,
+                'user_id' => $request->user()->id,
+                'from_status' => $order->status,
+                'status' => $order->status,
+                'note' => 'Khách hàng thông báo đã chuyển khoản qua VietQR. Đang chờ đối soát biến động số dư.',
+                'created_at' => now(),
+            ]);
+
+            return [
+                'status' => 200,
+                'message' => 'Đã ghi nhận thông báo chuyển khoản. Hệ thống đang chờ đối soát biến động số dư tài khoản.',
+                'data' => [
+                    'order_id' => $order->id,
+                    'order_code' => $order->order_code,
+                    'payment_status' => $order->payment_status,
+                    'is_waiting_confirmation' => true,
+                ],
+            ];
+        });
 
         return response()->json([
-            'message' => 'Đã ghi nhận thông báo chuyển khoản. Hệ thống đang chờ đối soát biến động số dư tài khoản.',
-            'data' => [
-                'order_id' => $order->id,
-                'order_code' => $order->order_code,
-                'payment_status' => $order->payment_status,
-                'is_waiting_confirmation' => true,
-            ],
-        ]);
+            'message' => $result['message'],
+            'data' => $result['data'] ?? null,
+        ], $result['status']);
     }
 
     /**
@@ -1131,6 +1302,10 @@ class PaymentController extends Controller
      */
     public function simulateBankTransfer(Request $request): JsonResponse
     {
+        if (! app()->environment(['local', 'testing'])) {
+            return response()->json(['message' => 'Payment simulation is unavailable in this environment.'], 404);
+        }
+
         $validated = $request->validate([
             'order_id' => ['required', 'integer', 'exists:orders,id'],
             'action' => ['required', 'string', 'in:success,failed'],
@@ -1155,8 +1330,19 @@ class PaymentController extends Controller
             $transNo = $validated['transaction_no'] ?? ('VCB'.now()->format('YmdHis').rand(100, 999));
 
             DB::transaction(function () use ($order, $transNo, $validated, $request) {
+                $order = Order::query()->whereKey($order->id)->lockForUpdate()->with('items')->firstOrFail();
+                abort_unless(
+                    $order->payment_method === 'bank_transfer' && $order->status !== 'cancelled',
+                    422,
+                    'Đơn hàng không thể mô phỏng thanh toán ngân hàng.'
+                );
+                if ($order->payment_status === 'paid') {
+                    return;
+                }
+
                 $fromStatus = $order->status;
-                $payment = Payment::firstOrCreate(
+                $payment = Payment::query()->where('order_id', $order->id)->where('method', 'bank_transfer')->lockForUpdate()->first();
+                $payment ??= Payment::firstOrCreate(
                     [
                         'order_id' => $order->id,
                         'method' => 'bank_transfer',
@@ -1213,8 +1399,9 @@ class PaymentController extends Controller
 
                 DB::afterCommit(function () use ($order) {
                     try {
-                        app(\App\Services\OrderMailService::class)->sendOrderConfirmation($order);
-                    } catch (\Throwable) {}
+                        app(OrderMailService::class)->sendOrderConfirmation($order);
+                    } catch (\Throwable) {
+                    }
                 });
             });
 
@@ -1231,16 +1418,23 @@ class PaymentController extends Controller
         }
 
         // Action: failed
-        $payment = Payment::where('order_id', $order->id)
-            ->where('method', 'bank_transfer')
-            ->first();
+        DB::transaction(function () use ($order, $validated) {
+            $lockedOrder = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
+            abort_unless(
+                $lockedOrder->payment_method === 'bank_transfer' && $lockedOrder->status !== 'cancelled',
+                422,
+                'Đơn hàng không thể mô phỏng thanh toán ngân hàng.'
+            );
+            abort_unless($lockedOrder->payment_status !== 'paid', 422, 'Không thể mô phỏng thất bại cho đơn đã thanh toán.');
 
-        if ($payment) {
-            $payment->update([
-                'status' => 'failed',
-                'response_data' => ['note' => $validated['note'] ?? 'Bank transfer simulation failed'],
-            ]);
-        }
+            $payment = Payment::query()->where('order_id', $lockedOrder->id)->where('method', 'bank_transfer')->lockForUpdate()->first();
+            if ($payment && $payment->status !== 'success') {
+                $payment->update([
+                    'status' => 'failed',
+                    'response_data' => ['note' => $validated['note'] ?? 'Bank transfer simulation failed'],
+                ]);
+            }
+        });
 
         return response()->json([
             'message' => 'Mô phỏng giao dịch ngân hàng thất bại.',
@@ -1256,6 +1450,10 @@ class PaymentController extends Controller
      */
     public function simulateMoMoPayment(Request $request): JsonResponse
     {
+        if (! app()->environment(['local', 'testing'])) {
+            return response()->json(['message' => 'Payment simulation is unavailable in this environment.'], 404);
+        }
+
         $validated = $request->validate([
             'order_id' => ['required', 'integer', 'exists:orders,id'],
             'action' => ['required', 'string', 'in:success,failed'],
@@ -1279,8 +1477,19 @@ class PaymentController extends Controller
             $transId = $validated['trans_id'] ?? ((string) time().rand(100, 999));
 
             DB::transaction(function () use ($order, $transId, $request) {
+                $order = Order::query()->whereKey($order->id)->lockForUpdate()->with('items')->firstOrFail();
+                abort_unless(
+                    $order->payment_method === 'momo' && $order->status !== 'cancelled',
+                    422,
+                    'Đơn hàng không thể mô phỏng thanh toán MoMo.'
+                );
+                if ($order->payment_status === 'paid') {
+                    return;
+                }
+
                 $fromStatus = $order->status;
-                $payment = Payment::firstOrCreate(
+                $payment = Payment::query()->where('order_id', $order->id)->where('method', 'momo')->lockForUpdate()->first();
+                $payment ??= Payment::firstOrCreate(
                     [
                         'order_id' => $order->id,
                         'method' => 'momo',
@@ -1334,8 +1543,9 @@ class PaymentController extends Controller
 
                 DB::afterCommit(function () use ($order) {
                     try {
-                        app(\App\Services\OrderMailService::class)->sendOrderConfirmation($order);
-                    } catch (\Throwable) {}
+                        app(OrderMailService::class)->sendOrderConfirmation($order);
+                    } catch (\Throwable) {
+                    }
                 });
             });
 
@@ -1352,13 +1562,23 @@ class PaymentController extends Controller
         }
 
         // Failed
-        $payment = Payment::where('order_id', $order->id)->where('method', 'momo')->first();
-        if ($payment) {
-            $payment->update([
-                'status' => 'failed',
-                'response_data' => ['note' => 'MoMo payment simulation failed'],
-            ]);
-        }
+        DB::transaction(function () use ($order) {
+            $lockedOrder = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
+            abort_unless(
+                $lockedOrder->payment_method === 'momo' && $lockedOrder->status !== 'cancelled',
+                422,
+                'Đơn hàng không thể mô phỏng thanh toán MoMo.'
+            );
+            abort_unless($lockedOrder->payment_status !== 'paid', 422, 'Không thể mô phỏng thất bại cho đơn đã thanh toán.');
+
+            $payment = Payment::query()->where('order_id', $lockedOrder->id)->where('method', 'momo')->lockForUpdate()->first();
+            if ($payment && $payment->status !== 'success') {
+                $payment->update([
+                    'status' => 'failed',
+                    'response_data' => ['note' => 'MoMo payment simulation failed'],
+                ]);
+            }
+        });
 
         return response()->json([
             'message' => 'Mô phỏng thanh toán MoMo thất bại.',

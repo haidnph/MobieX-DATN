@@ -3,12 +3,32 @@
 namespace Tests\Unit\Services;
 
 use App\Services\MoMoService;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class MoMoServiceTest extends TestCase
 {
     private MoMoService $service;
+
+    public function test_create_payment_order_reports_provider_unreachable_separately(): void
+    {
+        Http::fake([
+            'test-payment.momo.vn/*' => function () {
+                throw new ConnectionException('Gateway unavailable');
+            },
+        ]);
+
+        $result = $this->service->createPaymentOrder([
+            'order_id' => 999,
+            'order_code' => 'MX-MM-TEST-001',
+            'amount' => 1250000,
+        ]);
+
+        $this->assertSame('failed', $result['status']);
+        $this->assertSame('provider_unreachable', $result['error_code']);
+        $this->assertStringContainsString('mạng outbound', $result['message']);
+    }
 
     protected function setUp(): void
     {
@@ -54,6 +74,32 @@ class MoMoServiceTest extends TestCase
         $this->assertNotEmpty($result['order_url']);
         $this->assertNotEmpty($result['order_id']);
         $this->assertStringContainsString('MX_MM_999_', $result['order_id']);
+    }
+
+    public function test_create_payment_order_reuses_provider_reference_for_same_payment_attempt(): void
+    {
+        Http::fake([
+            'test-payment.momo.vn/*' => function ($request) {
+                return Http::response([
+                    'resultCode' => 0,
+                    'orderId' => $request['orderId'],
+                    'requestId' => $request['requestId'],
+                    'payUrl' => 'https://test-payment.momo.vn/pay',
+                ]);
+            },
+        ]);
+        $attempt = [
+            'order_id' => 999,
+            'order_code' => 'MX-MM-TEST-001',
+            'amount' => 1250000,
+            'payment_reference' => 'PAY-MM-STABLE-ATTEMPT',
+        ];
+
+        $first = $this->service->createPaymentOrder($attempt);
+        $second = $this->service->createPaymentOrder($attempt);
+
+        $this->assertSame($first['order_id'], $second['order_id']);
+        $this->assertSame($first['request_id'], $second['request_id']);
     }
 
     public function test_verify_return_signature_validates_correctly(): void
@@ -174,5 +220,20 @@ class MoMoServiceTest extends TestCase
 
         $payload['signature'] = 'invalid_momo_signature';
         $this->assertFalse($this->service->verifyCallbackSignature($payload));
+    }
+
+    public function test_missing_credentials_reject_callback_and_payment_creation(): void
+    {
+        config(['momo.partner_code' => '', 'momo.access_key' => '', 'momo.secret_key' => '']);
+        $service = new MoMoService;
+
+        $this->assertFalse($service->isConfigured());
+        $this->assertFalse($service->verifyCallbackSignature(['signature' => hash_hmac('sha256', '', '')]));
+        $result = $service->createPaymentOrder([
+            'order_id' => 1,
+            'order_code' => 'MX-TEST',
+            'amount' => 1000,
+        ]);
+        $this->assertSame('failed', $result['status']);
     }
 }

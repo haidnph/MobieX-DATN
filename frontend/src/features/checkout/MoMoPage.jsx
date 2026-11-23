@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import QRCode from 'qrcode'
 import axiosClient from '../../api/axiosClient'
 import EP from '../../api/endpoints'
 import Button from '../../components/common/Button'
@@ -7,11 +8,10 @@ import Spinner from '../../components/common/Spinner'
 import { useToast } from '../../contexts/ToastContext'
 import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
 
-function qrSource(qrCodeUrl, deeplink) {
-  const value = qrCodeUrl || deeplink
+function qrPayload(qrCodeUrl, deeplink, paymentUrl) {
+  const value = qrCodeUrl || deeplink || paymentUrl
   if (!value) return ''
-  if (/^https?:\/\//i.test(value)) return value
-  return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=12&data=${encodeURIComponent(value)}`
+  return /^data:image\//i.test(value) ? '' : value
 }
 
 export default function MoMoPage() {
@@ -26,6 +26,8 @@ export default function MoMoPage() {
   const [momo, setMomo] = useState({ phone: '', name: '' })
   const [error, setError] = useState('')
   const [paymentError, setPaymentError] = useState('')
+  const [qrError, setQrError] = useState(false)
+  const [qrImage, setQrImage] = useState('')
   const [copied, setCopied] = useState('')
 
   useEffect(() => {
@@ -49,8 +51,15 @@ export default function MoMoPage() {
         setMomo(config.momo || { phone: '', name: '' })
         if (orderData.payment_status === 'paid') return
         try {
-          const paymentResponse = await axiosClient.post(EP.PAYMENT_MOMO_CREATE, { order_id: Number(orderId) })
-          if (!cancelled) setPayment(paymentResponse.data.data ?? paymentResponse.data)
+          const paymentResponse = await axiosClient.post(
+            EP.PAYMENT_MOMO_CREATE,
+            { order_id: Number(orderId) },
+            { timeout: 40_000 },
+          )
+          if (!cancelled) {
+            const paymentData = paymentResponse.data.data ?? paymentResponse.data
+            setPayment(paymentData)
+          }
         } catch (paymentError) {
           if (!cancelled) setPaymentError(paymentError.response?.data?.message || paymentError.message || 'Could not create a MoMo Sandbox transaction.')
         }
@@ -91,10 +100,30 @@ export default function MoMoPage() {
     return () => window.clearInterval(timer)
   }, [payment, order?.payment_status, checkStatus])
 
-  const qrUrl = useMemo(
-    () => qrSource(payment?.qr_code_url, payment?.deeplink),
-    [payment],
+  const qrValue = useMemo(
+    () => qrPayload(payment?.qr_code_url, payment?.deeplink, payment?.payment_url),
+    [payment?.qr_code_url, payment?.deeplink, payment?.payment_url],
   )
+
+  useEffect(() => {
+    let cancelled = false
+    setQrImage('')
+    setQrError(false)
+    if (!qrValue) return undefined
+
+    QRCode.toDataURL(qrValue, {
+      width: 320,
+      margin: 2,
+      errorCorrectionLevel: 'M',
+      color: { dark: '#111827', light: '#ffffff' },
+    }).then((image) => {
+      if (!cancelled) setQrImage(image)
+    }).catch(() => {
+      if (!cancelled) setQrError(true)
+    })
+
+    return () => { cancelled = true }
+  }, [qrValue])
 
   const copy = async (value, name) => {
     try {
@@ -123,9 +152,9 @@ export default function MoMoPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <section className="rounded-3xl border border-outline-variant/25 bg-surface-container p-6 sm:p-8 flex flex-col items-center gap-5 text-center">
-            {qrUrl ? <img src={qrUrl} alt={`Mã QR MoMo cho đơn ${orderCode}`} className="w-72 h-72 max-w-full rounded-2xl bg-white p-3 object-contain" /> : <div className="w-72 h-72 rounded-2xl bg-surface-container-high flex items-center justify-center text-sm text-on-surface-variant">{paymentError || 'Sandbox did not return a QR code or deeplink.'}</div>}
+            {qrImage && !qrError ? <img src={qrImage} alt={`Mã QR MoMo cho đơn ${orderCode}`} className="w-72 h-72 max-w-full rounded-2xl bg-white p-3 object-contain" /> : <div className="w-72 h-72 rounded-2xl bg-surface-container-high flex items-center justify-center text-sm text-on-surface-variant">{paymentError || (qrError ? 'Không tạo được mã QR. Hãy mở liên kết thanh toán bên dưới.' : qrValue ? 'Đang tạo mã QR MoMo…' : 'Sandbox did not return a QR code or deeplink.')}</div>}
             {payment?.payment_url && <a href={payment.payment_url} target="_blank" rel="noreferrer" className="text-sm font-semibold text-pink-600 hover:underline">Mở giao dịch MoMo Sandbox</a>}
-            <p className="text-xs text-on-surface-variant">Mã QR được lấy từ giao dịch MoMo Sandbox hoặc tạo từ deeplink do Sandbox trả về.</p>
+            <p className="text-xs text-on-surface-variant">Mã QR được tạo từ dữ liệu giao dịch MoMo Sandbox hoặc deeplink do Sandbox trả về.</p>
           </section>
 
           <section className="rounded-3xl border border-outline-variant/25 bg-surface-container p-6 sm:p-8 space-y-4">

@@ -63,4 +63,58 @@ class VNPayServiceTest extends TestCase
 
         $this->assertFalse($this->service->verifySignature($params));
     }
+
+    public function test_missing_credentials_reject_payment_creation_and_signatures(): void
+    {
+        config(['vnpay.tmn_code' => '', 'vnpay.hash_secret' => '']);
+        $service = new VNPayService;
+
+        $this->assertFalse($service->isConfigured());
+        $this->assertFalse($service->verifySignature([
+            'vnp_SecureHash' => hash_hmac('sha512', '', ''),
+        ]));
+        $this->expectException(\RuntimeException::class);
+        $service->createPaymentUrl(['order_code' => 'MX-TEST', 'amount' => 1000]);
+    }
+
+    public function test_payment_url_expires_at_the_order_reservation_deadline(): void
+    {
+        $deadline = now('Asia/Ho_Chi_Minh')->addMinutes(5);
+        $url = $this->service->createPaymentUrl([
+            'order_code' => 'MX-ORD-DEADLINE',
+            'amount' => 1000,
+            'expires_at' => $deadline,
+        ]);
+        parse_str((string) parse_url($url, PHP_URL_QUERY), $params);
+
+        $this->assertSame($deadline->format('YmdHis'), $params['vnp_ExpireDate']);
+    }
+
+    public function test_refund_api_response_signature_is_verified_before_use(): void
+    {
+        $response = [
+            'vnp_ResponseId' => 'RESP-123',
+            'vnp_Command' => 'querydr',
+            'vnp_ResponseCode' => '00',
+            'vnp_Message' => 'Success',
+            'vnp_TmnCode' => 'TEST_TMN',
+            'vnp_TxnRef' => 'PAY-123',
+            'vnp_Amount' => '25000000',
+            'vnp_TransactionNo' => '99887766',
+            'vnp_TransactionType' => '02',
+            'vnp_TransactionStatus' => '00',
+        ];
+        $fields = [
+            'vnp_ResponseId', 'vnp_Command', 'vnp_ResponseCode', 'vnp_Message', 'vnp_TmnCode', 'vnp_TxnRef',
+            'vnp_Amount', 'vnp_BankCode', 'vnp_PayDate', 'vnp_TransactionNo', 'vnp_TransactionType',
+            'vnp_TransactionStatus', 'vnp_OrderInfo', 'vnp_PromotionCode', 'vnp_PromotionAmount',
+        ];
+        $signed = implode('|', array_map(static fn (string $field): string => $response[$field] ?? '', $fields));
+        $response['vnp_SecureHash'] = hash_hmac('sha512', $signed, 'TEST_SECRET_KEY_1234567890');
+
+        $this->assertTrue($this->service->verifyRefundApiResponse($response));
+        $response['vnp_TransactionStatus'] = '09';
+        $this->assertFalse($this->service->verifyRefundApiResponse($response));
+        $this->assertFalse($this->service->verifyRefundApiResponse(['vnp_TransactionStatus' => '00']));
+    }
 }

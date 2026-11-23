@@ -17,19 +17,30 @@ class MoMoService
 
     private string $queryEndpoint;
 
+    private string $refundEndpoint;
+
+    private string $refundQueryEndpoint;
+
     private string $returnUrl;
 
     private string $callbackUrl;
 
     public function __construct()
     {
-        $this->partnerCode = (string) config('momo.partner_code', 'MOMOBKUN20180529');
-        $this->accessKey = (string) config('momo.access_key', 'klm0567shj9qRrA');
-        $this->secretKey = (string) config('momo.secret_key', 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa');
+        $this->partnerCode = (string) config('momo.partner_code', '');
+        $this->accessKey = (string) config('momo.access_key', '');
+        $this->secretKey = (string) config('momo.secret_key', '');
         $this->endpoint = (string) config('momo.endpoint', 'https://test-payment.momo.vn/v2/gateway/api/create');
         $this->queryEndpoint = (string) config('momo.query_endpoint', 'https://test-payment.momo.vn/v2/gateway/api/query');
+        $this->refundEndpoint = (string) config('momo.refund_endpoint', 'https://test-payment.momo.vn/v2/gateway/api/refund');
+        $this->refundQueryEndpoint = (string) config('momo.refund_query_endpoint', 'https://test-payment.momo.vn/v2/gateway/api/refund/query');
         $this->returnUrl = (string) config('momo.return_url', 'http://localhost:5173/payment/momo/return');
         $this->callbackUrl = (string) config('momo.callback_url', 'http://localhost:8000/api/payments/momo/callback');
+    }
+
+    public function isConfigured(): bool
+    {
+        return $this->partnerCode !== '' && $this->accessKey !== '' && $this->secretKey !== '';
     }
 
     /**
@@ -39,16 +50,24 @@ class MoMoService
      *     order_id: int|string,
      *     order_code: string,
      *     amount: int|float,
+     *     payment_reference?: string,
      *     order_info?: string,
-     *     extra_data?: string
+     *     extra_data?: string,
+     *     expires_in_minutes?: int
      * } $data
      * @return array<string, mixed>
      */
     public function createPaymentOrder(array $data): array
     {
+        if (! $this->isConfigured()) {
+            return ['status' => 'failed', 'message' => 'MoMo credentials are not configured.'];
+        }
         $amount = (string) ((int) round((float) $data['amount']));
-        $orderId = 'MX_MM_'.((int) $data['order_id']).'_'.substr(uniqid(), -6);
-        $requestId = 'REQ_MM_'.((int) $data['order_id']).'_'.substr(uniqid(), -6);
+        $attemptSuffix = ! empty($data['payment_reference'])
+            ? substr(hash('sha256', (string) $data['payment_reference']), 0, 6)
+            : substr(uniqid(), -6);
+        $orderId = 'MX_MM_'.((int) $data['order_id']).'_'.$attemptSuffix;
+        $requestId = 'REQ_MM_'.((int) $data['order_id']).'_'.$attemptSuffix;
         $orderInfo = (string) ($data['order_info'] ?? ('MobieX - Thanh toan don hang '.$data['order_code']));
         $extraData = (string) ($data['extra_data'] ?? '');
         $requestType = 'captureWallet';
@@ -72,9 +91,13 @@ class MoMoService
             'requestType' => $requestType,
             'signature' => $signature,
         ];
+        if (isset($data['expires_in_minutes'])) {
+            $payload['orderExpireTime'] = (int) $data['expires_in_minutes'];
+        }
 
         try {
-            $response = Http::timeout(30)
+            $response = Http::retry(3, 300)
+                ->timeout(10)
                 ->withHeaders([
                     'Content-Type' => 'application/json; charset=UTF-8',
                     'Accept' => 'application/json',
@@ -129,11 +152,17 @@ class MoMoService
                 'exception' => class_basename($e),
                 'message' => mb_substr($e->getMessage(), 0, 500),
             ]);
+
+            return [
+                'status' => 'failed',
+                'error_code' => 'provider_unreachable',
+                'message' => 'Backend không kết nối được MoMo Sandbox. Kiểm tra mạng outbound, firewall hoặc proxy trên máy chạy API.',
+            ];
         }
 
         return [
             'status' => 'failed',
-            'message' => 'MoMo Sandbox is unavailable. Configure valid credentials and a reachable callback URL.',
+            'message' => 'MoMo Sandbox không khả dụng. Kiểm tra thông tin merchant sandbox và callback HTTPS công khai.',
         ];
     }
 
@@ -145,6 +174,9 @@ class MoMoService
      */
     public function verifyReturnSignature(array $params): bool
     {
+        if (! $this->isConfigured()) {
+            return false;
+        }
         $signature = $params['signature'] ?? null;
         if (! $signature || ! is_string($signature)) {
             return false;
@@ -176,6 +208,10 @@ class MoMoService
      */
     public function verifyCallbackSignature(array $params): bool
     {
+        if (! $this->isConfigured()) {
+            return false;
+        }
+
         return $this->verifyReturnSignature($params);
     }
 
@@ -208,5 +244,70 @@ class MoMoService
             'resultCode' => 99,
             'message' => 'Không thể kết nối truy vấn trạng thái MoMo.',
         ];
+    }
+
+    /** @return array<string, mixed> */
+    public function requestRefund(string $orderId, string $requestId, string $transId, int $amount, string $description): array
+    {
+        if (! $this->isConfigured()) {
+            return ['transport_error' => true, 'message' => 'MoMo credentials are not configured.'];
+        }
+
+        $rawHash = "accessKey={$this->accessKey}&amount={$amount}&description={$description}&orderId={$orderId}&partnerCode={$this->partnerCode}&requestId={$requestId}&transId={$transId}";
+        $payload = [
+            'partnerCode' => $this->partnerCode,
+            'orderId' => $orderId,
+            'requestId' => $requestId,
+            'amount' => $amount,
+            'transId' => (int) $transId,
+            'lang' => 'vi',
+            'description' => $description,
+            'signature' => hash_hmac('sha256', $rawHash, $this->secretKey),
+        ];
+
+        try {
+            $response = Http::timeout(30)->acceptJson()->post($this->refundEndpoint, $payload);
+            if (! $response->successful()) {
+                return ['transport_error' => true, 'http_status' => $response->status()];
+            }
+
+            return $response->json() ?: [
+                'transport_error' => true,
+                'http_status' => $response->status(),
+                'message' => 'MoMo returned an invalid refund response.',
+            ];
+        } catch (\Throwable $e) {
+            Log::warning('MoMo refund request failed', ['exception' => class_basename($e)]);
+
+            return ['transport_error' => true, 'message' => 'MoMo refund response could not be confirmed.'];
+        }
+    }
+
+    /** @return array<string, mixed> */
+    public function queryRefund(string $orderId, string $requestId): array
+    {
+        if (! $this->isConfigured()) {
+            return ['transport_error' => true, 'message' => 'MoMo credentials are not configured.'];
+        }
+
+        $rawHash = "accessKey={$this->accessKey}&orderId={$orderId}&partnerCode={$this->partnerCode}&requestId={$requestId}";
+        try {
+            $response = Http::timeout(30)->acceptJson()->post($this->refundQueryEndpoint, [
+                'partnerCode' => $this->partnerCode,
+                'orderId' => $orderId,
+                'requestId' => $requestId,
+                'lang' => 'vi',
+                'signature' => hash_hmac('sha256', $rawHash, $this->secretKey),
+            ]);
+            if (! $response->successful()) {
+                return ['transport_error' => true, 'http_status' => $response->status()];
+            }
+
+            return $response->json() ?: ['transport_error' => true, 'http_status' => $response->status()];
+        } catch (\Throwable $e) {
+            Log::warning('MoMo refund query failed', ['exception' => class_basename($e)]);
+
+            return ['transport_error' => true, 'message' => 'MoMo refund status could not be confirmed.'];
+        }
     }
 }

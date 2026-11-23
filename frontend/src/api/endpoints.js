@@ -44,7 +44,7 @@ const EP = {
   ORDER_LOOKUP: '/orders/lookup',
   ORDER_DETAIL: (id) => `/orders/${id}`,
   ORDER_CANCEL: (id) => `/orders/${id}/cancel`,
-  ORDER_INVOICE: (id) => `/orders/${id}/invoice`,
+  ORDER_CONFIRM_RECEIVED: (id) => `/orders/${id}/confirm-received`,
 
   // ── Shipping ──────────────────────────────────────────
   SHIPPING_METHODS: '/shipping-methods',
@@ -65,12 +65,18 @@ const EP = {
   ADMIN_ORDER_DETAIL: (id) => `/admin/orders/${id}`,
   ADMIN_ORDER_STATUS: (id) => `/admin/orders/${id}/status`,
   ADMIN_CONFIRM_BANK_TRANSFER: (id) => `/admin/orders/${id}/confirm-bank-transfer`,
+  ADMIN_CONFIRM_PAYMENT_REFUND: (paymentId) => `/admin/payments/${paymentId}/confirm-refund`,
+  ADMIN_REQUEST_PAYMENT_REFUND: (paymentId) => `/admin/payments/${paymentId}/refund`,
+  ADMIN_REFRESH_PAYMENT_REFUND: (paymentId) => `/admin/payments/${paymentId}/refund/status`,
   ADMIN_SIMULATE_BANK_PAYMENT: '/admin/payments/bank-transfer/simulate',
   ADMIN_SIMULATE_MOMO_PAYMENT: '/admin/payments/momo/simulate',
 
   // ── Admin: Coupons ────────────────────────────────────
   ADMIN_COUPONS: '/admin/coupons',
   ADMIN_COUPON_DETAIL: (id) => `/admin/coupons/${id}`,
+  ADMIN_FLASH_SALES: '/admin/flash-sales',
+  ADMIN_FLASH_SALE_DETAIL: (id) => `/admin/flash-sales/${id}`,
+  ADMIN_FLASH_SALE_VARIANTS: '/admin/flash-sales/variant-options',
 
   // ── Admin: Banners ────────────────────────────────────
   ADMIN_BANNERS: '/admin/banners',
@@ -133,6 +139,10 @@ const EP = {
   PRODUCT_IMAGE_DETAIL: (id) => `/product-images/${id}`,
   PRODUCT_IMAGE_REORDER: '/product-images/reorder',
   PRODUCT_IMAGE_PRIMARY: (id) => `/product-images/${id}/primary`,
+  ADMIN_PRODUCT_IMAGES: '/admin/product-images',
+  ADMIN_PRODUCT_IMAGE_DETAIL: (id) => `/admin/product-images/${id}`,
+  ADMIN_PRODUCT_IMAGE_REORDER: '/admin/product-images/reorder',
+  ADMIN_PRODUCT_IMAGE_PRIMARY: (id) => `/admin/product-images/${id}/primary`,
 
   // ── Admin: Omnisearch / Command Palette ─────────────────
   ADMIN_OMNISEARCH: '/admin/omnisearch',

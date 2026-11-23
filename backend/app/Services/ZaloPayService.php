@@ -17,19 +17,30 @@ class ZaloPayService
 
     private string $queryEndpoint;
 
+    private string $refundEndpoint;
+
+    private string $refundQueryEndpoint;
+
     private string $returnUrl;
 
     private string $callbackUrl;
 
     public function __construct()
     {
-        $this->appId = (string) config('zalopay.app_id', '2554');
-        $this->key1 = (string) config('zalopay.key1', 'sdngKKJmqEMzvh5QQcdD2A9XBSKUNaYn');
-        $this->key2 = (string) config('zalopay.key2', 'trMrHtvjo6myautxDUiAcYsVtaeQ8nhf');
+        $this->appId = (string) config('zalopay.app_id', '');
+        $this->key1 = (string) config('zalopay.key1', '');
+        $this->key2 = (string) config('zalopay.key2', '');
         $this->endpoint = (string) config('zalopay.endpoint', 'https://sb-openapi.zalopay.vn/v2/create');
         $this->queryEndpoint = (string) config('zalopay.query_endpoint', 'https://sb-openapi.zalopay.vn/v2/query');
+        $this->refundEndpoint = (string) config('zalopay.refund_endpoint', 'https://sb-openapi.zalopay.vn/v2/refund');
+        $this->refundQueryEndpoint = (string) config('zalopay.refund_query_endpoint', 'https://sb-openapi.zalopay.vn/v2/query_refund');
         $this->returnUrl = (string) config('zalopay.return_url', 'http://localhost:5173/payment/zalopay/return');
         $this->callbackUrl = (string) config('zalopay.callback_url', 'http://localhost:8000/api/payments/zalopay/callback');
+    }
+
+    public function isConfigured(): bool
+    {
+        return $this->appId !== '' && $this->key1 !== '' && $this->key2 !== '';
     }
 
     /**
@@ -39,21 +50,29 @@ class ZaloPayService
      *     order_id: int|string,
      *     order_code: string,
      *     amount: int|float,
+     *     payment_reference?: string,
      *     app_user?: string,
      *     description?: string,
      *     items?: array,
-     *     bank_code?: string
+     *     bank_code?: string,
+     *     expires_in_seconds?: int
      * } $data
      * @return array<string, mixed>
      */
     public function createPaymentOrder(array $data): array
     {
+        if (! $this->isConfigured()) {
+            return ['status' => 'failed', 'return_message' => 'ZaloPay credentials are not configured.'];
+        }
         $now = now('Asia/Ho_Chi_Minh');
         $appTime = (int) round(microtime(true) * 1000);
         $transPrefix = $now->format('ymd');
 
         // Short, safe app_trans_id: yymmdd_<order_id>_<random6>  (max ~25 chars)
-        $appTransId = $transPrefix.'_'.((int) $data['order_id']).'_'.substr(uniqid(), -6);
+        $attemptSuffix = ! empty($data['payment_reference'])
+            ? substr(hash('sha256', (string) $data['payment_reference']), 0, 6)
+            : substr(uniqid(), -6);
+        $appTransId = $transPrefix.'_'.((int) $data['order_id']).'_'.strtolower($attemptSuffix);
         $amount = (int) round((float) $data['amount']);
         $appUser = (string) ($data['app_user'] ?? 'MobieX_Customer');
         $description = (string) ($data['description'] ?? ('MobieX - Thanh toan don hang '.$data['order_code']));
@@ -85,9 +104,13 @@ class ZaloPayService
             'mac' => $mac,
             'callback_url' => $this->callbackUrl,
         ];
+        if (isset($data['expires_in_seconds'])) {
+            $payload['expire_duration_seconds'] = (int) $data['expires_in_seconds'];
+        }
 
         try {
-            $response = Http::timeout(10)
+            $response = Http::retry(3, 300)
+                ->timeout(10)
                 ->asForm()
                 ->post($this->endpoint, $payload);
 
@@ -120,18 +143,23 @@ class ZaloPayService
             }
         } catch (\Throwable $e) {
             Log::warning('ZaloPay Create Order Gateway Exception: '.$e->getMessage());
+
+            return [
+                'status' => 'failed',
+                'order_url' => null,
+                'app_trans_id' => $appTransId,
+                'return_code' => 2,
+                'error_code' => 'provider_unreachable',
+                'return_message' => 'Backend không kết nối được ZaloPay Sandbox. Kiểm tra mạng outbound, firewall hoặc proxy trên máy chạy API.',
+            ];
         }
 
-        // Mock fallback for isolated sandbox test environments without external outbound internet
-        $simulatedUrl = "https://sb-openapi.zalopay.vn/v2/gateway?token={$appTransId}";
-
         return [
-            'status' => 'success',
-            'order_url' => $simulatedUrl,
+            'status' => 'failed',
+            'order_url' => null,
             'app_trans_id' => $appTransId,
-            'zp_trans_token' => 'SIMULATED_ZP_'.uniqid(),
-            'return_code' => 1,
-            'return_message' => 'Giao dich khoi tao thanh cong (Sandbox).',
+            'return_code' => 2,
+            'return_message' => 'Không thể kết nối hoặc tạo giao dịch ZaloPay. Vui lòng thử lại.',
         ];
     }
 
@@ -143,6 +171,9 @@ class ZaloPayService
      */
     public function verifyReturnChecksum(array $params): bool
     {
+        if (! $this->isConfigured()) {
+            return false;
+        }
         $checksum = $params['checksum'] ?? null;
         if (! $checksum || ! is_string($checksum)) {
             return false;
@@ -168,6 +199,9 @@ class ZaloPayService
      */
     public function verifyCallback(string $dataJson, string $mac): bool
     {
+        if (! $this->isConfigured()) {
+            return false;
+        }
         $expectedMac = hash_hmac('sha256', $dataJson, $this->key2);
 
         return hash_equals($expectedMac, $mac);
@@ -200,5 +234,64 @@ class ZaloPayService
             'return_code' => 2,
             'return_message' => 'Khong the ket noi tuy van trang thai ZaloPay.',
         ];
+    }
+
+    /** @return array<string, mixed> */
+    public function requestRefund(string $refundId, string $zpTransId, int $amount, string $description): array
+    {
+        if (! $this->isConfigured()) {
+            return ['transport_error' => true, 'message' => 'ZaloPay credentials are not configured.'];
+        }
+
+        $timestamp = (int) round(microtime(true) * 1000);
+        $macInput = "{$this->appId}|{$zpTransId}|{$amount}|{$description}|{$timestamp}";
+        try {
+            $response = Http::timeout(30)->asForm()->post($this->refundEndpoint, [
+                'app_id' => (int) $this->appId,
+                'm_refund_id' => $refundId,
+                'zp_trans_id' => $zpTransId,
+                'amount' => $amount,
+                'timestamp' => $timestamp,
+                'description' => $description,
+                'mac' => hash_hmac('sha256', $macInput, $this->key1),
+            ]);
+            if (! $response->successful()) {
+                return ['transport_error' => true, 'http_status' => $response->status()];
+            }
+
+            return $response->json() ?: ['transport_error' => true, 'http_status' => $response->status()];
+        } catch (\Throwable $e) {
+            Log::warning('ZaloPay refund request failed', ['exception' => class_basename($e)]);
+
+            return ['transport_error' => true, 'message' => 'ZaloPay refund response could not be confirmed.'];
+        }
+    }
+
+    /** @return array<string, mixed> */
+    public function queryRefund(string $refundId): array
+    {
+        if (! $this->isConfigured()) {
+            return ['transport_error' => true, 'message' => 'ZaloPay credentials are not configured.'];
+        }
+
+        $timestamp = (int) round(microtime(true) * 1000);
+        $macInput = "{$this->appId}|{$refundId}|{$timestamp}";
+        try {
+            $response = Http::timeout(30)->asForm()->post($this->refundQueryEndpoint, [
+                'app_id' => (int) $this->appId,
+                'm_refund_id' => $refundId,
+                'timestamp' => $timestamp,
+                'mac' => hash_hmac('sha256', $macInput, $this->key1),
+            ]);
+            if (! $response->successful()) {
+                return ['transport_error' => true, 'http_status' => $response->status()];
+            }
+
+            return $response->json() ?: ['transport_error' => true, 'http_status' => $response->status()];
+        } catch (\Throwable $e) {
+            Log::warning('ZaloPay refund query failed', ['exception' => class_basename($e)]);
+
+            return ['transport_error' => true, 'message' => 'ZaloPay refund status could not be confirmed.'];
+        }
     }
 }

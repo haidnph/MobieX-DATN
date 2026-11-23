@@ -1,12 +1,18 @@
 <?php
 
+
+
+
+
 use App\Http\Controllers\Addresses\AddressController;
 use App\Http\Controllers\Admin\AdminBannerController;
 use App\Http\Controllers\Admin\AdminCouponController;
 use App\Http\Controllers\Admin\AdminDashboardController;
+use App\Http\Controllers\Admin\AdminFlashSaleController;
 use App\Http\Controllers\Admin\AdminHomepageController;
 use App\Http\Controllers\Admin\AdminOmnisearchController;
 use App\Http\Controllers\Admin\AdminOrderController;
+use App\Http\Controllers\Admin\AdminPaymentRefundController;
 use App\Http\Controllers\Admin\AdminReviewController;
 use App\Http\Controllers\Admin\AdminTrashController;
 use App\Http\Controllers\Admin\PermissionController;
@@ -143,12 +149,14 @@ Route::get(
 Route::get(
     '/product-variants',
     [ProductVariantController::class, 'index'],
-)->name('api.product-variants.index');
+)->middleware(['auth:sanctum', 'active', 'permission:products.manage'])
+    ->name('api.product-variants.index');
 
 Route::get(
     '/product-variants/{id}',
     [ProductVariantController::class, 'show'],
 )->whereNumber('id')
+    ->middleware(['auth:sanctum', 'active', 'permission:products.manage'])
     ->name('api.product-variants.show');
 
 Route::get(
@@ -158,8 +166,9 @@ Route::get(
 
 Route::get(
     '/admin/product-images',
-    [ProductImageController::class, 'index'],
-)->name('api.admin.product-images.index');
+    [ProductImageController::class, 'adminIndex'],
+)->middleware(['auth:sanctum', 'active', 'permission:products.manage'])
+    ->name('api.admin.product-images.index');
 /*
  * Public Category Attribute assignments.
  *
@@ -218,7 +227,7 @@ Route::get(
 Route::post(
     '/orders/lookup',
     [OrderController::class, 'lookup'],
-)->name('api.orders.lookup');
+)->middleware('throttle:order-lookup')->name('api.orders.lookup');
 
 /*
 |--------------------------------------------------------------------------
@@ -393,152 +402,158 @@ Route::middleware([
     Route::post(
         '/products/{id}/compatible-phones',
         [ProductCompatibilityController::class, 'store'],
-    )->whereNumber('id')
+    )->middleware('permission:products.manage')->whereNumber('id')
         ->name('api.products.compatible-phones.store');
 
     Route::patch(
         '/products/{id}/compatible-phones/{phoneId}',
         [ProductCompatibilityController::class, 'update'],
-    )->whereNumber('id')
+    )->middleware('permission:products.manage')->whereNumber('id')
         ->whereNumber('phoneId')
         ->name('api.products.compatible-phones.update');
 
     Route::delete(
         '/products/{id}/compatible-phones/{phoneId}',
         [ProductCompatibilityController::class, 'destroy'],
-    )->whereNumber('id')
+    )->middleware('permission:products.manage')->whereNumber('id')
         ->whereNumber('phoneId')
         ->name('api.products.compatible-phones.destroy');
     Route::post(
         '/products',
         [ProductController::class, 'store'],
-    )->name('api.products.store');
+    )->middleware('permission:products.manage')->name('api.products.store');
 
     Route::match(
         ['put', 'patch'],
         '/products/{id}',
         [ProductController::class, 'update'],
-    )->whereNumber('id')
+    )->middleware('permission:products.manage')->whereNumber('id')
         ->name('api.products.update');
 
     Route::delete(
         '/products/{id}',
         [ProductController::class, 'destroy'],
-    )->whereNumber('id')
+    )->middleware(['permission:products.manage', 'permission:products.publish'])->whereNumber('id')
         ->name('api.products.destroy');
 
     // Admin product aliases
     Route::post(
         '/admin/products/bulk-status',
         [ProductController::class, 'bulkStatus'],
-    )->name('api.admin.products.bulk-status');
+    )->middleware(['permission:products.manage', 'permission:products.publish'])->name('api.admin.products.bulk-status');
 
     Route::post(
         '/admin/products/bulk-delete',
         [ProductController::class, 'bulkDelete'],
-    )->name('api.admin.products.bulk-delete');
+    )->middleware(['permission:products.manage', 'permission:products.publish'])->name('api.admin.products.bulk-delete');
 
     Route::post(
         '/admin/products',
         [ProductController::class, 'store'],
-    )->name('api.admin.products.store');
+    )->middleware('permission:products.manage')->name('api.admin.products.store');
+
+    Route::get(
+        '/admin/products/{id}',
+        [ProductController::class, 'adminShow'],
+    )->middleware('permission:products.manage')->whereNumber('id')
+        ->name('api.admin.products.show');
 
     Route::match(
         ['put', 'patch'],
         '/admin/products/{id}',
         [ProductController::class, 'update'],
-    )->whereNumber('id')
+    )->middleware('permission:products.manage')->whereNumber('id')
         ->name('api.admin.products.update');
 
     Route::delete(
         '/admin/products/{id}',
         [ProductController::class, 'destroy'],
-    )->whereNumber('id')
+    )->middleware(['permission:products.manage', 'permission:products.publish'])->whereNumber('id')
         ->name('api.admin.products.destroy');
 
     Route::post(
         '/admin/products/{product}/specifications',
         [ProductController::class, 'syncSpecifications'],
-    )->whereNumber('product')
+    )->middleware('permission:products.manage')->whereNumber('product')
         ->name('api.admin.products.specifications.sync');
 
     // Product variants
     Route::post(
         '/product-variants',
         [ProductVariantController::class, 'store'],
-    )->name('api.product-variants.store');
+    )->middleware('permission:products.manage')->name('api.product-variants.store');
 
     Route::patch(
         '/product-variants/{id}',
         [ProductVariantController::class, 'update'],
-    )->whereNumber('id')
+    )->middleware('permission:products.manage')->whereNumber('id')
         ->name('api.product-variants.update');
 
     Route::delete(
         '/product-variants/{id}',
         [ProductVariantController::class, 'destroy'],
-    )->whereNumber('id')
+    )->middleware('permission:products.manage')->whereNumber('id')
         ->name('api.product-variants.destroy');
 
     // Product images
     Route::post(
         '/product-images',
         [ProductImageController::class, 'store'],
-    )->name('api.product-images.store');
+    )->middleware('permission:products.manage')->name('api.product-images.store');
 
     Route::match(
         ['post', 'patch', 'put'],
         '/product-images/reorder',
         [ProductImageController::class, 'reorder'],
-    )->name('api.product-images.reorder');
+    )->middleware('permission:products.manage')->name('api.product-images.reorder');
 
     Route::match(
         ['post', 'patch', 'put'],
         '/product-images/{id}/primary',
         [ProductImageController::class, 'setPrimary'],
-    )->whereNumber('id')->name('api.product-images.primary');
+    )->middleware('permission:products.manage')->whereNumber('id')->name('api.product-images.primary');
 
     Route::match(
         ['put', 'patch'],
         '/product-images/{id}',
         [ProductImageController::class, 'update'],
-    )->whereNumber('id')
+    )->middleware('permission:products.manage')->whereNumber('id')
         ->name('api.product-images.update');
 
     Route::delete(
         '/product-images/{id}',
         [ProductImageController::class, 'destroy'],
-    )->whereNumber('id')
+    )->middleware('permission:products.manage')->whereNumber('id')
         ->name('api.product-images.destroy');
 
     // Admin product image aliases
     Route::post(
         '/admin/product-images',
         [ProductImageController::class, 'store'],
-    )->name('api.admin.product-images.store');
+    )->middleware('permission:products.manage')->name('api.admin.product-images.store');
 
     Route::match(
         ['post', 'patch', 'put'],
         '/admin/product-images/reorder',
         [ProductImageController::class, 'reorder'],
-    )->name('api.admin.product-images.reorder');
+    )->middleware('permission:products.manage')->name('api.admin.product-images.reorder');
 
     Route::match(
         ['post', 'patch', 'put'],
         '/admin/product-images/{id}/primary',
         [ProductImageController::class, 'setPrimary'],
-    )->whereNumber('id')->name('api.admin.product-images.primary');
+    )->middleware('permission:products.manage')->whereNumber('id')->name('api.admin.product-images.primary');
 
     Route::match(
         ['put', 'patch'],
         '/admin/product-images/{id}',
         [ProductImageController::class, 'update'],
-    )->whereNumber('id')->name('api.admin.product-images.update');
+    )->middleware('permission:products.manage')->whereNumber('id')->name('api.admin.product-images.update');
 
     Route::delete(
         '/admin/product-images/{id}',
         [ProductImageController::class, 'destroy'],
-    )->whereNumber('id')->name('api.admin.product-images.destroy');
+    )->middleware('permission:products.manage')->whereNumber('id')->name('api.admin.product-images.destroy');
 
     // Product specifications
     Route::get(
@@ -555,35 +570,35 @@ Route::middleware([
     Route::post(
         '/product-specifications',
         [ProductSpecificationController::class, 'store'],
-    )->name('api.product-specifications.store');
+    )->middleware('permission:products.manage')->name('api.product-specifications.store');
 
     Route::put(
         '/product-specifications/{id}',
         [ProductSpecificationController::class, 'update'],
-    )->whereNumber('id')
+    )->middleware('permission:products.manage')->whereNumber('id')
         ->name('api.product-specifications.update');
 
     Route::delete(
         '/product-specifications/{id}',
         [ProductSpecificationController::class, 'destroy'],
-    )->whereNumber('id')
+    )->middleware('permission:products.manage')->whereNumber('id')
         ->name('api.product-specifications.destroy');
 
     // Quản lý tồn kho
     Route::get('/inventories', [InventoryController::class, 'index'])
-        ->name('api.inventories.index');
+        ->middleware('permission:inventory.view')->name('api.inventories.index');
 
     Route::post('/inventories/import', [InventoryController::class, 'import'])
-        ->name('api.inventories.import');
+        ->middleware('permission:inventory.import')->name('api.inventories.import');
 
     Route::post('/inventories/export', [InventoryController::class, 'export'])
-        ->name('api.inventories.export');
+        ->middleware('permission:inventory.adjust')->name('api.inventories.export');
 
     Route::get('/inventories/transactions', [InventoryController::class, 'transactions'])
-        ->name('api.inventories.transactions');
+        ->middleware('permission:inventory.view')->name('api.inventories.transactions');
 
     Route::get('/inventories/low-stock', [InventoryController::class, 'lowStock'])
-        ->name('api.inventories.low-stock');
+        ->middleware('permission:inventory.view')->name('api.inventories.low-stock');
 });
 
 /*
@@ -699,6 +714,10 @@ Route::middleware([
     Route::match(['patch', 'post'], '/orders/{id}/cancel', [OrderController::class, 'cancel'])
         ->whereNumber('id')
         ->name('api.orders.cancel');
+
+    Route::patch('/orders/{id}/confirm-received', [OrderController::class, 'confirmReceived'])
+        ->whereNumber('id')
+        ->name('api.orders.confirm-received');
 
     // Product review submission
     Route::post('/products/{id}/reviews', [ReviewController::class, 'store'])
@@ -923,6 +942,23 @@ Route::prefix('admin')
                 ->whereNumber('id')
                 ->name('orders.confirm-bank-transfer');
 
+            Route::post(
+                '/payments/{payment}/confirm-refund',
+                [AdminOrderController::class, 'confirmRefund'],
+            )
+                ->whereNumber('payment')
+                ->name('payments.confirm-refund');
+
+            Route::post(
+                '/payments/{payment}/refund',
+                [AdminPaymentRefundController::class, 'store'],
+            )->middleware('throttle:20,1')->whereNumber('payment')->name('payments.refund.store');
+
+            Route::post(
+                '/payments/{payment}/refund/status',
+                [AdminPaymentRefundController::class, 'refresh'],
+            )->middleware('throttle:30,1')->whereNumber('payment')->name('payments.refund.status');
+
             Route::post('/payments/bank-transfer/simulate', [PaymentController::class, 'simulateBankTransfer'])
                 ->name('payments.bank-transfer.simulate');
             Route::post('/payments/momo/simulate', [PaymentController::class, 'simulateMoMoPayment'])
@@ -964,6 +1000,23 @@ Route::prefix('admin')
             )
                 ->whereNumber('id')
                 ->name('coupons.destroy');
+        });
+
+        // Admin Flash Sale Management
+        Route::middleware('permission:flash_sales.view')->group(function (): void {
+            Route::get('/flash-sales', [AdminFlashSaleController::class, 'index'])->name('flash-sales.index');
+            Route::get('/flash-sales/{id}', [AdminFlashSaleController::class, 'show'])
+                ->whereNumber('id')->name('flash-sales.show');
+        });
+
+        Route::middleware('permission:flash_sales.manage')->group(function (): void {
+            Route::get('/flash-sales/variant-options', [AdminFlashSaleController::class, 'variantOptions'])
+                ->name('flash-sales.variant-options');
+            Route::post('/flash-sales', [AdminFlashSaleController::class, 'store'])->name('flash-sales.store');
+            Route::match(['put', 'patch'], '/flash-sales/{id}', [AdminFlashSaleController::class, 'update'])
+                ->whereNumber('id')->name('flash-sales.update');
+            Route::delete('/flash-sales/{id}', [AdminFlashSaleController::class, 'destroy'])
+                ->whereNumber('id')->name('flash-sales.destroy');
         });
 
         // Admin Banner Management
@@ -1095,7 +1148,7 @@ Route::prefix('admin')
         // Admin Spec Definition Management
         Route::apiResource('spec-definitions', SpecDefinitionController::class)->parameters([
             'spec-definitions' => 'specDefinition',
-        ]);
+        ])->middleware('permission:products.manage');
 
         // Admin Omnisearch / Command Palette
         Route::get('omnisearch', [AdminOmnisearchController::class, 'search'])
@@ -1106,9 +1159,11 @@ Route::prefix('admin')
         Route::prefix('trash')->name('trash.')->middleware('permission:dashboard.view')->group(function (): void {
             Route::get('summary', [AdminTrashController::class, 'summary'])->name('summary');
             Route::get('{type}', [AdminTrashController::class, 'index'])->name('index');
-            Route::post('restore-all/{type}', [AdminTrashController::class, 'restoreAll'])->name('restore-all');
-            Route::post('{type}/{id}/restore', [AdminTrashController::class, 'restore'])->name('restore');
-            Route::delete('empty/{type}', [AdminTrashController::class, 'emptyTrash'])->name('empty');
-            Route::delete('{type}/{id}', [AdminTrashController::class, 'forceDelete'])->name('force-delete');
+            Route::middleware('permission:trash.manage')->group(function (): void {
+                Route::post('restore-all/{type}', [AdminTrashController::class, 'restoreAll'])->name('restore-all');
+                Route::post('{type}/{id}/restore', [AdminTrashController::class, 'restore'])->name('restore');
+                Route::delete('empty/{type}', [AdminTrashController::class, 'emptyTrash'])->name('empty');
+                Route::delete('{type}/{id}', [AdminTrashController::class, 'forceDelete'])->name('force-delete');
+            });
         });
     });

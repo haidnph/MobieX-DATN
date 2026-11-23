@@ -2,6 +2,10 @@
 
 namespace App\Services;
 
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+
 class VNPayService
 {
     private string $tmnCode;
@@ -10,14 +14,22 @@ class VNPayService
 
     private string $vnpUrl;
 
+    private string $transactionApiUrl;
+
     private string $returnUrl;
 
     public function __construct()
     {
-        $this->tmnCode = (string) config('vnpay.tmn_code', 'SANDBOX_TMN');
-        $this->hashSecret = (string) config('vnpay.hash_secret', 'SANDBOX_HASH_SECRET');
+        $this->tmnCode = (string) config('vnpay.tmn_code', '');
+        $this->hashSecret = (string) config('vnpay.hash_secret', '');
         $this->vnpUrl = (string) config('vnpay.url', 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html');
+        $this->transactionApiUrl = (string) config('vnpay.transaction_api_url', 'https://sandbox.vnpayment.vn/merchant_webapi/api/transaction');
         $this->returnUrl = (string) config('vnpay.return_url', 'http://localhost:5173/payment/vnpay/return');
+    }
+
+    public function isConfigured(): bool
+    {
+        return $this->tmnCode !== '' && $this->hashSecret !== '';
     }
 
     /**
@@ -29,11 +41,15 @@ class VNPayService
      *     order_info?: string,
      *     ip_address?: string,
      *     return_url?: string,
-     *     bank_code?: string
+     *     bank_code?: string,
+     *     expires_at?: string|\DateTimeInterface
      * } $data
      */
     public function createPaymentUrl(array $data): string
     {
+        if (! $this->isConfigured()) {
+            throw new \RuntimeException('VNPay credentials are not configured.');
+        }
         $vnpAmount = (int) round(((float) $data['amount']) * 100);
         $vnpTxnRef = (string) $data['order_code'];
         $vnpOrderInfo = (string) ($data['order_info'] ?? ('Thanh toán đơn hàng '.$vnpTxnRef));
@@ -41,8 +57,15 @@ class VNPayService
         $returnUrl = (string) ($data['return_url'] ?? $this->returnUrl);
 
         $now = now('Asia/Ho_Chi_Minh');
-        $createDate = $now->format('YmdHis');
-        $expireDate = $now->copy()->addMinutes(20)->format('YmdHis');
+        $createDate = (string) ($data['create_date'] ?? $now->format('YmdHis'));
+        $expireAt = $now->copy()->addMinutes(20);
+        if (! empty($data['expires_at'])) {
+            $reservationExpiry = Carbon::parse($data['expires_at'])->setTimezone('Asia/Ho_Chi_Minh');
+            if ($reservationExpiry->lt($expireAt)) {
+                $expireAt = $reservationExpiry;
+            }
+        }
+        $expireDate = $expireAt->format('YmdHis');
 
         $inputData = [
             'vnp_Version' => '2.1.0',
@@ -93,6 +116,9 @@ class VNPayService
      */
     public function verifySignature(array $inputData): bool
     {
+        if (! $this->isConfigured()) {
+            return false;
+        }
         $vnpSecureHash = $inputData['vnp_SecureHash'] ?? null;
         if (! $vnpSecureHash || ! is_string($vnpSecureHash)) {
             return false;
@@ -121,5 +147,106 @@ class VNPayService
         $secureHash = hash_hmac('sha512', $hashData, $this->hashSecret);
 
         return hash_equals($secureHash, (string) $vnpSecureHash);
+    }
+
+    /** @return array<string, mixed> */
+    public function requestRefund(array $data): array
+    {
+        if (! $this->isConfigured()) {
+            return ['transport_error' => true, 'message' => 'VNPay credentials are not configured.'];
+        }
+
+        $params = [
+            'vnp_RequestId' => $data['request_id'],
+            'vnp_Version' => '2.1.0',
+            'vnp_Command' => 'refund',
+            'vnp_TmnCode' => $this->tmnCode,
+            'vnp_TransactionType' => '02',
+            'vnp_TxnRef' => $data['transaction_reference'],
+            'vnp_Amount' => (string) ((int) round(((float) $data['amount']) * 100)),
+            'vnp_TransactionNo' => (string) $data['provider_transaction_id'],
+            'vnp_TransactionDate' => $data['transaction_date'],
+            'vnp_CreateBy' => mb_substr((string) $data['created_by'], 0, 245),
+            'vnp_CreateDate' => now('Asia/Ho_Chi_Minh')->format('YmdHis'),
+            'vnp_IpAddr' => (string) ($data['ip_address'] ?? '127.0.0.1'),
+            'vnp_OrderInfo' => mb_substr((string) $data['description'], 0, 255),
+        ];
+        $signed = implode('|', [
+            $params['vnp_RequestId'], $params['vnp_Version'], $params['vnp_Command'], $params['vnp_TmnCode'],
+            $params['vnp_TransactionType'], $params['vnp_TxnRef'], $params['vnp_Amount'], $params['vnp_TransactionNo'],
+            $params['vnp_TransactionDate'], $params['vnp_CreateBy'], $params['vnp_CreateDate'], $params['vnp_IpAddr'],
+            $params['vnp_OrderInfo'],
+        ]);
+        $params['vnp_SecureHash'] = hash_hmac('sha512', $signed, $this->hashSecret);
+
+        try {
+            $response = Http::timeout(30)->acceptJson()->post($this->transactionApiUrl, $params);
+            if (! $response->successful()) {
+                return ['transport_error' => true, 'http_status' => $response->status()];
+            }
+
+            return $response->json() ?: ['transport_error' => true, 'http_status' => $response->status()];
+        } catch (\Throwable $e) {
+            Log::warning('VNPay refund request failed', ['exception' => class_basename($e)]);
+
+            return ['transport_error' => true, 'message' => 'VNPay refund response could not be confirmed.'];
+        }
+    }
+
+    /** @return array<string, mixed> */
+    public function queryRefund(array $data): array
+    {
+        if (! $this->isConfigured()) {
+            return ['transport_error' => true, 'message' => 'VNPay credentials are not configured.'];
+        }
+
+        $params = [
+            'vnp_RequestId' => $data['query_request_id'],
+            'vnp_Version' => '2.1.0',
+            'vnp_Command' => 'querydr',
+            'vnp_TmnCode' => $this->tmnCode,
+            'vnp_TxnRef' => $data['transaction_reference'],
+            'vnp_TransactionDate' => $data['transaction_date'],
+            'vnp_CreateDate' => now('Asia/Ho_Chi_Minh')->format('YmdHis'),
+            'vnp_IpAddr' => (string) ($data['ip_address'] ?? '127.0.0.1'),
+            'vnp_OrderInfo' => mb_substr((string) $data['description'], 0, 255),
+        ];
+        $signed = implode('|', [
+            $params['vnp_RequestId'], $params['vnp_Version'], $params['vnp_Command'], $params['vnp_TmnCode'],
+            $params['vnp_TxnRef'], $params['vnp_TransactionDate'], $params['vnp_CreateDate'], $params['vnp_IpAddr'],
+            $params['vnp_OrderInfo'],
+        ]);
+        $params['vnp_SecureHash'] = hash_hmac('sha512', $signed, $this->hashSecret);
+
+        try {
+            $response = Http::timeout(30)->acceptJson()->post($this->transactionApiUrl, $params);
+            if (! $response->successful()) {
+                return ['transport_error' => true, 'http_status' => $response->status()];
+            }
+
+            return $response->json() ?: ['transport_error' => true, 'http_status' => $response->status()];
+        } catch (\Throwable $e) {
+            Log::warning('VNPay refund status query failed', ['exception' => class_basename($e)]);
+
+            return ['transport_error' => true, 'message' => 'VNPay refund status could not be confirmed.'];
+        }
+    }
+
+    /** @param array<string, mixed> $response */
+    public function verifyRefundApiResponse(array $response): bool
+    {
+        if (! $this->isConfigured() || ! is_string($response['vnp_SecureHash'] ?? null)) {
+            return false;
+        }
+
+        $fields = [
+            'vnp_ResponseId', 'vnp_Command', 'vnp_ResponseCode', 'vnp_Message', 'vnp_TmnCode', 'vnp_TxnRef',
+            'vnp_Amount', 'vnp_BankCode', 'vnp_PayDate', 'vnp_TransactionNo', 'vnp_TransactionType',
+            'vnp_TransactionStatus', 'vnp_OrderInfo', 'vnp_PromotionCode', 'vnp_PromotionAmount',
+        ];
+        $signed = implode('|', array_map(static fn (string $field): string => (string) ($response[$field] ?? ''), $fields));
+        $expected = hash_hmac('sha512', $signed, $this->hashSecret);
+
+        return hash_equals($expected, $response['vnp_SecureHash']);
     }
 }

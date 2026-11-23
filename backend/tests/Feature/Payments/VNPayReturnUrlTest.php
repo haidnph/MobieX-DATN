@@ -3,6 +3,7 @@
 namespace Tests\Feature\Payments;
 
 use App\Models\Order;
+use App\Models\Payment;
 use App\Models\ShippingMethod;
 use App\Models\User;
 use App\Services\VNPayService;
@@ -65,8 +66,17 @@ class VNPayReturnUrlTest extends TestCase
         ]);
     }
 
-    public function test_vnpay_return_updates_order_status_to_paid_and_confirmed(): void
+    public function test_vnpay_return_reports_gateway_result_without_marking_order_paid(): void
     {
+        $payment = Payment::create([
+            'order_id' => $this->order->id,
+            'transaction_code' => 'PAY-RETURN-'.uniqid(),
+            'idempotency_key' => 'vnpay-return-'.$this->order->id,
+            'method' => 'vnpay',
+            'amount' => $this->order->total_amount,
+            'currency_code' => 'VND',
+            'status' => 'pending',
+        ]);
         $params = [
             'vnp_Amount' => (string) (20030000 * 100),
             'vnp_BankCode' => 'NCB',
@@ -76,7 +86,7 @@ class VNPayReturnUrlTest extends TestCase
             'vnp_ResponseCode' => '00',
             'vnp_TmnCode' => 'CGXZLS0Z',
             'vnp_TransactionNo' => '14888999',
-            'vnp_TxnRef' => $this->order->order_code,
+            'vnp_TxnRef' => $payment->transaction_code,
         ];
 
         // Generate HMAC signature using test secret
@@ -97,7 +107,7 @@ class VNPayReturnUrlTest extends TestCase
 
         $response->assertStatus(200)
             ->assertJson([
-                'status' => 'success',
+                'status' => 'pending_confirmation',
                 'data' => [
                     'order_id' => $this->order->id,
                     'order_code' => $this->order->order_code,
@@ -105,14 +115,16 @@ class VNPayReturnUrlTest extends TestCase
                 ],
             ]);
 
-        $this->order->refresh();
-        $this->assertEquals('paid', $this->order->payment_status);
-        $this->assertEquals('confirmed', $this->order->status);
-
+        $response->assertJsonPath('data.payment_status', 'pending');
+        $this->assertDatabaseHas('orders', [
+            'id' => $this->order->id,
+            'payment_status' => 'pending',
+            'status' => 'pending',
+        ]);
         $this->assertDatabaseHas('payments', [
             'order_id' => $this->order->id,
-            'status' => 'success',
-            'gateway_transaction_id' => '14888999',
+            'transaction_code' => $payment->transaction_code,
+            'status' => 'pending',
         ]);
     }
 

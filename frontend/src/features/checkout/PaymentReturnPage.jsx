@@ -73,14 +73,19 @@ export default function PaymentReturnPage() {
   }
 
   const responseCode = searchParams.get('vnp_ResponseCode') || '99'
-  const isSuccess = (result?.status === 'success' || responseCode === '00') && !error
+  const isSuccess = responseCode === '00' && !error
+  const isConfirmed = result?.payment_status === 'paid'
   const orderId = result?.order_id || searchParams.get('vnp_TxnRef')
   const amount = Number(searchParams.get('vnp_Amount')) / 100 || result?.amount || 0
   const txnNo = searchParams.get('vnp_TransactionNo') || '—'
   const bankCode = searchParams.get('vnp_BankCode') || 'NCB'
   const cardType = searchParams.get('vnp_CardType') || 'ATM'
   const payDate = formatVNPayDate(searchParams.get('vnp_PayDate'))
-  const statusMessage = VNPAY_RESPONSE_MESSAGES[responseCode] || result?.message || 'Giao dịch không thành công.'
+  const statusMessage = isConfirmed
+    ? 'Hệ thống đã xác nhận thanh toán.'
+    : isSuccess
+      ? 'VNPay báo giao dịch thành công. Đơn hàng đang chờ hệ thống đối soát trước khi xác nhận.'
+      : result?.message || VNPAY_RESPONSE_MESSAGES[responseCode] || 'Giao dịch không thành công.'
 
   const handlePrint = () => {
     window.print()
@@ -115,7 +120,9 @@ export default function PaymentReturnPage() {
               <span className="material-symbols-outlined text-5xl">check_circle</span>
             </div>
             <div>
-              <h1 className="text-2xl font-black text-on-surface">Thanh Toán Thành Công!</h1>
+              <h1 className="text-2xl font-black text-on-surface">
+                {isConfirmed ? 'Thanh Toán Thành Công!' : 'Đang Đối Soát Thanh Toán'}
+              </h1>
               <p className="text-xs text-on-surface-variant mt-1.5 max-w-md mx-auto">
                 {statusMessage}
               </p>
@@ -136,7 +143,7 @@ export default function PaymentReturnPage() {
               <span className="font-semibold text-on-surface uppercase tracking-wider text-[11px]">Chi tiết giao dịch</span>
               <span className="text-emerald-600 font-medium flex items-center gap-1">
                 <span className="material-symbols-outlined text-sm">verified</span>
-                Đã đối soát chữ ký
+                Đã xác thực chữ ký VNPay
               </span>
             </div>
 
@@ -168,10 +175,10 @@ export default function PaymentReturnPage() {
             )}
 
             <div className="flex justify-between items-center pt-2 border-t border-outline-variant/15">
-              <span className="text-outline">Trạng thái đơn hàng:</span>
+                <span className="text-outline">Trạng thái đơn hàng:</span>
               <span className="inline-flex items-center gap-1.5 text-emerald-600 font-bold bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                Đã thanh toán (Đã xác nhận)
+                {isConfirmed ? 'Đã thanh toán (Đã xác nhận)' : 'Đang chờ IPN xác nhận'}
               </span>
             </div>
           </div>

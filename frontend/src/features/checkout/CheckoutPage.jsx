@@ -22,7 +22,7 @@ export default function CheckoutPage() {
     phone: user?.phone || '',
     email: user?.email || '',
     shipping_address: '',
-    city: 'Hà Nội',
+    city: '',
     note: '',
     payment_method: 'vnpay',
   })
@@ -146,6 +146,9 @@ export default function CheckoutPage() {
 
     try {
       // Build order payload matching backend OrderController store endpoint
+      const selectedAddress = !useCustomAddress
+        ? savedAddresses.find((address) => address.id === selectedAddressId)
+        : null
       const payload = {
         shipping_name: form.recipient_name,
         recipient_name: form.recipient_name,
@@ -156,7 +159,11 @@ export default function CheckoutPage() {
         email: form.email || user?.email || undefined,
         shipping_address: form.shipping_address,
         shipping_address_line: form.shipping_address,
-        shipping_city: form.city || 'Hà Nội',
+        shipping_city: form.city,
+        shipping_province_code: selectedAddress?.province_code || undefined,
+        shipping_province_name: selectedAddress?.province_name || form.city,
+        shipping_ward_code: selectedAddress?.ward_code || undefined,
+        shipping_ward_name: selectedAddress?.ward_name || selectedAddress?.ward || undefined,
         customer_note: form.note || undefined,
         note: form.note || undefined,
         payment_method: form.payment_method,

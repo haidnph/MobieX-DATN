@@ -2,7 +2,15 @@
 
 namespace Tests\Feature\Payments;
 
+use App\Models\Brand;
+use App\Models\Category;
+use App\Models\FlashSale;
+use App\Models\FlashSaleItem;
 use App\Models\Order;
+use App\Models\OrderItem;
+use App\Models\Payment;
+use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\ShippingMethod;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -132,6 +140,100 @@ class VNPayIpnWebhookTest extends TestCase
             'method' => 'vnpay',
             'event_key' => '99887766',
             'processing_status' => 'processed',
+        ]);
+    }
+
+    public function test_valid_ipn_consumes_reserved_flash_sale_quantity(): void
+    {
+        $order = $this->createOrder(750000);
+        $category = Category::create(['name' => 'Phones', 'slug' => 'vnp-sale-phones', 'is_active' => true]);
+        $brand = Brand::create(['name' => 'MobieX', 'slug' => 'vnp-sale-brand', 'is_active' => true]);
+        $product = Product::create([
+            'category_id' => $category->id,
+            'brand_id' => $brand->id,
+            'product_type' => 'phone',
+            'name' => 'Sale phone',
+            'slug' => 'vnp-sale-phone',
+            'status' => 'active',
+        ]);
+        $variant = ProductVariant::create([
+            'product_id' => $product->id,
+            'sku' => 'VNP-SALE-1',
+            'price' => 1000000,
+            'is_active' => true,
+        ]);
+        $sale = FlashSale::create([
+            'name' => 'VNPay sale',
+            'slug' => 'vnpay-sale',
+            'start_at' => now()->subHour(),
+            'end_at' => now()->addHour(),
+            'status' => 'active',
+        ]);
+        $saleItem = FlashSaleItem::create([
+            'flash_sale_id' => $sale->id,
+            'product_variant_id' => $variant->id,
+            'sale_price' => 750000,
+            'quantity_limit' => 1,
+            'quantity_reserved' => 1,
+        ]);
+        OrderItem::create([
+            'order_id' => $order->id,
+            'product_id' => $product->id,
+            'product_variant_id' => $variant->id,
+            'flash_sale_id' => $sale->id,
+            'product_name' => $product->name,
+            'sku' => $variant->sku,
+            'price' => 750000,
+            'quantity' => 1,
+        ]);
+
+        $params = $this->buildIpnParams([
+            'vnp_TxnRef' => $order->order_code,
+            'vnp_Amount' => '75000000',
+            'vnp_TransactionNo' => 'SALE998877',
+            'vnp_ResponseCode' => '00',
+        ]);
+
+        $this->getJson('/api/payments/vnpay/ipn?'.http_build_query($params))
+            ->assertOk()
+            ->assertJson(['RspCode' => '00']);
+
+        $this->assertSame(0, $saleItem->fresh()->quantity_reserved);
+        $this->assertSame(1, $saleItem->fresh()->quantity_sold);
+    }
+
+    public function test_ipn_resolves_unique_payment_attempt_reference(): void
+    {
+        $order = $this->createOrder(5000000);
+        $payment = Payment::create([
+            'order_id' => $order->id,
+            'transaction_code' => 'PAY-VNP-'.uniqid(),
+            'idempotency_key' => 'vnpay-attempt-'.$order->id,
+            'method' => 'vnpay',
+            'amount' => $order->total_amount,
+            'currency_code' => 'VND',
+            'status' => 'pending',
+        ]);
+
+        $params = $this->buildIpnParams([
+            'vnp_TxnRef' => $payment->transaction_code,
+            'vnp_Amount' => '500000000',
+            'vnp_TransactionNo' => '99887767',
+            'vnp_ResponseCode' => '00',
+        ]);
+
+        $this->getJson('/api/payments/vnpay/ipn?'.http_build_query($params))
+            ->assertOk()
+            ->assertJson(['RspCode' => '00']);
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $order->id,
+            'payment_status' => 'paid',
+        ]);
+        $this->assertDatabaseHas('payments', [
+            'id' => $payment->id,
+            'status' => 'success',
+            'gateway_transaction_id' => '99887767',
         ]);
     }
 

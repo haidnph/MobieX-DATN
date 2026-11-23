@@ -3,6 +3,7 @@
 namespace Tests\Feature\Payments;
 
 use App\Models\Order;
+use App\Models\Payment;
 use App\Models\ShippingMethod;
 use App\Models\User;
 use App\Services\VNPayService;
@@ -88,7 +89,8 @@ class VNPayPaymentCreationTest extends TestCase
             ]);
 
         $paymentUrl = $response->json('data.payment_url');
-        $this->assertStringContainsString('vnp_TxnRef='.$order->order_code, $paymentUrl);
+        $payment = Payment::where('order_id', $order->id)->where('method', 'vnpay')->firstOrFail();
+        $this->assertStringContainsString('vnp_TxnRef='.$payment->transaction_code, $paymentUrl);
         $this->assertStringContainsString('vnp_Amount=1003000000', $paymentUrl);
 
         $this->assertDatabaseHas('payments', [
@@ -125,10 +127,20 @@ class VNPayPaymentCreationTest extends TestCase
 
     public function test_vnpay_return_with_valid_signature_returns_success(): void
     {
+        $order = $this->createOrder($this->user);
+        $payment = Payment::create([
+            'order_id' => $order->id,
+            'transaction_code' => 'PAY-RETURN-'.uniqid(),
+            'idempotency_key' => 'vnpay-return-'.$order->id,
+            'method' => 'vnpay',
+            'amount' => $order->total_amount,
+            'currency_code' => 'VND',
+            'status' => 'pending',
+        ]);
         $service = app(VNPayService::class);
         $url = $service->createPaymentUrl([
-            'order_code' => 'MX-ORD-RET-1',
-            'amount' => 500000,
+            'order_code' => $payment->transaction_code,
+            'amount' => $order->total_amount,
         ]);
 
         $query = parse_url($url, PHP_URL_QUERY);
@@ -156,12 +168,18 @@ class VNPayPaymentCreationTest extends TestCase
 
         $response->assertStatus(200)
             ->assertJson([
-                'status' => 'success',
+                'status' => 'pending_confirmation',
                 'data' => [
-                    'order_code' => 'MX-ORD-RET-1',
+                    'order_code' => $order->order_code,
                     'response_code' => '00',
+                    'payment_status' => 'pending',
                 ],
             ]);
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $order->id,
+            'payment_status' => 'pending',
+        ]);
     }
 
     public function test_vnpay_return_with_invalid_signature_returns_400(): void
@@ -173,5 +191,29 @@ class VNPayPaymentCreationTest extends TestCase
                 'status' => 'error',
                 'message' => 'Chữ ký số phản hồi từ VNPay không hợp lệ.',
             ]);
+    }
+
+    public function test_expired_reservation_cannot_start_vnpay_payment(): void
+    {
+        $order = $this->createOrder($this->user);
+        $order->update(['reservation_expires_at' => now()->subMinute()]);
+
+        $this->actingAs($this->user, 'sanctum')
+            ->postJson('/api/payments/vnpay/create', ['order_id' => $order->id])
+            ->assertUnprocessable();
+
+        $this->assertDatabaseMissing('payments', ['order_id' => $order->id, 'method' => 'vnpay']);
+    }
+
+    public function test_missing_vnpay_credentials_do_not_create_payment_attempt(): void
+    {
+        config(['vnpay.tmn_code' => '', 'vnpay.hash_secret' => '']);
+        $order = $this->createOrder($this->user);
+
+        $this->actingAs($this->user, 'sanctum')
+            ->postJson('/api/payments/vnpay/create', ['order_id' => $order->id])
+            ->assertStatus(503);
+
+        $this->assertDatabaseMissing('payments', ['order_id' => $order->id, 'method' => 'vnpay']);
     }
 }

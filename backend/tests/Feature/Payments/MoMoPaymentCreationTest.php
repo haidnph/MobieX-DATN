@@ -93,6 +93,14 @@ class MoMoPaymentCreationTest extends TestCase
             ->assertJsonPath('data.order.id', $order->id)
             ->assertJsonPath('data.order.grand_total', 10030000);
 
+        Http::assertSent(fn ($request) => (int) $request['orderExpireTime'] === 29);
+
+        $this->actingAs($this->user)->postJson('/api/payments/momo/create', [
+            'order_id' => $order->id,
+        ])->assertOk()
+            ->assertJsonPath('data.order_url', 'https://test-payment.momo.vn/v2/gateway/pay?token=TEST_MM_PAYURL');
+        Http::assertSentCount(1);
+
         $this->assertDatabaseHas('payments', [
             'order_id' => $order->id,
             'method' => 'momo',
@@ -121,6 +129,30 @@ class MoMoPaymentCreationTest extends TestCase
 
         $response->assertStatus(422)
             ->assertJsonPath('message', 'Đơn hàng này đã được thanh toán thành công.');
+    }
+
+    public function test_expired_reservation_cannot_start_momo_payment(): void
+    {
+        $order = $this->createOrder($this->user);
+        $order->update(['reservation_expires_at' => now()->subMinute()]);
+
+        $this->actingAs($this->user, 'sanctum')
+            ->postJson('/api/payments/momo/create', ['order_id' => $order->id])
+            ->assertUnprocessable();
+
+        $this->assertDatabaseMissing('payments', ['order_id' => $order->id, 'method' => 'momo']);
+    }
+
+    public function test_missing_momo_credentials_do_not_create_payment_attempt(): void
+    {
+        config(['momo.partner_code' => '', 'momo.access_key' => '', 'momo.secret_key' => '']);
+        $order = $this->createOrder($this->user);
+
+        $this->actingAs($this->user, 'sanctum')
+            ->postJson('/api/payments/momo/create', ['order_id' => $order->id])
+            ->assertStatus(503);
+
+        $this->assertDatabaseMissing('payments', ['order_id' => $order->id, 'method' => 'momo']);
     }
 
     public function test_cannot_pay_cancelled_order(): void

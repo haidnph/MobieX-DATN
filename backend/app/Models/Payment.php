@@ -11,6 +11,15 @@ class Payment extends Model
 {
     use HasFactory;
 
+    protected $hidden = [
+        'idempotency_key',
+        'response_data',
+        'refund_required',
+        'gateway_succeeded_at',
+        'refund_note',
+        'refund_confirmed_by',
+    ];
+
     protected $fillable = [
         'order_id',
         'transaction_code',
@@ -22,6 +31,12 @@ class Payment extends Model
         'gateway_transaction_id',
         'response_data',
         'paid_at',
+        'refund_required',
+        'gateway_succeeded_at',
+        'refunded_at',
+        'refund_transaction_id',
+        'refund_note',
+        'refund_confirmed_by',
     ];
 
     protected function casts(): array
@@ -30,6 +45,9 @@ class Payment extends Model
             'amount' => 'decimal:2',
             'response_data' => 'array',
             'paid_at' => 'datetime',
+            'refund_required' => 'boolean',
+            'gateway_succeeded_at' => 'datetime',
+            'refunded_at' => 'datetime',
         ];
     }
 
@@ -41,5 +59,10 @@ class Payment extends Model
     public function webhookEvents(): HasMany
     {
         return $this->hasMany(PaymentWebhookEvent::class);
+    }
+
+    public function refunds(): HasMany
+    {
+        return $this->hasMany(PaymentRefund::class);
     }
 }

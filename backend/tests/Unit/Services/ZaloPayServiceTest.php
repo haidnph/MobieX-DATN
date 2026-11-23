@@ -3,6 +3,7 @@
 namespace Tests\Unit\Services;
 
 use App\Services\ZaloPayService;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -52,6 +53,69 @@ class ZaloPayServiceTest extends TestCase
         // app_trans_id format: yymmdd_<order_id>_<random>
         $this->assertStringContainsString('_999_', $result['app_trans_id']);
         $this->assertNotEmpty($result['order_url']);
+    }
+
+    public function test_create_payment_order_reuses_provider_reference_for_same_payment_attempt(): void
+    {
+        Http::fake([
+            'sb-openapi.zalopay.vn/*' => function ($request) {
+                return Http::response([
+                    'return_code' => 1,
+                    'order_url' => 'https://sb-openapi.zalopay.vn/pay',
+                    'app_trans_id' => $request['app_trans_id'],
+                ]);
+            },
+        ]);
+        $attempt = [
+            'order_id' => 999,
+            'order_code' => 'MX-TEST-001',
+            'amount' => 1250000,
+            'payment_reference' => 'PAY-ZP-STABLE-ATTEMPT',
+        ];
+
+        $first = $this->service->createPaymentOrder($attempt);
+        $second = $this->service->createPaymentOrder($attempt);
+
+        $this->assertSame($first['app_trans_id'], $second['app_trans_id']);
+    }
+
+    public function test_create_payment_order_fails_when_gateway_rejects_request(): void
+    {
+        Http::fake([
+            'sb-openapi.zalopay.vn/*' => Http::response([
+                'return_code' => 2,
+                'return_message' => 'Rejected',
+            ], 503),
+        ]);
+
+        $result = $this->service->createPaymentOrder([
+            'order_id' => 999,
+            'order_code' => 'MX-TEST-001',
+            'amount' => 1250000,
+        ]);
+
+        $this->assertSame('failed', $result['status']);
+        $this->assertNull($result['order_url']);
+    }
+
+    public function test_create_payment_order_does_not_return_a_fake_success_when_gateway_is_unreachable(): void
+    {
+        Http::fake([
+            'sb-openapi.zalopay.vn/*' => function () {
+                throw new ConnectionException('Gateway unavailable');
+            },
+        ]);
+
+        $result = $this->service->createPaymentOrder([
+            'order_id' => 999,
+            'order_code' => 'MX-TEST-001',
+            'amount' => 1250000,
+        ]);
+
+        $this->assertSame('failed', $result['status']);
+        $this->assertNull($result['order_url']);
+        $this->assertSame('provider_unreachable', $result['error_code']);
+        $this->assertArrayNotHasKey('zp_trans_token', $result);
     }
 
     public function test_verify_return_checksum_validates_correctly(): void
@@ -122,5 +186,20 @@ class ZaloPayServiceTest extends TestCase
 
         // Tampered MAC
         $this->assertFalse($this->service->verifyCallback($data, 'invalid_mac_string'));
+    }
+
+    public function test_missing_credentials_reject_callback_and_payment_creation(): void
+    {
+        config(['zalopay.app_id' => '', 'zalopay.key1' => '', 'zalopay.key2' => '']);
+        $service = new ZaloPayService;
+
+        $this->assertFalse($service->isConfigured());
+        $this->assertFalse($service->verifyCallback('{}', hash_hmac('sha256', '{}', '')));
+        $result = $service->createPaymentOrder([
+            'order_id' => 1,
+            'order_code' => 'MX-TEST',
+            'amount' => 1000,
+        ]);
+        $this->assertSame('failed', $result['status']);
     }
 }
