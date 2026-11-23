@@ -4,7 +4,6 @@
 import { Outlet } from 'react-router-dom'
 import Header from '../components/layout/Header'
 import Footer from '../components/layout/Footer'
-import CustomerSupportChat from '../components/common/CustomerSupportChat'
 import CompareDock from '../components/common/CompareDock'
 
 export default function StorefrontLayout() {
@@ -16,7 +15,6 @@ export default function StorefrontLayout() {
       </main>
       <Footer />
       <CompareDock />
-      <CustomerSupportChat />
     </div>
   )
 }
