@@ -500,7 +500,8 @@ export default function ProductListPage() {
         </div>
       )}
 
-      {/* ── Model Alias & Detected Intent Criteria Badges ───────────────────── */}
+      {/* Search intent metadata remains available to the search logic; the storefront does not expose AI intent badges. */}
+      {false && (
       {(activeCriteria.length > 0 || detectedIntent?.model_alias) && (
         <div className="mb-5 p-3 rounded-2xl bg-surface-container-high/60 border border-outline-variant/20 flex flex-wrap items-center gap-2">
           <span className="text-xs font-bold text-primary flex items-center gap-1.5 mr-1">

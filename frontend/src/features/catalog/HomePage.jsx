@@ -203,13 +203,11 @@ function CategoryDiscoverySection({ section }) {
               to={`/products?category_id=${cat.id}`}
               className="flex flex-col items-center gap-2 p-4 bg-surface-container rounded-2xl border border-outline-variant/15 hover:border-primary/40 hover:bg-surface-container-high transition-all group shadow-xs"
             >
-              <div className="w-12 h-12 rounded-xl bg-surface-container-low flex items-center justify-center overflow-hidden group-hover:scale-110 transition-transform">
+              <div className="w-full h-28 rounded-xl bg-white flex items-center justify-center overflow-hidden group-hover:scale-[1.02] transition-transform">
                 {imgUrl ? (
-                  <img src={imgUrl} alt={cat.name} className="w-full h-full object-contain p-1" />
+                  <img src={imgUrl} alt={cat.name} className="w-full h-full object-contain p-2" onError={(e) => { e.currentTarget.style.visibility = 'hidden' }} />
                 ) : (
-                  <span className="material-symbols-outlined text-2xl text-primary">
-                    {cat.slug?.includes('phone') ? 'smartphone' : 'devices_other'}
-                  </span>
+                  <span className="text-xs text-on-surface-variant">{cat.name}</span>
                 )}
               </div>
               <span className="text-xs font-semibold text-on-surface text-center leading-tight line-clamp-1 group-hover:text-primary transition-colors">
