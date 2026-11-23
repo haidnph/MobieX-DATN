@@ -131,6 +131,36 @@ class AddressCrudTest extends TestCase
         $this->assertDatabaseCount('user_addresses', 1);
     }
 
+    public function test_structured_province_and_ward_metadata_round_trip_through_the_api(): void
+    {
+        $user = User::factory()->create();
+        $token = $user->createToken('structured-address-test');
+
+        $payload = array_merge($this->validPayload(), [
+            'province_code' => '79',
+            'province_name' => 'Thành phố Hồ Chí Minh',
+            'ward_code' => '26734',
+            'ward_name' => 'Phường Bến Nghé',
+        ]);
+
+        $response = $this->withToken($token->plainTextToken)
+            ->postJson('/api/addresses', $payload);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.address.province_code', '79')
+            ->assertJsonPath('data.address.province_name', 'Thành phố Hồ Chí Minh')
+            ->assertJsonPath('data.address.ward_code', '26734')
+            ->assertJsonPath('data.address.ward_name', 'Phường Bến Nghé');
+
+        $this->assertDatabaseHas('user_addresses', [
+            'user_id' => $user->id,
+            'province_code' => '79',
+            'province_name' => 'Thành phố Hồ Chí Minh',
+            'ward_code' => '26734',
+            'ward_name' => 'Phường Bến Nghé',
+        ]);
+    }
+
     public function test_user_can_create_an_address_with_nullable_fields(): void
     {
         $user = User::factory()->create();

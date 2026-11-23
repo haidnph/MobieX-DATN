@@ -39,6 +39,11 @@ class UpdateAddressRequest extends FormRequest
                 'max:20',
             ],
 
+            'province_code' => ['sometimes', 'string', 'max:20'],
+            'province_name' => ['sometimes', 'string', 'max:100'],
+            'ward_code' => ['sometimes', 'string', 'max:20'],
+            'ward_name' => ['sometimes', 'string', 'max:100'],
+
             'city' => [
                 'sometimes',
                 'required',
@@ -84,6 +89,10 @@ class UpdateAddressRequest extends FormRequest
                     'label',
                     'full_name',
                     'phone',
+                    'province_code',
+                    'province_name',
+                    'ward_code',
+                    'ward_name',
                     'city',
                     'district',
                     'ward',
