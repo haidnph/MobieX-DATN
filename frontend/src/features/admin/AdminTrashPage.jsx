@@ -11,6 +11,7 @@ import ConfirmDialog from '../../components/feedback/ConfirmDialog'
 import Spinner from '../../components/common/Spinner'
 import Badge from '../../components/common/Badge'
 import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
+import { useAuth } from '../../contexts/AuthContext'
 
 const TRASH_TYPES = [
   { key: 'products',   label: 'Sản phẩm',     icon: 'inventory_2' },
@@ -22,6 +23,8 @@ const TRASH_TYPES = [
 
 export default function AdminTrashPage() {
   const { showToast } = useToast()
+  const { hasPermission } = useAuth()
+  const canManageTrash = hasPermission('trash.manage')
 
   const [activeType, setActiveType] = useState('products')
   const [items, setItems] = useState([])
@@ -162,7 +165,7 @@ export default function AdminTrashPage() {
         </div>
 
         {/* Global actions for current tab */}
-        {currentCount > 0 && (
+        {canManageTrash && currentCount > 0 && (
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
@@ -346,7 +349,7 @@ export default function AdminTrashPage() {
 
                       {/* Actions */}
                       <td className="px-5 py-4 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1.5">
+                        {canManageTrash && <div className="flex items-center justify-end gap-1.5">
                           <button
                             type="button"
                             onClick={() => setRestoreTarget(item)}
@@ -367,7 +370,7 @@ export default function AdminTrashPage() {
                             <span className="material-symbols-outlined text-base">delete_forever</span>
                             <span>Xóa vĩnh viễn</span>
                           </button>
-                        </div>
+                        </div>}
                       </td>
                     </tr>
                   )

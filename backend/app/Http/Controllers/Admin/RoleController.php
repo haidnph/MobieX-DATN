@@ -50,7 +50,7 @@ class RoleController extends Controller
 
         $validated = $request->validate([
             'permissions' => ['present', 'array'],
-            'permissions.*' => ['string'],
+            'permissions.*' => ['required', 'string', 'distinct', 'exists:permissions,slug'],
         ], [
             'permissions.array' => 'Danh sách quyền phải là một mảng.',
         ]);
@@ -94,4 +94,3 @@ class RoleController extends Controller
         ]);
     }
 }
-

@@ -185,6 +185,35 @@ class AdminUserControllerTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_users_manager_cannot_modify_or_reset_super_admin_account(): void
+    {
+        $this->authenticateUserWithUsersViewPermission();
+        $manageUsers = Permission::factory()->create([
+            'name' => 'Manage users',
+            'slug' => 'users.manage',
+        ]);
+        $operator = User::factory()->create();
+        $operatorRole = Role::factory()->create();
+        $viewUsers = Permission::where('slug', 'users.view')->firstOrFail();
+        $operatorRole->permissions()->sync([$viewUsers->id, $manageUsers->id]);
+        $operator->assignRole($operatorRole);
+        Sanctum::actingAs($operator);
+
+        $superAdmin = User::factory()->create(['email' => 'protected-super-admin@example.com']);
+        $superAdminRole = Role::factory()->create([
+            'slug' => 'super-admin',
+            'name' => 'Super Admin',
+        ]);
+        $superAdmin->assignRole($superAdminRole);
+
+        $this->patchJson('/api/admin/users/'.$superAdmin->id, ['email' => 'changed@example.com'])
+            ->assertForbidden();
+        $this->patchJson('/api/admin/users/'.$superAdmin->id.'/password', ['password' => 'NewPassword123!'])
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('users', ['id' => $superAdmin->id, 'email' => 'protected-super-admin@example.com']);
+    }
+
     /**
      * Authenticate a user whose role grants users.view.
      *

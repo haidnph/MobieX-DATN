@@ -248,6 +248,22 @@ class UserStatusControllerTest extends TestCase
         ]);
     }
 
+    public function test_users_manager_cannot_deactivate_super_admin_account(): void
+    {
+        $operator = $this->authenticateUserWithUsersManagePermission();
+        $superAdmin = User::factory()->create(['is_active' => true]);
+        $superAdminRole = Role::factory()->create([
+            'slug' => 'super-admin',
+            'name' => 'Super Admin',
+        ]);
+        $superAdmin->assignRole($superAdminRole);
+
+        $this->patchJson('/api/admin/users/'.$superAdmin->id.'/status', ['is_active' => false])
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('users', ['id' => $superAdmin->id, 'is_active' => true]);
+    }
+
     public function test_deactivated_user_cannot_access_protected_endpoints(): void
     {
         $this->authenticateUserWithUsersManagePermission();

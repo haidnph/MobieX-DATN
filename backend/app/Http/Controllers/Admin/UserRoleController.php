@@ -18,8 +18,15 @@ class UserRoleController extends Controller
     public function store(AssignRoleRequest $request, User $user): JsonResponse
     {
         $roleSlug = (string) $request->validated('role');
+        $role = Role::query()->where('slug', $roleSlug)->firstOrFail();
 
-        $user->assignRole($roleSlug);
+        if (! $request->user()->canAssignRole($role)) {
+            return response()->json([
+                'message' => 'You cannot assign a role with permissions you do not hold.',
+            ], 403);
+        }
+
+        $user->assignRole($role);
 
         $user->load('roles:id,name,slug');
 
@@ -45,6 +52,18 @@ class UserRoleController extends Controller
         }
 
         $currentUser = $request->user();
+
+        if ($currentUser && ! $currentUser->canManageUserAccount($user)) {
+            return response()->json([
+                'message' => 'Only a super-admin may modify a super-admin account.',
+            ], 403);
+        }
+
+        if ($roleSlug === 'super-admin' && $currentUser && ! $currentUser->hasRole('super-admin')) {
+            return response()->json([
+                'message' => 'Only a super-admin may remove the super-admin role.',
+            ], 403);
+        }
 
         if (in_array($roleSlug, ['admin', 'super-admin'], true) && $currentUser && (int) $currentUser->getKey() === (int) $user->getKey()) {
             return response()->json([

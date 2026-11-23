@@ -18,7 +18,7 @@ class RolePermissionSeederTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
 
         $this->assertDatabaseCount('roles', 6);
-        $this->assertDatabaseCount('permissions', 35);
+        $this->assertDatabaseCount('permissions', 36);
 
         $this->assertDatabaseHas('roles', [
             'name' => 'Quản trị cấp cao',
@@ -106,6 +106,7 @@ class RolePermissionSeederTest extends TestCase
                 'roles.manage',
                 'shipping_methods.manage',
                 'shipping_methods.view',
+                'trash.manage',
                 'users.manage',
                 'users.view',
             ],
@@ -142,6 +143,7 @@ class RolePermissionSeederTest extends TestCase
                 'reviews.view',
                 'shipping_methods.manage',
                 'shipping_methods.view',
+                'trash.manage',
                 'users.manage',
                 'users.view',
             ],
@@ -231,8 +233,8 @@ class RolePermissionSeederTest extends TestCase
 
         $this->assertSame([
             'roles' => 6,
-            'permissions' => 35,
-            'permission_role' => 103,
+            'permissions' => 36,
+            'permission_role' => 105,
         ], $secondSnapshot);
     }
 
@@ -248,7 +250,7 @@ class RolePermissionSeederTest extends TestCase
             Permission::query()->pluck('id')->all()
         );
 
-        $this->assertCount(35, $customer->fresh()->permissions);
+        $this->assertCount(36, $customer->fresh()->permissions);
 
         $this->seed(RolePermissionSeeder::class);
 

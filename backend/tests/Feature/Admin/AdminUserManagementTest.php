@@ -82,6 +82,24 @@ class AdminUserManagementTest extends TestCase
         $this->assertTrue($createdUser->hasRole('sales'));
     }
 
+    public function test_users_manager_cannot_create_super_admin_account(): void
+    {
+        $this->authenticateUserWithUsersManagePermission();
+        Role::factory()->create([
+            'slug' => 'super-admin',
+            'name' => 'Super Admin',
+        ]);
+
+        $this->postJson('/api/admin/users', [
+            'name' => 'Escalation Attempt',
+            'email' => 'escalation@example.com',
+            'password' => 'SecurePass123!',
+            'role' => 'super-admin',
+        ])->assertForbidden();
+
+        $this->assertDatabaseMissing('users', ['email' => 'escalation@example.com']);
+    }
+
     public function test_create_user_validates_unique_email_and_password(): void
     {
         $this->authenticateUserWithUsersManagePermission();

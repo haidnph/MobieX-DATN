@@ -15,6 +15,12 @@ class UserStatusController extends Controller
      */
     public function update(UpdateUserStatusRequest $request, User $user): JsonResponse
     {
+        if (! $request->user()->canManageUserAccount($user)) {
+            return response()->json([
+                'message' => 'Only a super-admin may modify a super-admin account.',
+            ], 403);
+        }
+
         $newStatus = $request->boolean('is_active');
 
         if (! $newStatus) {

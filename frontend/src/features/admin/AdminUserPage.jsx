@@ -15,6 +15,7 @@ import ConfirmDialog from '../../components/feedback/ConfirmDialog'
 import Spinner from '../../components/common/Spinner'
 import Badge from '../../components/common/Badge'
 import Pagination from '../../components/common/Pagination'
+import { canAssignUserRole, canManageUserAccount } from './userManagementAccess'
 
 export const ROLE_CONFIG = {
   'super-admin': {
@@ -589,7 +590,9 @@ export default function AdminUserPage() {
     setNewPassword(pwd)
   }
 
-  const adminRoles = roles.filter((r) => r.slug !== 'customer')
+  const adminRoles = roles.filter(
+    (role) => role.slug !== 'customer' && canAssignUserRole(currentAuthUser, role),
+  )
 
   return (
     <div className="space-y-6">
@@ -951,7 +954,7 @@ export default function AdminUserPage() {
                 <span className="material-symbols-outlined text-2xl">shield</span>
               </div>
               <div>
-                <p className="text-xs text-outline font-medium">Vai trò quản trị</p>
+                <p className="text-xs text-outline font-medium">Vai trò có thể cấp</p>
                 <p className="text-xl font-bold text-purple-600 dark:text-purple-400 mt-0.5">{adminRoles.length}</p>
               </div>
             </div>
@@ -1100,6 +1103,7 @@ export default function AdminUserPage() {
                     {users.map((u) => {
                       const isActive = Boolean(u.is_active)
                       const isCurrentAuth = Number(u.id) === Number(currentAuthUser?.id)
+                      const canManageAccount = canManageUserAccount(currentAuthUser, u)
                       const userRoles = u.roles || []
 
                       return (
@@ -1199,7 +1203,7 @@ export default function AdminUserPage() {
                               </button>
 
                               {/* Edit info button */}
-                              <button
+                              {canManageAccount && <button
                                 type="button"
                                 onClick={() => handleOpenEdit(u)}
                                 title="Chỉnh sửa thông tin"
@@ -1207,10 +1211,10 @@ export default function AdminUserPage() {
                                 className="p-1.5 rounded-lg hover:bg-surface-container-high text-on-surface-variant hover:text-primary transition-all cursor-pointer active:scale-90 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
                               >
                                 <span className="material-symbols-outlined text-lg">edit</span>
-                              </button>
+                              </button>}
 
                               {/* Role assignment button */}
-                              <button
+                              {canManageAccount && <button
                                 type="button"
                                 onClick={() => setRoleModalUser(u)}
                                 title="Phân quyền vai trò"
@@ -1218,10 +1222,10 @@ export default function AdminUserPage() {
                                 className="p-1.5 rounded-lg hover:bg-surface-container-high text-on-surface-variant hover:text-primary transition-all cursor-pointer active:scale-90 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
                               >
                                 <span className="material-symbols-outlined text-lg">admin_panel_settings</span>
-                              </button>
+                              </button>}
 
                               {/* Reset password button */}
-                              <button
+                              {canManageAccount && <button
                                 type="button"
                                 onClick={() => { setPasswordTargetUser(u); setNewPassword('') }}
                                 title="Đặt lại mật khẩu"
@@ -1229,10 +1233,10 @@ export default function AdminUserPage() {
                                 className="p-1.5 rounded-lg hover:bg-surface-container-high text-on-surface-variant hover:text-amber-500 transition-all cursor-pointer active:scale-90 focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:outline-none"
                               >
                                 <span className="material-symbols-outlined text-lg">key</span>
-                              </button>
+                              </button>}
 
                               {/* Lock / Unlock button */}
-                              <button
+                              {canManageAccount && <button
                                 type="button"
                                 onClick={() => setStatusTarget(u)}
                                 disabled={isCurrentAuth}
@@ -1262,7 +1266,7 @@ export default function AdminUserPage() {
                                 <span className="material-symbols-outlined text-lg">
                                   {isActive ? 'lock' : 'lock_open'}
                                 </span>
-                              </button>
+                              </button>}
                             </div>
                           </td>
                         </tr>
@@ -1349,14 +1353,14 @@ export default function AdminUserPage() {
                     <span className="material-symbols-outlined text-primary text-base">security</span>
                     Vai trò & Quyền hạn phân bổ
                   </h4>
-                  <Button
+                  {canManageUserAccount(currentAuthUser, detailUser) && <Button
                     variant="outline"
                     size="sm"
                     onClick={() => { setRoleModalUser(detailUser); setDetailUser(null) }}
                     className="cursor-pointer text-xs py-1"
                   >
                     <span className="material-symbols-outlined text-sm">edit</span> Thay đổi vai trò
-                  </Button>
+                  </Button>}
                 </div>
 
                 <div className="flex flex-wrap gap-2">
@@ -1628,7 +1632,7 @@ export default function AdminUserPage() {
                           className="inline-flex items-center gap-1 bg-primary/10 text-primary text-xs px-2.5 py-0.5 rounded-lg border border-primary/20"
                         >
                           {cfg.label}
-                          {r.slug !== 'customer' && (
+                          {r.slug !== 'customer' && canManageUserAccount(currentAuthUser, roleModalUser) && (
                             <button
                               type="button"
                               onClick={() => handleRevokeRole(roleModalUser, r.slug)}

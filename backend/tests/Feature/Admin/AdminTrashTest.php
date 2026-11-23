@@ -33,12 +33,16 @@ class AdminTrashTest extends TestCase
             ['slug' => 'dashboard.view'],
             ['name' => 'Xem dashboard', 'description' => 'Xem dashboard']
         );
+        $manageTrashPerm = Permission::firstOrCreate(
+            ['slug' => 'trash.manage'],
+            ['name' => 'Quản lý thùng rác', 'description' => 'Quản lý thùng rác']
+        );
 
         $adminRole = Role::firstOrCreate(
             ['slug' => 'admin'],
             ['name' => 'Quản trị viên', 'description' => 'Admin role', 'is_system' => true]
         );
-        $adminRole->permissions()->syncWithoutDetaching([$viewPerm->id]);
+        $adminRole->permissions()->syncWithoutDetaching([$viewPerm->id, $manageTrashPerm->id]);
 
         $this->adminUser = User::factory()->create(['is_active' => true]);
         $this->adminUser->roles()->attach($adminRole->id);
@@ -57,6 +61,32 @@ class AdminTrashTest extends TestCase
         $this->actingAs($this->regularUser, 'sanctum')
             ->getJson('/api/admin/trash/summary')
             ->assertForbidden();
+    }
+
+    public function test_dashboard_view_permission_does_not_allow_trash_mutations(): void
+    {
+        $warehouseRole = Role::firstOrCreate(
+            ['slug' => 'warehouse-trash-test'],
+            ['name' => 'Warehouse', 'description' => 'Warehouse role', 'is_system' => false]
+        );
+        $dashboardPermission = Permission::where('slug', 'dashboard.view')->firstOrFail();
+        $warehouseRole->permissions()->sync([$dashboardPermission->id]);
+        $warehouseUser = User::factory()->create(['is_active' => true]);
+        $warehouseUser->roles()->attach($warehouseRole->id);
+
+        $coupon = Coupon::create([
+            'code' => 'WAREHOUSE-CANNOT-DELETE',
+            'discount_type' => 'fixed',
+            'discount_value' => 10000,
+            'is_active' => true,
+        ]);
+        $coupon->delete();
+
+        $this->actingAs($warehouseUser, 'sanctum')
+            ->deleteJson("/api/admin/trash/coupons/{$coupon->id}")
+            ->assertForbidden();
+
+        $this->assertSoftDeleted('coupons', ['id' => $coupon->id]);
     }
 
     public function test_admin_can_get_trash_summary(): void
@@ -166,6 +196,54 @@ class AdminTrashTest extends TestCase
         $this->assertEquals(0, Banner::onlyTrashed()->count());
     }
 
+    public function test_restoring_all_products_restores_only_their_own_trashed_variants(): void
+    {
+        $category = Category::factory()->create();
+        $brand = Brand::factory()->create();
+        $trashedProduct = Product::create([
+            'name' => 'Trashed product',
+            'slug' => 'trashed-product-'.uniqid(),
+            'product_type' => 'phone',
+            'category_id' => $category->id,
+            'brand_id' => $brand->id,
+            'status' => 'draft',
+        ]);
+        $trashedVariant = ProductVariant::create([
+            'product_id' => $trashedProduct->id,
+            'sku' => 'TRASHED-'.uniqid(),
+            'price' => 100000,
+            'original_price' => 100000,
+            'is_active' => true,
+        ]);
+        $activeProduct = Product::create([
+            'name' => 'Active product',
+            'slug' => 'active-product-'.uniqid(),
+            'product_type' => 'phone',
+            'category_id' => $category->id,
+            'brand_id' => $brand->id,
+            'status' => 'active',
+        ]);
+        $unrelatedVariant = ProductVariant::create([
+            'product_id' => $activeProduct->id,
+            'sku' => 'UNRELATED-'.uniqid(),
+            'price' => 100000,
+            'original_price' => 100000,
+            'is_active' => true,
+        ]);
+        $trashedProduct->delete();
+        $trashedVariant->delete();
+        $unrelatedVariant->delete();
+
+        $this->actingAs($this->adminUser, 'sanctum')
+            ->postJson('/api/admin/trash/restore-all/products')
+            ->assertOk()
+            ->assertJsonPath('restored_count', 1);
+
+        $this->assertDatabaseHas('products', ['id' => $trashedProduct->id, 'deleted_at' => null]);
+        $this->assertDatabaseHas('product_variants', ['id' => $trashedVariant->id, 'deleted_at' => null]);
+        $this->assertSoftDeleted('product_variants', ['id' => $unrelatedVariant->id]);
+    }
+
     public function test_admin_can_force_delete_trashed_item(): void
     {
         $coupon = Coupon::create([
@@ -205,6 +283,7 @@ class AdminTrashTest extends TestCase
             'is_active' => true,
         ]);
 
+        $variant->delete();
         $product->delete();
 
         // Create a mock order item referencing this product
@@ -252,7 +331,12 @@ class AdminTrashTest extends TestCase
             ->deleteJson("/api/admin/trash/products/{$product->id}")
             ->assertStatus(422);
 
+        $this->actingAs($this->adminUser, 'sanctum')
+            ->deleteJson('/api/admin/trash/empty/products')
+            ->assertStatus(422);
+
         $this->assertSoftDeleted('products', ['id' => $product->id]);
+        $this->assertSoftDeleted('product_variants', ['id' => $variant->id]);
     }
 
     public function test_admin_can_empty_trash_for_type(): void

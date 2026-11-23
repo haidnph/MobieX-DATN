@@ -74,17 +74,20 @@ class AdminTrashController extends Controller
             return response()->json(['message' => "Invalid trash type: {$type}"], 422);
         }
 
-        $record = $modelClass::onlyTrashed()->findOrFail($id);
-        $record->restore();
+        $record = DB::transaction(function () use ($modelClass, $type, $id) {
+            $record = $modelClass::onlyTrashed()->whereKey($id)->lockForUpdate()->firstOrFail();
+            $record->restore();
 
-        // For products also restore their soft-deleted variants
-        if ($type === 'products') {
-            $record->variants()->onlyTrashed()->restore();
-        }
+            if ($type === 'products') {
+                $record->variants()->onlyTrashed()->lockForUpdate()->restore();
+            }
+
+            return $record->fresh();
+        });
 
         return response()->json([
             'message' => 'Khôi phục thành công. Mục này đã được đưa trở lại danh sách hoạt động.',
-            'data' => $record->fresh(),
+            'data' => $record,
         ]);
     }
 
@@ -99,12 +102,25 @@ class AdminTrashController extends Controller
             return response()->json(['message' => "Invalid trash type: {$type}"], 422);
         }
 
-        $count = $modelClass::onlyTrashed()->count();
-        $modelClass::onlyTrashed()->restore();
+        $count = DB::transaction(function () use ($modelClass, $type): int {
+            $trashed = $modelClass::onlyTrashed()->lockForUpdate()->get(['id']);
+            $ids = $trashed->modelKeys();
 
-        if ($type === 'products') {
-            ProductVariant::onlyTrashed()->restore();
-        }
+            if ($ids === []) {
+                return 0;
+            }
+
+            $modelClass::onlyTrashed()->whereKey($ids)->restore();
+
+            if ($type === 'products') {
+                ProductVariant::onlyTrashed()
+                    ->whereIn('product_id', $ids)
+                    ->lockForUpdate()
+                    ->restore();
+            }
+
+            return count($ids);
+        });
 
         return response()->json([
             'message' => "Đã khôi phục {$count} mục từ thùng rác.",
@@ -123,28 +139,35 @@ class AdminTrashController extends Controller
             return response()->json(['message' => "Invalid trash type: {$type}"], 422);
         }
 
-        $record = $modelClass::onlyTrashed()->findOrFail($id);
+        $deleted = DB::transaction(function () use ($modelClass, $type, $id): bool {
+            $record = $modelClass::onlyTrashed()->whereKey($id)->lockForUpdate()->firstOrFail();
 
-        // For products: clean up child relationships before hard-delete
-        if ($type === 'products') {
-            $hasOrders = DB::table('order_items')
-                ->where('product_id', $record->id)
-                ->exists();
+            if ($type === 'products') {
+                $hasOrders = DB::table('order_items')
+                    ->where('product_id', $record->id)
+                    ->exists();
 
-            if ($hasOrders) {
-                return response()->json([
-                    'message' => 'Không thể xóa vĩnh viễn sản phẩm này do đã phát sinh đơn hàng trong hệ thống (ràng buộc kiểm toán kế toán).',
-                ], 422);
+                if ($hasOrders) {
+                    return false;
+                }
+
+                $record->variants()->onlyTrashed()->lockForUpdate()->forceDelete();
+                $record->images()->delete();
+                $record->specifications()->delete();
+                $record->attributeValues()->delete();
+                $record->reviews()->delete();
             }
 
-            $record->variants()->onlyTrashed()->forceDelete();
-            $record->images()->delete();
-            $record->specifications()->delete();
-            $record->attributeValues()->delete();
-            $record->reviews()->delete();
-        }
+            $record->forceDelete();
 
-        $record->forceDelete();
+            return true;
+        });
+
+        if (! $deleted) {
+            return response()->json([
+                'message' => 'Không thể xóa vĩnh viễn sản phẩm này do đã phát sinh đơn hàng trong hệ thống (ràng buộc kiểm toán kế toán).',
+            ], 422);
+        }
 
         return response()->json([
             'message' => 'Đã xóa vĩnh viễn. Dữ liệu này không thể khôi phục được nữa.',
@@ -162,22 +185,43 @@ class AdminTrashController extends Controller
             return response()->json(['message' => "Invalid trash type: {$type}"], 422);
         }
 
-        $count = $modelClass::onlyTrashed()->count();
+        $deletedCount = DB::transaction(function () use ($modelClass, $type): int|false {
+            $trashed = $modelClass::onlyTrashed()->lockForUpdate()->get(['id']);
+            $ids = $trashed->modelKeys();
 
-        if ($type === 'products') {
-            // Collect trashed product IDs
-            $trashedProductIds = $modelClass::onlyTrashed()->pluck('id');
-            // Force-delete related trashed variants
-            ProductVariant::onlyTrashed()
-                ->whereIn('product_id', $trashedProductIds)
-                ->forceDelete();
+            if ($ids === []) {
+                return 0;
+            }
+
+            if ($type === 'products') {
+                $hasOrders = DB::table('order_items')
+                    ->whereIn('product_id', $ids)
+                    ->exists();
+
+                if ($hasOrders) {
+                    return false;
+                }
+
+                ProductVariant::onlyTrashed()
+                    ->whereIn('product_id', $ids)
+                    ->lockForUpdate()
+                    ->forceDelete();
+            }
+
+            $modelClass::onlyTrashed()->whereKey($ids)->forceDelete();
+
+            return count($ids);
+        });
+
+        if ($deletedCount === false) {
+            return response()->json([
+                'message' => 'Không thể dọn thùng rác sản phẩm vì có sản phẩm đã phát sinh đơn hàng. Hãy xóa riêng các sản phẩm không được đơn hàng tham chiếu.',
+            ], 422);
         }
 
-        $modelClass::onlyTrashed()->forceDelete();
-
         return response()->json([
-            'message' => "Đã dọn sạch thùng rác: {$count} mục đã bị xóa vĩnh viễn.",
-            'deleted_count' => $count,
+            'message' => "Đã dọn sạch thùng rác: {$deletedCount} mục đã bị xóa vĩnh viễn.",
+            'deleted_count' => $deletedCount,
         ]);
     }
 

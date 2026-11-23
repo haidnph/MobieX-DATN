@@ -173,6 +173,92 @@ class UserRoleAssignmentControllerTest extends TestCase
         $this->assertSame(1, $count);
     }
 
+    public function test_users_manager_cannot_assign_super_admin_role(): void
+    {
+        $this->authenticateUserWithUsersManagePermission();
+        $targetUser = User::factory()->create();
+        $superAdminRole = Role::factory()->create([
+            'slug' => 'super-admin',
+            'name' => 'Super Admin',
+        ]);
+
+        $this->postJson('/api/admin/users/'.$targetUser->getKey().'/roles', [
+            'role' => 'super-admin',
+        ])->assertForbidden();
+
+        $this->assertDatabaseMissing('role_user', [
+            'user_id' => $targetUser->getKey(),
+            'role_id' => $superAdminRole->getKey(),
+        ]);
+    }
+
+    public function test_users_manager_cannot_assign_a_custom_role_with_extra_permissions(): void
+    {
+        $this->authenticateUserWithUsersManagePermission();
+        $targetUser = User::factory()->create();
+        $sensitiveRole = Role::factory()->create([
+            'slug' => 'sensitive-custom-role',
+            'name' => 'Sensitive custom role',
+        ]);
+        $roleManagementPermission = Permission::factory()->create([
+            'slug' => 'roles.manage',
+            'name' => 'Manage roles',
+        ]);
+        $sensitiveRole->permissions()->attach($roleManagementPermission);
+
+        $this->postJson('/api/admin/users/'.$targetUser->getKey().'/roles', [
+            'role' => $sensitiveRole->slug,
+        ])->assertForbidden();
+
+        $this->assertDatabaseMissing('role_user', [
+            'user_id' => $targetUser->getKey(),
+            'role_id' => $sensitiveRole->getKey(),
+        ]);
+    }
+
+    public function test_users_manager_cannot_remove_super_admin_role(): void
+    {
+        $this->authenticateUserWithUsersManagePermission();
+        $targetUser = User::factory()->create();
+        $superAdminRole = Role::factory()->create([
+            'slug' => 'super-admin',
+            'name' => 'Super Admin',
+        ]);
+        $targetUser->assignRole($superAdminRole);
+
+        $this->deleteJson('/api/admin/users/'.$targetUser->getKey().'/roles/super-admin')
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('role_user', [
+            'user_id' => $targetUser->getKey(),
+            'role_id' => $superAdminRole->getKey(),
+        ]);
+    }
+
+    public function test_users_manager_cannot_change_other_roles_on_super_admin_account(): void
+    {
+        $this->authenticateUserWithUsersManagePermission();
+        $targetUser = User::factory()->create();
+        $superAdminRole = Role::factory()->create([
+            'slug' => 'super-admin',
+            'name' => 'Super Admin',
+        ]);
+        $secondaryRole = Role::factory()->create([
+            'slug' => 'secondary-role',
+            'name' => 'Secondary role',
+        ]);
+        $targetUser->assignRole($superAdminRole);
+        $targetUser->assignRole($secondaryRole);
+
+        $this->deleteJson('/api/admin/users/'.$targetUser->getKey().'/roles/secondary-role')
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('role_user', [
+            'user_id' => $targetUser->getKey(),
+            'role_id' => $secondaryRole->getKey(),
+        ]);
+    }
+
     public function test_remove_role_requires_authentication(): void
     {
         $this->deleteJson('/api/admin/users/1/roles/staff')

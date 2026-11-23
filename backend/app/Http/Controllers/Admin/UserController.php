@@ -22,14 +22,14 @@ class UserController extends Controller
         if ($search = $request->string('search')->trim()->value()) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%");
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%");
             });
         }
 
         // Role filter
         if ($role = $request->string('role')->trim()->value()) {
-            $query->whereHas('roles', fn($q) => $q->where('slug', $role));
+            $query->whereHas('roles', fn ($q) => $q->where('slug', $role));
         }
 
         // Status filter
@@ -62,7 +62,7 @@ class UserController extends Controller
 
         return UserResource::collection($users)->additional([
             'message' => 'Admin users retrieved successfully.',
-            'stats'   => $stats,
+            'stats' => $stats,
         ]);
     }
 
@@ -96,26 +96,36 @@ class UserController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'name'     => ['required', 'string', 'max:255'],
-            'email'    => ['required', 'email', 'unique:users,email'],
-            'phone'    => ['nullable', 'string', 'max:20'],
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'unique:users,email'],
+            'phone' => ['nullable', 'string', 'max:20'],
             'password' => ['required', Password::min(8)->mixedCase()->numbers()],
-            'role'     => ['nullable', 'string', 'exists:roles,slug'],
+            'role' => ['nullable', 'string', 'exists:roles,slug'],
         ], [
-            'name.required'     => 'Họ tên không được để trống.',
-            'email.required'    => 'Email không được để trống.',
-            'email.email'       => 'Địa chỉ email không hợp lệ.',
-            'email.unique'      => 'Email này đã được sử dụng bởi tài khoản khác.',
+            'name.required' => 'Họ tên không được để trống.',
+            'email.required' => 'Email không được để trống.',
+            'email.email' => 'Địa chỉ email không hợp lệ.',
+            'email.unique' => 'Email này đã được sử dụng bởi tài khoản khác.',
             'password.required' => 'Mật khẩu không được để trống.',
-            'password.min'      => 'Mật khẩu phải có tối thiểu 8 ký tự.',
-            'role.exists'       => 'Vai trò được chọn không tồn tại trong hệ thống.',
+            'password.min' => 'Mật khẩu phải có tối thiểu 8 ký tự.',
+            'role.exists' => 'Vai trò được chọn không tồn tại trong hệ thống.',
         ]);
 
+        if (! empty($validated['role'])) {
+            $role = Role::query()->where('slug', $validated['role'])->firstOrFail();
+
+            if (! $request->user()->canAssignRole($role)) {
+                return response()->json([
+                    'message' => 'You cannot assign a role with permissions you do not hold.',
+                ], 403);
+            }
+        }
+
         $user = User::create([
-            'name'      => $validated['name'],
-            'email'     => $validated['email'],
-            'phone'     => $validated['phone'] ?? null,
-            'password'  => Hash::make($validated['password']),
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'phone' => $validated['phone'] ?? null,
+            'password' => Hash::make($validated['password']),
         ]);
         $user->forceFill(['is_active' => true])->save();
 
@@ -127,21 +137,27 @@ class UserController extends Controller
 
         return response()->json([
             'message' => 'Tài khoản mới đã được tạo thành công.',
-            'data'    => ['user' => UserResource::make($user)->resolve($request)],
+            'data' => ['user' => UserResource::make($user)->resolve($request)],
         ], 201);
     }
 
     public function update(Request $request, User $user): JsonResponse
     {
+        if (! $request->user()->canManageUserAccount($user)) {
+            return response()->json([
+                'message' => 'Only a super-admin may modify a super-admin account.',
+            ], 403);
+        }
+
         $validated = $request->validate([
-            'name'  => ['sometimes', 'required', 'string', 'max:255'],
+            'name' => ['sometimes', 'required', 'string', 'max:255'],
             'email' => ['sometimes', 'required', 'email', "unique:users,email,{$user->id}"],
             'phone' => ['nullable', 'string', 'max:20'],
         ], [
-            'name.required'  => 'Họ tên không được để trống.',
+            'name.required' => 'Họ tên không được để trống.',
             'email.required' => 'Email không được để trống.',
-            'email.email'    => 'Địa chỉ email không hợp lệ.',
-            'email.unique'   => 'Email này đã được sử dụng bởi tài khoản khác.',
+            'email.email' => 'Địa chỉ email không hợp lệ.',
+            'email.unique' => 'Email này đã được sử dụng bởi tài khoản khác.',
         ]);
 
         $user->update($validated);
@@ -149,17 +165,23 @@ class UserController extends Controller
 
         return response()->json([
             'message' => 'Thông tin tài khoản đã được cập nhật thành công.',
-            'data'    => ['user' => UserResource::make($user)->resolve($request)],
+            'data' => ['user' => UserResource::make($user)->resolve($request)],
         ]);
     }
 
     public function resetPassword(Request $request, User $user): JsonResponse
     {
+        if (! $request->user()->canManageUserAccount($user)) {
+            return response()->json([
+                'message' => 'Only a super-admin may modify a super-admin account.',
+            ], 403);
+        }
+
         $validated = $request->validate([
             'password' => ['required', Password::min(8)->mixedCase()->numbers()],
         ], [
             'password.required' => 'Mật khẩu mới không được để trống.',
-            'password.min'      => 'Mật khẩu phải có ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường và số.',
+            'password.min' => 'Mật khẩu phải có ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường và số.',
         ]);
 
         $user->password = Hash::make($validated['password']);

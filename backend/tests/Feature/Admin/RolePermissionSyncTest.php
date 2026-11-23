@@ -111,6 +111,27 @@ class RolePermissionSyncTest extends TestCase
         $this->assertEquals(1, $targetRole->fresh()->permissions()->count());
     }
 
+    public function test_unknown_permission_slug_is_rejected_without_changing_existing_assignments(): void
+    {
+        $this->createSuperAdmin();
+        $targetRole = Role::factory()->create(['slug' => 'permission-sync-target']);
+        $existingPermission = Permission::factory()->create([
+            'slug' => 'products.view',
+            'name' => 'View products',
+        ]);
+        $targetRole->permissions()->attach($existingPermission);
+
+        $this->putJson("/api/admin/roles/{$targetRole->id}/permissions", [
+            'permissions' => ['products.view', 'unknown.permission'],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['permissions.1']);
+
+        $this->assertSame(
+            ['products.view'],
+            $targetRole->fresh()->permissions()->pluck('slug')->all(),
+        );
+    }
+
     public function test_cannot_strip_core_permissions_from_super_admin(): void
     {
         $this->createSuperAdmin();

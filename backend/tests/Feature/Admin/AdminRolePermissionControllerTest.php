@@ -139,6 +139,10 @@ class AdminRolePermissionControllerTest extends TestCase
                             'name' => 'Manage brands',
                         ],
                         [
+                            'slug' => 'trash.manage',
+                            'name' => 'Quản lý thùng rác',
+                        ],
+                        [
                             'slug' => 'users.manage',
                             'name' => 'Manage users',
                         ],
