@@ -56,15 +56,15 @@ export default function Footer() {
           <div>
             <h3 className="text-sm font-semibold text-on-surface mb-3">Liên hệ</h3>
             <ul className="space-y-2 text-sm text-on-surface-variant">
-              <li className="flex items-center gap-2 text-on-surface-variant hover:text-on-surface transition-colors">
+              <li className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-base text-primary">location_on</span>
                 FPT Polytechnic, Hà Nội
               </li>
-              <li className="flex items-center gap-2 text-on-surface-variant hover:text-on-surface transition-colors">
+              <li className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-base text-primary">email</span>
                 support@mobilex.vn
               </li>
-              <li className="flex items-center gap-2 text-on-surface-variant hover:text-on-surface transition-colors">
+              <li className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-base text-primary">phone</span>
                 1800 6789
               </li>
