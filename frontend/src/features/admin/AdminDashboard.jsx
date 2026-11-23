@@ -4,6 +4,7 @@
 // best-selling leaderboard, payment method share, and low-stock telemetry.
 
 import { useEffect, useState, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import axiosClient from '../../api/axiosClient'
 import EP from '../../api/endpoints'
 import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
@@ -73,7 +74,7 @@ export default function AdminDashboard() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
+<div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
         <Spinner size="lg" />
         <span className="text-xs text-on-surface-variant font-medium">Đang tải dữ liệu kinh doanh thời gian thực...</span>
       </div>
@@ -128,7 +129,7 @@ export default function AdminDashboard() {
       </div>
 
       <div className="flex flex-wrap items-end gap-3 rounded-xl border border-outline-variant/20 bg-surface-container p-4">
-        <label className="text-xs text-on-surface-variant">Khoảng thời gian<select value={range} onChange={(event) => { setRange(event.target.value); setAppliedRange(null) }} className="mt-1 block rounded-lg border border-outline-variant/30 bg-surface-container-high px-3 py-2 text-sm text-on-surface"><option value="1">Hôm nay</option><option value="2">Hôm qua</option><option value="7">7 ngày gần nhất</option><option value="14">14 ngày gần nhất</option><option value="30">30 ngày gần nhất</option><option value="90">90 ngày gần nhất</option><option value="month">Tháng này</option><option value="prev_month">Tháng trước</option><option value="custom">Tùy chỉnh</option></select></label>
+<label className="text-xs text-on-surface-variant">Khoảng thời gian<select value={range} onChange={(event) => { setRange(event.target.value); setAppliedRange(null) }} className="mt-1 block rounded-lg border border-outline-variant/30 bg-surface-container-high px-3 py-2 text-sm text-on-surface"><option value="1">Hôm nay</option><option value="2">Hôm qua</option><option value="7">7 ngày gần nhất</option><option value="14">14 ngày gần nhất</option><option value="30">30 ngày gần nhất</option><option value="90">90 ngày gần nhất</option><option value="month">Tháng này</option><option value="prev_month">Tháng trước</option><option value="custom">Tùy chỉnh</option></select></label>
         {range === 'custom' && <><label className="text-xs text-on-surface-variant">Từ ngày<input type="date" value={customRange.start} max={customRange.end || undefined} onChange={(event) => setCustomRange((current) => ({ ...current, start: event.target.value }))} className="mt-1 block rounded-lg border border-outline-variant/30 bg-surface-container-high px-3 py-2 text-sm text-on-surface" /></label><label className="text-xs text-on-surface-variant">Đến ngày<input type="date" value={customRange.end} min={customRange.start || undefined} onChange={(event) => setCustomRange((current) => ({ ...current, end: event.target.value }))} className="mt-1 block rounded-lg border border-outline-variant/30 bg-surface-container-high px-3 py-2 text-sm text-on-surface" /></label><button type="button" disabled={!customRange.start || !customRange.end || customRange.start > customRange.end} onClick={() => { setAppliedRange({ start_date: customRange.start, end_date: customRange.end }); loadDashboard('custom') }} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary disabled:opacity-50">Áp dụng</button><button type="button" onClick={() => { setCustomRange({ start: '', end: '' }); setRange('7'); setAppliedRange(null) }} className="rounded-lg border border-outline-variant/30 px-4 py-2 text-sm">Đặt lại</button></>}
         <span className="text-xs text-on-surface-variant">{appliedRange ? `${appliedRange.start_date} – ${appliedRange.end_date}` : `Đang xem: ${range} ngày gần nhất`}</span>
       </div>
@@ -143,7 +144,7 @@ export default function AdminDashboard() {
             </span>
           </div>
           <div className="mt-3">
-            <h2 className="text-xl md:text-2xl font-black text-on-surface font-mono tracking-tight">
+<h2 className="text-xl md:text-2xl font-black text-on-surface font-mono tracking-tight">
               {formatCurrencyVND(stats?.total_revenue ?? 0)}
             </h2>
             <p className="text-[11px] text-secondary font-medium mt-1 flex items-center gap-1">
@@ -192,7 +193,7 @@ export default function AdminDashboard() {
           <div className="flex items-center justify-between text-on-surface-variant">
             <span className="text-[11px] font-bold uppercase tracking-wider">Giá trị đơn TB (AOV)</span>
             <span className="p-2 rounded-xl bg-purple-500/10 text-purple-500 material-symbols-outlined text-xl">
-              insights
+insights
             </span>
           </div>
           <div className="mt-3">
