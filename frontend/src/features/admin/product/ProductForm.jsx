@@ -11,6 +11,8 @@ import Spinner from '../../../components/common/Spinner'
 import ConfirmDialog from '../../../components/feedback/ConfirmDialog'
 import ProductImageGallery from '../../../components/admin/ProductImageGallery'
 import VariantImageManager from '../../../components/admin/VariantImageManager'
+import axiosClient from '../../../api/axiosClient'
+import EP from '../../../api/endpoints'
 
 function slugify(text) {
   return text
@@ -80,6 +82,27 @@ export default function ProductForm({
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [autoSlug, setAutoSlug] = useState(!isEdit)
 
+    // Thuộc tính và giá trị thuộc tính theo danh mục
+  const [categoryAttributes, setCategoryAttributes] = useState([])
+  const [loadingAttributes, setLoadingAttributes] = useState(false)
+  const [attributeError, setAttributeError] = useState('')
+
+  // Danh sách biến thể đang tạo
+  const [variantRows, setVariantRows] = useState([
+    {
+      id: 1,
+      attribute_value_ids: {},
+      price: '',
+      compare_price: '',
+      cost_price: '',
+      quantity: '0',
+      min_stock: '3',
+    },
+  ])
+
+  const [nextVariantId, setNextVariantId] = useState(2)
+  const [variantFormError, setVariantFormError] = useState('')
+
   // Populate initial data when available
   useEffect(() => {
     if (initialData) {
@@ -112,12 +135,12 @@ export default function ProductForm({
       })
       setAutoSlug(false)
     } else {
-      // Default selections for create mode
-      setForm((prev) => ({
-        ...prev,
-        brand_id: prev.brand_id || (brands[0]?.id ? String(brands[0].id) : ''),
-        category_id: prev.category_id || (categories[0]?.id ? String(categories[0].id) : ''),
-      }))
+    // Không tự động chọn thương hiệu và danh mục
+setForm((prev) => ({
+  ...prev,
+  brand_id: prev.brand_id,
+  category_id: prev.category_id,
+}))
     }
   }, [initialData, brands, categories])
 
@@ -182,6 +205,132 @@ export default function ProductForm({
     setIsDirty(true)
     setDraftGallery(draft)
   }
+    // Tải thuộc tính và giá trị thuộc tính theo danh mục
+  useEffect(() => {
+    if (isEdit || !form.category_id) {
+  setCategoryAttributes([])
+  setAttributeError('')
+  setLoadingAttributes(false)
+  return
+}
+
+    let cancelled = false
+
+    const loadCategoryAttributes = async () => {
+      setLoadingAttributes(true)
+      setAttributeError('')
+      setCategoryAttributes([])
+      setVariantFormError('')
+
+      try {
+        const response = await axiosClient.get(
+          EP.CATEGORY_ATTRIBUTES(form.category_id),
+        )
+
+        const attributes = response.data?.data?.attributes || []
+
+        const attributesWithValues = await Promise.all(
+  attributes.map(async (attribute) => {
+    const valueResponse = await axiosClient.get(
+      EP.ATTRIBUTE_VALUES(attribute.id),
+    )
+
+    return {
+      ...attribute,
+      values: valueResponse.data?.data || [],
+    }
+  }),
+)
+
+        if (!cancelled) {
+          setCategoryAttributes(attributesWithValues)
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setAttributeError(
+            error.message || 'Không thể tải thuộc tính của danh mục.',
+          )
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingAttributes(false)
+        }
+      }
+    }
+
+    loadCategoryAttributes()
+
+    // Xóa lựa chọn cũ khi đổi danh mục
+    setVariantRows((prev) =>
+      prev.map((row) => ({
+        ...row,
+        attribute_value_ids: {},
+      })),
+    )
+
+    return () => {
+      cancelled = true
+    }
+  }, [form.category_id, isEdit])
+
+  // Thêm một biến thể mới
+  const handleAddVariant = () => {
+    setVariantRows((prev) => [
+      ...prev,
+      {
+        id: nextVariantId,
+        attribute_value_ids: {},
+        price: '',
+        compare_price: '',
+        cost_price: '',
+        quantity: '0',
+        min_stock: '3',
+      },
+    ])
+
+    setNextVariantId((prev) => prev + 1)
+    setVariantFormError('')
+    setIsDirty(true)
+  }
+
+  // Xóa biến thể
+  const handleRemoveVariant = (rowId) => {
+    setVariantRows((prev) => prev.filter((row) => row.id !== rowId))
+    setVariantFormError('')
+    setIsDirty(true)
+  }
+
+  // Thay đổi thuộc tính của biến thể
+  const handleVariantAttributeChange = (rowId, attributeId, valueId) => {
+    setVariantRows((prev) =>
+      prev.map((row) =>
+        row.id === rowId
+          ? {
+              ...row,
+              attribute_value_ids: {
+                ...row.attribute_value_ids,
+                [attributeId]: valueId,
+              },
+            }
+          : row,
+      ),
+    )
+
+    setIsDirty(true)
+    setVariantFormError('')
+  }
+
+  // Thay đổi giá và tồn kho của biến thể
+  const handleVariantFieldChange = (rowId, field, value) => {
+    setVariantRows((prev) =>
+      prev.map((row) =>
+        row.id === rowId ? { ...row, [field]: value } : row,
+      ),
+    )
+
+    setIsDirty(true)
+    setVariantFormError('')
+  }
 
   const handleLiveImagesChange = useCallback((imgs) => {
     if (!imgs || imgs.length === 0) return
@@ -196,20 +345,126 @@ export default function ProductForm({
   }, [])
 
   // Submit handler
+  
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!onSubmit) return
+
+    if (!isEdit) {
+      // Không cho gửi khi thuộc tính vẫn đang tải
+      if (loadingAttributes) {
+        setVariantFormError('Vui lòng chờ tải thuộc tính danh mục.')
+        return
+      }
+
+      // Kiểm tra lỗi tải thuộc tính trước
+if (attributeError) {
+  setVariantFormError(
+    'Không thể tải thuộc tính danh mục. Vui lòng thử chọn lại danh mục.',
+  )
+  return
+}
+
+// Danh mục phải có thuộc tính để tạo biến thể
+if (categoryAttributes.length === 0) {
+  setVariantFormError(
+    'Danh mục chưa có thuộc tính. Vui lòng cấu hình thuộc tính cho danh mục trước khi tạo biến thể.',
+  )
+  return
+}
+
+      if (variantRows.length === 0) {
+        setVariantFormError('Bạn cần thêm ít nhất một biến thể.')
+        return
+      }
+
+      for (let i = 0; i < variantRows.length; i++) {
+        const row = variantRows[i]
+
+        // Kiểm tra đã chọn đủ thuộc tính
+        if (
+          categoryAttributes.some(
+            (attribute) => !row.attribute_value_ids[attribute.id],
+          )
+        ) {
+          setVariantFormError(
+            `Vui lòng chọn đầy đủ thuộc tính ở phiên bản ${i + 1}.`,
+          )
+          return
+        }
+
+        // Kiểm tra giá bán
+        if (
+          row.price === '' ||
+          !Number.isFinite(Number(row.price)) ||
+          Number(row.price) < 0
+        ) {
+          setVariantFormError(
+            `Vui lòng nhập giá bán hợp lệ ở phiên bản ${i + 1}.`,
+          )
+          return
+        }
+
+        // Kiểm tra các trường số không được âm hoặc không hợp lệ
+        const numericFields = [
+          { name: 'giá niêm yết', value: row.compare_price },
+          { name: 'giá vốn', value: row.cost_price },
+          { name: 'số lượng nhập kho', value: row.quantity },
+          { name: 'ngưỡng tồn kho', value: row.min_stock },
+        ]
+
+        for (const field of numericFields) {
+          if (
+            field.value !== '' &&
+            (!Number.isFinite(Number(field.value)) ||
+              Number(field.value) < 0)
+          ) {
+            setVariantFormError(
+              `${field.name} không hợp lệ ở phiên bản ${i + 1}.`,
+            )
+            return
+          }
+        }
+      }
+
+      // Không cho phép hai biến thể trùng tổ hợp thuộc tính
+      const combinations = variantRows.map((row) =>
+        Object.values(row.attribute_value_ids)
+          .map(Number)
+          .sort((a, b) => a - b)
+          .join('-'),
+      )
+
+      if (new Set(combinations).size !== combinations.length) {
+        setVariantFormError(
+          'Có hai phiên bản đang sử dụng cùng một tổ hợp thuộc tính.',
+        )
+        return
+      }
+    }
+
+    const variantsPayload = variantRows.map((row) => ({
+      attribute_value_ids: Object.values(row.attribute_value_ids).map(Number),
+      price: Number(row.price),
+      compare_price:
+        row.compare_price === '' ? null : Number(row.compare_price),
+      cost_price: row.cost_price === '' ? 0 : Number(row.cost_price),
+      quantity: Number(row.quantity || 0),
+      min_stock: Number(row.min_stock || 0),
+    }))
 
     const success = await onSubmit({
       form,
       specs: productSpecs,
       draftGallery,
+      variants: isEdit ? undefined : variantsPayload,
     })
 
     if (success !== false) {
       setIsDirty(false)
     }
   }
+
 
   // Safe Cancel handler
   const handleCancelClick = () => {
@@ -492,7 +747,256 @@ export default function ProductForm({
               </div>
             )}
           </section>
+                      {/* Section: Variant Builder (Create Mode Only) */}
+          {!isEdit && (
+            <section className="bg-surface-container-high rounded-2xl p-5 sm:p-6 border border-outline-variant/30 shadow-xs space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-outline-variant/20">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary text-xl">
+                    layers
+                  </span>
+                  <div>
+                    <h2 className="text-base font-bold text-on-surface">
+                      Cấu hình biến thể sản phẩm
+                    </h2>
+                    <p className="text-xs text-on-surface-variant">
+                      Thiết lập màu sắc, RAM, dung lượng, giá bán và tồn kho cho
+                      từng phiên bản.
+                    </p>
+                  </div>
+                </div>
 
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-primary/10 text-primary">
+                  {variantRows.length} biến thể
+                </span>
+              </div>
+
+              {loadingAttributes ? (
+                <div className="py-6 flex justify-center items-center gap-2 text-sm text-on-surface-variant">
+                  <Spinner size="md" />
+                  Đang tải thuộc tính danh mục...
+                </div>
+              ) : attributeError ? (
+                <p className="text-sm text-error">{attributeError}</p>
+              ) : categoryAttributes.length === 0 ? (
+                <div className="p-4 rounded-xl bg-surface-container-low text-sm text-on-surface-variant">
+                  Danh mục này chưa có thuộc tính để tạo biến thể. Bạn hãy kiểm
+                  tra phần quản lý thuộc tính danh mục.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {variantRows.map((row, index) => (
+                    <div
+                      key={row.id}
+                      className="p-4 rounded-xl bg-surface-container-low border border-outline-variant/30 space-y-4"
+                    >
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-bold text-on-surface">
+                          Phiên bản {index + 1}
+                        </h3>
+
+                        {variantRows.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveVariant(row.id)}
+                            className="text-xs text-error hover:underline flex items-center gap-1"
+                          >
+                            <span className="material-symbols-outlined text-sm">
+                              delete
+                            </span>
+                            Xóa phiên bản
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Thuộc tính */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {categoryAttributes.map((attribute) => {
+                          const selectedValue =
+                            row.attribute_value_ids[attribute.id] || ''
+
+                          const selectedOption = attribute.values?.find(
+                            (value) => String(value.id) === String(selectedValue),
+                          )
+
+                          return (
+                            <div key={attribute.id} className="space-y-1.5">
+                              <label className="text-xs font-semibold text-on-surface-variant">
+                                {attribute.name} *
+                              </label>
+
+                              <select
+                                value={selectedValue}
+                                onChange={(e) =>
+                                  handleVariantAttributeChange(
+                                    row.id,
+                                    attribute.id,
+                                    e.target.value,
+                                  )
+                                }
+                                className="w-full bg-surface-container text-on-surface rounded-lg px-3 py-2 text-sm border border-outline-variant/50 focus:outline-none focus:ring-2 focus:ring-primary"
+                              >
+                                <option value="">
+                                  -- Chọn {attribute.name} --
+                                </option>
+
+                                {(attribute.values || []).map((value) => (
+                                  <option key={value.id} value={value.id}>
+                                    {value.value}
+                                  </option>
+                                ))}
+                              </select>
+
+                              {attribute.type === 'color' &&
+                                selectedOption?.color_code && (
+                                  <div className="flex items-center gap-2 text-xs text-on-surface-variant">
+                                    <span
+                                      className="w-4 h-4 rounded-full border border-outline-variant"
+                                      style={{
+                                        backgroundColor: selectedOption.color_code,
+                                      }}
+                                    />
+                                    {selectedOption.value}
+                                  </div>
+                                )}
+                            </div>
+                          )
+                        })}
+                      </div>
+
+                      {/* Giá và kho */}
+                      <div className="pt-3 border-t border-outline-variant/20">
+                        <h4 className="text-xs font-bold text-on-surface mb-3">
+                          Giá bán và tồn kho của phiên bản
+                        </h4>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs text-on-surface-variant">
+                              Giá bán (VNĐ) *
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={row.price}
+                              onChange={(e) =>
+                                handleVariantFieldChange(
+                                  row.id,
+                                  'price',
+                                  e.target.value,
+                                )
+                              }
+                              placeholder="Ví dụ: 25000000"
+                              className="w-full mt-1 bg-surface-container text-on-surface rounded-lg px-3 py-2 text-sm border border-outline-variant/50 focus:outline-none focus:ring-2 focus:ring-primary"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-xs text-on-surface-variant">
+                              Giá niêm yết (VNĐ)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={row.compare_price}
+                              onChange={(e) =>
+                                handleVariantFieldChange(
+                                  row.id,
+                                  'compare_price',
+                                  e.target.value,
+                                )
+                              }
+                              placeholder="Ví dụ: 27000000"
+                              className="w-full mt-1 bg-surface-container text-on-surface rounded-lg px-3 py-2 text-sm border border-outline-variant/50 focus:outline-none focus:ring-2 focus:ring-primary"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-xs text-on-surface-variant">
+                              Giá vốn (VNĐ)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={row.cost_price}
+                              onChange={(e) =>
+                                handleVariantFieldChange(
+                                  row.id,
+                                  'cost_price',
+                                  e.target.value,
+                                )
+                              }
+                              placeholder="Ví dụ: 22000000"
+                              className="w-full mt-1 bg-surface-container text-on-surface rounded-lg px-3 py-2 text-sm border border-outline-variant/50 focus:outline-none focus:ring-2 focus:ring-primary"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-xs text-on-surface-variant">
+                              Số lượng nhập kho ban đầu *
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={row.quantity}
+                              onChange={(e) =>
+                                handleVariantFieldChange(
+                                  row.id,
+                                  'quantity',
+                                  e.target.value,
+                                )
+                              }
+                              className="w-full mt-1 bg-surface-container text-on-surface rounded-lg px-3 py-2 text-sm border border-outline-variant/50 focus:outline-none focus:ring-2 focus:ring-primary"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-xs text-on-surface-variant">
+                              Ngưỡng cảnh báo tồn kho
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={row.min_stock}
+                              onChange={(e) =>
+                                handleVariantFieldChange(
+                                  row.id,
+                                  'min_stock',
+                                  e.target.value,
+                                )
+                              }
+                              className="w-full mt-1 bg-surface-container text-on-surface rounded-lg px-3 py-2 text-sm border border-outline-variant/50 focus:outline-none focus:ring-2 focus:ring-primary"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {variantFormError && (
+                <p className="text-sm text-error">{variantFormError}</p>
+              )}
+
+              <button
+                type="button"
+                onClick={handleAddVariant}
+                disabled={loadingAttributes || categoryAttributes.length === 0}
+                className="w-full py-3 rounded-xl border border-dashed border-primary/50 text-primary hover:bg-primary/5 disabled:opacity-40 disabled:cursor-not-allowed text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
+              >
+                <span className="material-symbols-outlined text-lg">
+                  add_circle
+                </span>
+                Thêm biến thể
+              </button>
+
+              <p className="text-[11px] text-on-surface-variant">
+                Mã SKU sẽ được hệ thống tự động tạo dựa trên các thuộc tính của
+                từng phiên bản.
+              </p>
+            </section>
+          )}
           {/* Section 4: Variants Overview (Edit Mode Only) */}
           {isEdit && variants.length > 0 && (
             <section className="bg-surface-container-high rounded-2xl p-5 sm:p-6 border border-outline-variant/30 shadow-xs space-y-4">
@@ -626,8 +1130,9 @@ export default function ProductForm({
             </div>
           </div>
 
-          {/* Card 3: Pricing & Inventory */}
-          <div className="bg-surface-container-high rounded-2xl p-5 border border-outline-variant/30 shadow-xs space-y-4">
+                    {/* Card 3: Pricing & Inventory - Edit Mode Only */}
+          {isEdit && (
+            <div className="bg-surface-container-high rounded-2xl p-5 border border-outline-variant/30 shadow-xs space-y-4">
             <h3 className="text-sm font-bold text-on-surface flex items-center gap-1.5 pb-2 border-b border-outline-variant/20">
               <span className="material-symbols-outlined text-primary text-base">payments</span>
               Giá bán & Tồn kho
@@ -667,7 +1172,7 @@ export default function ProductForm({
               />
             </div>
           </div>
-
+          )}
           {/* Card 4: Metadata (Edit mode only) */}
           {isEdit && initialData && (
             <div className="bg-surface-container-high rounded-2xl p-5 border border-outline-variant/30 shadow-xs space-y-2.5 text-xs text-on-surface-variant">
