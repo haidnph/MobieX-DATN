@@ -2,9 +2,11 @@
 // Modern E-commerce Mega Menu — Compact, Clean, Premium
 // Two-column Master-Detail layout with root categories on left, subcategories grid on right.
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useLanguage } from '../../contexts/LanguageContext'
+import axiosClient from '../../api/axiosClient'
+import EP from '../../api/endpoints'
 
 export function buildCategoryTree(flatCategories) {
   if (!Array.isArray(flatCategories)) return []
@@ -181,6 +183,8 @@ export default function CategoryMegaMenu({
   const categoryTree = useMemo(() => buildCategoryTree(categories), [categories])
 
   const [activeParentId, setActiveParentId] = useState(null)
+  const [brands, setBrands] = useState([])
+  const [brandsLoading, setBrandsLoading] = useState(false)
 
   // Determine current active root category
   const selectedParent = useMemo(() => {
@@ -189,6 +193,35 @@ export default function CategoryMegaMenu({
       categoryTree.find((c) => c.id === activeParentId) || categoryTree[0]
     )
   }, [categoryTree, activeParentId])
+
+  useEffect(() => {
+    if (!isOpen || !selectedParent) return
+    let cancelled = false
+    const categoryIds = []
+    const collectIds = (category) => {
+      categoryIds.push(category.id)
+      category.children?.forEach(collectIds)
+    }
+    collectIds(selectedParent)
+
+    setBrandsLoading(true)
+    Promise.all(categoryIds.map((category_id) =>
+      axiosClient.get(EP.PRODUCTS, { params: { category_id, per_page: 100, status: 'active' } })
+    )).then((responses) => {
+      if (cancelled) return
+      const unique = new Map()
+      responses.forEach(({ data }) => {
+        const payload = data.data ?? data
+        const products = Array.isArray(payload) ? payload : (payload.data ?? [])
+        products.forEach((product) => {
+          if (product.brand?.id && product.brand?.name) unique.set(product.brand.id, product.brand)
+        })
+      })
+      setBrands([...unique.values()].sort((a, b) => a.name.localeCompare(b.name, 'vi')))
+    }).catch(() => { if (!cancelled) setBrands([]) })
+      .finally(() => { if (!cancelled) setBrandsLoading(false) })
+    return () => { cancelled = true }
+  }, [isOpen, selectedParent])
 
   return (
     <div ref={categoryMenuRef} className="relative shrink-0">
@@ -306,58 +339,19 @@ export default function CategoryMegaMenu({
                   </div>
 
                   {/* Subcategories Grid (2-Column Layout) */}
-                  {selectedParent.children && selectedParent.children.length > 0 ? (
-                    <div className="grid grid-cols-2 gap-2">
-                      {selectedParent.children.map((child) => (
-                        <div key={child.id} className="space-y-1">
-                          <Link
-                            to={`/products?category_id=${child.id}`}
-                            onClick={onClose}
-                            className="px-2.5 py-1.5 rounded-xl bg-surface-container/70 hover:bg-primary/10 border border-outline-variant/15 hover:border-primary/30 transition-all flex items-center justify-between group"
-                          >
-                            <span className="text-xs font-medium text-on-surface group-hover:text-primary transition-colors truncate">
-                              {getLocalizedCategoryName(child, lang)}
-                            </span>
-                            <span className="material-symbols-outlined text-[13px] text-outline group-hover:text-primary group-hover:translate-x-0.5 transition-all shrink-0">
-                              arrow_forward
-                            </span>
-                          </Link>
-
-                          {/* Subchildren pills if available (e.g. Kính cường lực) */}
-                          {child.children && child.children.length > 0 && (
-                            <div className="pl-2 flex flex-wrap gap-1">
-                              {child.children.map((grand) => (
-                                <Link
-                                  key={grand.id}
-                                  to={`/products?category_id=${grand.id}`}
-                                  onClick={onClose}
-                                  className="text-[10px] text-outline hover:text-primary transition-colors py-0.5"
-                                >
-                                  • {getLocalizedCategoryName(grand, lang)}
-                                </Link>
-                              ))}
-                            </div>
-                          )}
-                        </div>
+                  {brandsLoading ? (
+                    <div className="py-8 text-center text-xs text-on-surface-variant">Đang tải thương hiệu...</div>
+                  ) : brands.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-2 max-h-[185px] overflow-y-auto pr-1">
+                      {brands.map((brand) => (
+                        <Link key={brand.id} to={`/products?brand_id=${brand.id}&category_id=${selectedParent.id}`} onClick={onClose}
+                          className="px-3 py-2 rounded-xl bg-surface-container/70 hover:bg-primary/10 border border-outline-variant/15 hover:border-primary/30 transition-colors text-xs font-medium text-on-surface hover:text-primary">
+                          {brand.name}
+                        </Link>
                       ))}
                     </div>
                   ) : (
-                    /* Clean Fallback State when category has no subcategories */
-                    <div className="py-6 flex flex-col items-center justify-center text-center">
-                      <span className="material-symbols-outlined text-3xl text-outline mb-1.5">
-                        {getCategoryIcon(selectedParent.slug, selectedParent.name)}
-                      </span>
-                      <p className="text-xs text-on-surface-variant mb-3">
-                        {ui.explorePrefix} {getLocalizedCategoryName(selectedParent, lang)} {ui.exploreSuffix}
-                      </p>
-                      <Link
-                        to={`/products?category_id=${selectedParent.id}`}
-                        onClick={onClose}
-                        className="px-3.5 py-1.5 rounded-xl bg-primary-container text-on-primary-container text-xs font-bold hover:bg-primary hover:text-on-primary transition-all shadow-xs"
-                      >
-                        {ui.viewBtnPrefix} {getLocalizedCategoryName(selectedParent, lang)} →
-                      </Link>
-                    </div>
+                    <div className="py-8 text-center text-xs text-on-surface-variant">Danh mục này chưa có thương hiệu.</div>
                   )}
                 </div>
               ) : (
