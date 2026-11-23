@@ -807,25 +807,6 @@ export default function Header() {
           <Link to="/tracking" className="px-2 py-2 rounded-xl text-xs xl:text-sm font-semibold text-on-surface-variant hover:text-primary hover:bg-surface-container whitespace-nowrap inline-flex items-center gap-1.5"><span className="material-symbols-outlined text-lg">local_shipping</span>Tra cứu đơn hàng</Link>
           {/* 1. Language Selector (GTranslate Official Integration) */}
 
-          {/* 2. Theme Toggle (Light / Dark mode) */}
-          <button
-            type="button"
-            onClick={toggleTheme}
-            aria-label={
-              isDark
-                ? 'Chuyển sang giao diện sáng'
-                : 'Chuyển sang giao diện tối'
-            }
-            title={
-              isDark
-                ? 'Chuyển sang giao diện sáng'
-                : 'Chuyển sang giao diện tối'
-            }
-            className="h-9 px-2 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-primary active:scale-95 cursor-pointer transition-all flex items-center justify-center shrink-0 focus-visible:outline-2 focus-visible:outline-primary"
-          >
-            <span className="inline-flex items-center gap-1.5 text-xs xl:text-sm font-semibold whitespace-nowrap"><span className="material-symbols-outlined text-lg">{isDark ? 'light_mode' : 'dark_mode'}</span>{isDark ? 'Giao diện sáng' : 'Giao diện tối'}</span>
-          </button>
-
           {/* 3. Product Compare with count badge */}
           <Link
             to="/compare"
@@ -973,6 +954,15 @@ export default function Header() {
               Đăng nhập
             </Link>
           )}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={isDark ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
+            title={isDark ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
+            className="h-9 px-2 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-primary active:scale-95 cursor-pointer transition-all flex items-center justify-center shrink-0 focus-visible:outline-2 focus-visible:outline-primary"
+          >
+            <span className="inline-flex items-center gap-1.5 text-xs xl:text-sm font-semibold whitespace-nowrap"><span className="material-symbols-outlined text-lg">{isDark ? 'light_mode' : 'dark_mode'}</span>{isDark ? 'Giao diện sáng' : 'Giao diện tối'}</span>
+          </button>
         </div>
       </div>
 
