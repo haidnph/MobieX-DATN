@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use App\Models\AttributeValue;
 
 class ProductController extends Controller
 {
@@ -51,13 +52,46 @@ class ProductController extends Controller
         $suffix = 1;
 
         while (ProductVariant::where('sku', $sku)->exists()) {
-            $sku = $baseSku.'-'.$suffix;
+            $sku = $baseSku . '-' . $suffix;
             $suffix++;
         }
 
         return $sku;
     }
 
+    /**
+     * Tạo SKU tự động dựa trên các giá trị thuộc tính của biến thể.
+     */
+    private function generateVariantSkuFromAttributes(Product $product, $attributeValues): string
+    {
+        $productCode = strtoupper(substr(
+            preg_replace('/[^A-Za-z0-9]/', '', Str::ascii($product->slug ?: $product->name)) ?: 'PRODUCT',
+            0,
+            8
+        ));
+
+        $attributeCodes = $attributeValues->map(function ($item) {
+            $source = $item->code ?: $item->value;
+
+            return strtoupper(
+                preg_replace('/[^A-Za-z0-9]/', '', Str::ascii($source)) ?: 'VALUE'
+            );
+        })->implode('-');
+
+        $baseSku = "MBX-{$productCode}-{$attributeCodes}";
+        $baseSku = substr($baseSku, 0, 45);
+
+        $sku = $baseSku;
+        $suffix = 1;
+
+        while (ProductVariant::where('sku', $sku)->exists()) {
+            $ending = '-' . $suffix;
+            $sku = substr($baseSku, 0, 50 - strlen($ending)) . $ending;
+            $suffix++;
+        }
+
+        return $sku;
+    }
     /**
      * Xác định sản phẩm có thuộc nhóm phụ kiện hay không.
      */
@@ -121,7 +155,7 @@ class ProductController extends Controller
             'unit_cost' => $variant->cost_price,
             'reference_type' => 'product_update',
             'reference_id' => $productId,
-            'idempotency_key' => 'tx_'.(string) Str::uuid(),
+            'idempotency_key' => 'tx_' . (string) Str::uuid(),
             'note' => $note,
         ]);
     }
@@ -138,7 +172,7 @@ class ProductController extends Controller
         $effectiveTerm = $intent->modelAlias ?: ($intent->normalizedQuery ?: $keyword);
         $cleanLower = mb_strtolower($effectiveTerm, 'UTF-8');
         $slugKeyword = Str::slug($effectiveTerm);
-        $tokens = ! empty($intent->searchTokens) ? $intent->searchTokens : array_filter(preg_split('/\s+/', $effectiveTerm), fn ($t) => mb_strlen($t) > 0);
+        $tokens = ! empty($intent->searchTokens) ? $intent->searchTokens : array_filter(preg_split('/\s+/', $effectiveTerm), fn($t) => mb_strlen($t) > 0);
 
         // 1. Gợi ý thương hiệu trùng khớp (kể cả brand từ intent)
         $brandQuery = Brand::query()->where('is_active', true);
@@ -155,7 +189,7 @@ class ProductController extends Controller
             });
         }
         $brands = $brandQuery
-            ->withCount(['products' => fn ($pq) => $pq->whereIn('status', ['active', 'out_of_stock'])])
+            ->withCount(['products' => fn($pq) => $pq->whereIn('status', ['active', 'out_of_stock'])])
             ->limit(3)
             ->get(['id', 'name', 'slug', 'logo_path']);
 
@@ -174,7 +208,7 @@ class ProductController extends Controller
             });
         }
         $categories = $categoryQuery
-            ->withCount(['products' => fn ($pq) => $pq->whereIn('status', ['active', 'out_of_stock'])])
+            ->withCount(['products' => fn($pq) => $pq->whereIn('status', ['active', 'out_of_stock'])])
             ->limit(3)
             ->get(['id', 'name', 'slug', 'parent_id']);
 
@@ -198,9 +232,9 @@ class ProductController extends Controller
                     $phraseQuery->where('products.name', 'like', "%{$effectiveTerm}%")
                         ->orWhere('products.slug', 'like', "%{$effectiveTerm}%")
                         ->orWhere('products.description', 'like', "%{$effectiveTerm}%")
-                        ->orWhereHas('brand', fn ($b) => $b->where('name', 'like', "%{$effectiveTerm}%"))
-                        ->orWhereHas('category', fn ($c) => $c->where('name', 'like', "%{$effectiveTerm}%"))
-                        ->orWhereHas('variants', fn ($v) => $v->where('sku', 'like', "%{$effectiveTerm}%"));
+                        ->orWhereHas('brand', fn($b) => $b->where('name', 'like', "%{$effectiveTerm}%"))
+                        ->orWhereHas('category', fn($c) => $c->where('name', 'like', "%{$effectiveTerm}%"))
+                        ->orWhereHas('variants', fn($v) => $v->where('sku', 'like', "%{$effectiveTerm}%"));
 
                     if ($keyword !== $effectiveTerm) {
                         $phraseQuery->orWhere('products.name', 'like', "%{$keyword}%");
@@ -218,9 +252,9 @@ class ProductController extends Controller
                                 $q->where('products.name', 'like', "%{$token}%")
                                     ->orWhere('products.description', 'like', "%{$token}%")
                                     ->orWhere('products.slug', 'like', "%{$tokenSlug}%")
-                                    ->orWhereHas('brand', fn ($b) => $b->where('name', 'like', "%{$token}%"))
-                                    ->orWhereHas('category', fn ($c) => $c->where('name', 'like', "%{$token}%"))
-                                    ->orWhereHas('variants', fn ($v) => $v->where('sku', 'like', "%{$token}%"));
+                                    ->orWhereHas('brand', fn($b) => $b->where('name', 'like', "%{$token}%"))
+                                    ->orWhereHas('category', fn($c) => $c->where('name', 'like', "%{$token}%"))
+                                    ->orWhereHas('variants', fn($v) => $v->where('sku', 'like', "%{$token}%"));
 
                                 if ($tokenSlug && $tokenSlug !== $token) {
                                     $q->orWhere('products.slug', 'like', "%{$tokenSlug}%");
@@ -240,8 +274,8 @@ class ProductController extends Controller
             ->with([
                 'brand:id,name,slug',
                 'category:id,name,slug',
-                'images' => fn ($iq) => $iq->select('id', 'product_id', 'image_path', 'is_primary')->orderBy('sort_order'),
-                'variants' => fn ($vq) => $vq
+                'images' => fn($iq) => $iq->select('id', 'product_id', 'image_path', 'is_primary')->orderBy('sort_order'),
+                'variants' => fn($vq) => $vq
                     ->where('is_active', true)
                     ->select('id', 'product_id', 'price', 'compare_price', 'is_active'),
             ])
@@ -329,7 +363,7 @@ class ProductController extends Controller
         $query = Product::whereIn('status', ['active', 'out_of_stock'])->with([
             'brand',
             'category',
-            'variants' => fn ($variantQuery) => $variantQuery->where('is_active', true),
+            'variants' => fn($variantQuery) => $variantQuery->where('is_active', true),
             'variants.inventory',
             'variants.attributeValues.attribute',
             'images',
@@ -346,7 +380,7 @@ class ProductController extends Controller
             $intent = $parser->parse($rawKeyword);
 
             $effectiveTerm = $intent->modelAlias ?: ($intent->normalizedQuery ?: '');
-            $tokens = ! empty($intent->searchTokens) ? $intent->searchTokens : array_filter(preg_split('/\s+/', $effectiveTerm), fn ($t) => mb_strlen($t) > 0);
+            $tokens = ! empty($intent->searchTokens) ? $intent->searchTokens : array_filter(preg_split('/\s+/', $effectiveTerm), fn($t) => mb_strlen($t) > 0);
             $slugKeyword = Str::slug($effectiveTerm);
 
             if ($effectiveTerm !== '') {
@@ -356,9 +390,9 @@ class ProductController extends Controller
                         $phraseQuery->where('products.name', 'like', "%{$effectiveTerm}%")
                             ->orWhere('products.slug', 'like', "%{$effectiveTerm}%")
                             ->orWhere('products.description', 'like', "%{$effectiveTerm}%")
-                            ->orWhereHas('brand', fn ($b) => $b->where('name', 'like', "%{$effectiveTerm}%"))
-                            ->orWhereHas('category', fn ($c) => $c->where('name', 'like', "%{$effectiveTerm}%"))
-                            ->orWhereHas('variants', fn ($v) => $v->where('sku', 'like', "%{$effectiveTerm}%"));
+                            ->orWhereHas('brand', fn($b) => $b->where('name', 'like', "%{$effectiveTerm}%"))
+                            ->orWhereHas('category', fn($c) => $c->where('name', 'like', "%{$effectiveTerm}%"))
+                            ->orWhereHas('variants', fn($v) => $v->where('sku', 'like', "%{$effectiveTerm}%"));
 
                         if ($rawKeyword !== $effectiveTerm) {
                             $phraseQuery->orWhere('products.name', 'like', "%{$rawKeyword}%");
@@ -377,9 +411,9 @@ class ProductController extends Controller
                                     $q->where('products.name', 'like', "%{$token}%")
                                         ->orWhere('products.description', 'like', "%{$token}%")
                                         ->orWhere('products.slug', 'like', "%{$tokenSlug}%")
-                                        ->orWhereHas('brand', fn ($b) => $b->where('name', 'like', "%{$token}%"))
-                                        ->orWhereHas('category', fn ($c) => $c->where('name', 'like', "%{$token}%"))
-                                        ->orWhereHas('variants', fn ($v) => $v->where('sku', 'like', "%{$token}%"));
+                                        ->orWhereHas('brand', fn($b) => $b->where('name', 'like', "%{$token}%"))
+                                        ->orWhereHas('category', fn($c) => $c->where('name', 'like', "%{$token}%"))
+                                        ->orWhereHas('variants', fn($v) => $v->where('sku', 'like', "%{$token}%"));
 
                                     if ($tokenSlug && $tokenSlug !== $token) {
                                         $q->orWhere('products.slug', 'like', "%{$tokenSlug}%");
@@ -424,7 +458,7 @@ class ProductController extends Controller
                 $minBattery = (int) $intent->specs['battery_min'];
                 $query->where(function ($bq) use ($minBattery) {
                     $bq->whereHas('specifications', function ($sq) use ($minBattery) {
-                        $sq->whereHas('definition', fn ($dq) => $dq->where('code', 'battery_capacity'))
+                        $sq->whereHas('definition', fn($dq) => $dq->where('code', 'battery_capacity'))
                             ->where('numeric_value', '>=', $minBattery);
                     })->orWhere('products.description', 'like', '%pin%');
                 });
@@ -435,7 +469,7 @@ class ProductController extends Controller
                 $watt = (int) $intent->specs['charging_wattage'];
                 $query->where(function ($wq) use ($watt) {
                     $wq->whereHas('specifications', function ($sq) use ($watt) {
-                        $sq->whereHas('definition', fn ($dq) => $dq->where('code', 'charging_power'))
+                        $sq->whereHas('definition', fn($dq) => $dq->where('code', 'charging_power'))
                             ->where('numeric_value', '>=', $watt);
                     })
                         ->orWhere('products.name', 'like', "%{$watt}W%")
@@ -450,7 +484,7 @@ class ProductController extends Controller
                 $hz = (int) $intent->specs['refresh_rate'];
                 $query->where(function ($hq) use ($hz) {
                     $hq->whereHas('specifications', function ($sq) use ($hz) {
-                        $sq->whereHas('definition', fn ($dq) => $dq->where('code', 'display_resolution'))
+                        $sq->whereHas('definition', fn($dq) => $dq->where('code', 'display_resolution'))
                             ->where('value_text', 'like', "%{$hz}Hz%");
                     })
                         ->orWhere('products.name', 'like', "%{$hz}Hz%")
@@ -463,7 +497,7 @@ class ProductController extends Controller
                 $chip = $intent->specs['chipset'];
                 $query->where(function ($cq) use ($chip) {
                     $cq->whereHas('specifications', function ($sq) use ($chip) {
-                        $sq->whereHas('definition', fn ($dq) => $dq->where('code', 'chipset'))
+                        $sq->whereHas('definition', fn($dq) => $dq->where('code', 'chipset'))
                             ->where('value_text', 'like', "%{$chip}%");
                     })
                         ->orWhere('products.name', 'like', "%{$chip}%")
@@ -476,7 +510,7 @@ class ProductController extends Controller
                 $conn = $intent->specs['connector_type'];
                 $query->where(function ($cq) use ($conn) {
                     $cq->whereHas('specifications', function ($sq) use ($conn) {
-                        $sq->whereHas('definition', fn ($dq) => $dq->where('code', 'connector_type'))
+                        $sq->whereHas('definition', fn($dq) => $dq->where('code', 'connector_type'))
                             ->where('value_text', 'like', "%{$conn}%");
                     })
                         ->orWhere('products.name', 'like', "%{$conn}%")
@@ -489,7 +523,7 @@ class ProductController extends Controller
                 $len = $intent->specs['cable_length'];
                 $query->where(function ($lq) use ($len) {
                     $lq->whereHas('specifications', function ($sq) use ($len) {
-                        $sq->whereHas('definition', fn ($dq) => $dq->where('code', 'cable_length'))
+                        $sq->whereHas('definition', fn($dq) => $dq->where('code', 'cable_length'))
                             ->where('numeric_value', '>=', $len);
                     })
                         ->orWhere('products.name', 'like', "%{$len}m%")
@@ -525,7 +559,7 @@ class ProductController extends Controller
                         ->orWhere('products.name', 'like', '%ultra%')
                         ->orWhere('products.description', 'like', '%camera%')
                         ->orWhere('products.description', 'like', '%chụp ảnh%')
-                        ->orWhereHas('specifications', fn ($sq) => $sq->whereHas('definition', fn ($d) => $d->whereIn('code', ['rear_camera', 'front_camera'])));
+                        ->orWhereHas('specifications', fn($sq) => $sq->whereHas('definition', fn($d) => $d->whereIn('code', ['rear_camera', 'front_camera'])));
                 });
             }
         }
@@ -741,13 +775,13 @@ class ProductController extends Controller
             'category',
             'images',
             'specifications.definition',
-            'variants' => fn ($variantQuery) => $variantQuery->where('is_active', true),
+            'variants' => fn($variantQuery) => $variantQuery->where('is_active', true),
             'variants.inventory',
             'variants.attributeValues.attribute',
         ])->whereIn('id', $ids)->get();
 
         $groups = $products
-            ->map(fn (Product $product) => $comparison->groupForCategory($product->category_id))
+            ->map(fn(Product $product) => $comparison->groupForCategory($product->category_id))
             ->unique()
             ->values();
 
@@ -864,7 +898,7 @@ class ProductController extends Controller
             'category',
             'images',
             'specifications.definition',
-            'variants' => fn ($variantQuery) => $variantQuery->where('is_active', true),
+            'variants' => fn($variantQuery) => $variantQuery->where('is_active', true),
             'variants.inventory',
             'variants.images',
             'variants.attributeValues.attribute',
@@ -937,11 +971,14 @@ class ProductController extends Controller
     /**
      * API thêm sản phẩm mới.
      */
+
     public function store(Request $request)
     {
         if ($request->exists('status') && ! $request->user()->hasPermission('products.publish')) {
             return response()->json(['message' => 'You do not have permission to publish products.'], 403);
         }
+
+        $hasVariants = $request->exists('variants');
 
         $isAccessory = $this->isAccessoryCategory(
             $request->filled('category_id')
@@ -957,24 +994,42 @@ class ProductController extends Controller
             'brand_id' => 'nullable|exists:brands,id',
             'category_id' => 'nullable|exists:categories,id',
             'status' => 'sometimes|in:draft,active,inactive,out_of_stock',
-            'price' => $isAccessory
+
+            'price' => $isAccessory && ! $hasVariants
                 ? 'required|numeric|min:0'
                 : 'nullable|numeric|min:0',
+
             'compare_price' => 'nullable|numeric|min:0',
             'stock_quantity' => 'nullable|integer|min:0',
+
             'sku' => [
                 'nullable',
                 'string',
                 'max:50',
                 Rule::unique('product_variants', 'sku'),
             ],
+
+            // Danh sách biến thể
+            'variants' => 'sometimes|array|min:1',
+            'variants.*.attribute_value_ids' => 'required|array|min:1',
+            'variants.*.attribute_value_ids.*' => [
+                'required',
+                'integer',
+                'exists:attribute_values,id',
+            ],
+          'variants.*.price' => 'required|numeric|min:0',
+            'variants.*.compare_price' => 'nullable|numeric|min:0',
+            'variants.*.cost_price' => 'nullable|numeric|min:0',
+            'variants.*.quantity' => 'nullable|integer|min:0',
+            'variants.*.min_stock' => 'nullable|integer|min:0',
+
             'image_url' => 'nullable|string|max:1000',
             'images' => 'nullable|array|max:10',
             'images.*' => 'image|mimes:jpg,jpeg,png,webp|max:5120',
             'primary_index' => 'nullable|integer|min:0|max:10',
         ]);
 
-        $product = DB::transaction(function () use ($request, $validated, $isAccessory) {
+        $product = DB::transaction(function () use ($request, $validated, $isAccessory, $hasVariants) {
             $productData = collect($validated)->only([
                 'name',
                 'slug',
@@ -991,51 +1046,182 @@ class ProductController extends Controller
 
             $product = Product::create($productData);
 
-            $sku = $this->generateVariantSku(
-                $product,
-                $validated['sku'] ?? null
-            );
+            $createdVariants = collect();
 
-            $price = isset($validated['price'])
-                ? (float) $validated['price']
-                : ($isAccessory ? 0 : 15990000);
+            if ($hasVariants) {
+                $combinations = [];
 
-            $stockQuantity = isset($validated['stock_quantity'])
-                ? (int) $validated['stock_quantity']
-                : ($isAccessory ? 0 : 50);
+                foreach ($validated['variants'] as $index => $variantData) {
+                    $attributeValueIds = array_map(
+                        'intval',
+                        $variantData['attribute_value_ids']
+                    );
+                    if (count($attributeValueIds) !== count(array_unique($attributeValueIds))) {
+                        throw ValidationException::withMessages([
+                            "variants.{$index}.attribute_value_ids" => [
+                                'Không được chọn trùng giá trị thuộc tính trong cùng một biến thể.',
+                            ],
+                        ]);
+                    }
 
-            $variant = $product->variants()->create([
-                'sku' => $sku,
-                'price' => $price,
-                'compare_price' => $validated['compare_price'] ?? null,
-                'status' => 'active',
-            ]);
+                    $attributeValues = AttributeValue::with('attribute')
+                        ->whereIn('id', $attributeValueIds)
+                        ->get();
 
-            $variant->inventory()->create([
-                'quantity' => $stockQuantity,
-                'reserved_quantity' => 0,
-                'min_stock' => 5,
-            ]);
+                    if ($attributeValues->count() !== count($attributeValueIds)) {
+                        throw ValidationException::withMessages([
+                            "variants.{$index}.attribute_value_ids" => [
+                                'Có giá trị thuộc tính không tồn tại.',
+                            ],
+                        ]);
+                    }
 
-            // Ghi nhận số lượng tồn kho ban đầu nếu có nhập tồn.
-            if ($stockQuantity > 0) {
-                $this->createInventoryTransaction(
-                    $variant,
-                    $stockQuantity,
-                    'import',
-                    $product->id,
-                    'Ghi nhận tồn kho ban đầu khi tạo sản phẩm'
+                    if ($attributeValues->contains(fn($value) => ! $value->is_active)) {
+                        throw ValidationException::withMessages([
+                            "variants.{$index}.attribute_value_ids" => [
+                                'Không thể sử dụng giá trị thuộc tính đã bị vô hiệu hóa.',
+                            ],
+                        ]);
+                    }
+
+                    // Mỗi biến thể chỉ được chọn một giá trị cho mỗi thuộc tính.
+                    $attributeIds = $attributeValues
+                        ->pluck('attribute_id');
+
+                    if ($attributeIds->unique()->count() !== $attributeIds->count()) {
+                        throw ValidationException::withMessages([
+                            "variants.{$index}.attribute_value_ids" => [
+                                'Một biến thể không được chọn nhiều giá trị của cùng một thuộc tính.',
+                            ],
+                        ]);
+                    }
+
+                    // Không cho phép hai biến thể có cùng tổ hợp thuộc tính.
+                    $combinationKey = $attributeValues
+                        ->pluck('id')
+                        ->sort()
+                        ->implode('-');
+
+                    if (isset($combinations[$combinationKey])) {
+                        throw ValidationException::withMessages([
+                            "variants.{$index}.attribute_value_ids" => [
+                                'Tổ hợp thuộc tính này đã được khai báo ở biến thể khác.',
+                            ],
+                        ]);
+                    }
+
+                    $combinations[$combinationKey] = true;
+
+                    // Sinh SKU riêng cho từng tổ hợp.
+                    $sku = $this->generateVariantSkuFromAttributes(
+                        $product,
+                        $attributeValues
+                    );
+
+                    // Tạo chuỗi mô tả tổ hợp thuộc tính.
+                    $optionSignature = $attributeValues
+                        ->map(fn($value) => $value->attribute->name . ': ' . $value->value)
+                        ->implode(' | ');
+
+                    $variant = $product->variants()->create([
+                        'sku' => $sku,
+                        'option_signature' => $optionSignature,
+                        'price' => $variantData['price'],
+                        'compare_price' => $variantData['compare_price'] ?? null,
+                        'cost_price' => $variantData['cost_price'] ?? null,
+                        'status' => 'active',
+                    ]);
+
+                    // Đồng bộ cả attribute_id và attribute_value_id.
+                    $syncData = [];
+
+                    foreach ($attributeValues as $attributeValue) {
+                        $syncData[$attributeValue->id] = [
+                            'attribute_id' => $attributeValue->attribute_id,
+                        ];
+                    }
+
+                    $variant->attributeValues()->sync($syncData);
+
+                    // Tạo tồn kho riêng cho từng biến thể.
+                    $quantity = (int) ($variantData['quantity'] ?? 0);
+                    $minStock = (int) ($variantData['min_stock'] ?? 5);
+
+                    $variant->inventory()->create([
+                        'on_hand_quantity' => $quantity,
+                        'reserved_quantity' => 0,
+                        'min_stock' => $minStock,
+                    ]);
+
+                    if ($quantity > 0) {
+                        $this->createInventoryTransaction(
+                            $variant,
+                            $quantity,
+                            'import',
+                            $product->id,
+                            'Nhập tồn kho ban đầu khi tạo biến thể sản phẩm'
+                        );
+                    }
+
+                    $createdVariants->push($variant);
+                }
+            } else {
+                // Giữ nguyên cách tạo một biến thể mặc định cho luồng cũ.
+                $sku = $this->generateVariantSku(
+                    $product,
+                    $validated['sku'] ?? null
                 );
+
+                $price = isset($validated['price'])
+                    ? (float) $validated['price']
+                    : ($isAccessory ? 0 : 15990000);
+
+                $stockQuantity = isset($validated['stock_quantity'])
+                    ? (int) $validated['stock_quantity']
+                    : ($isAccessory ? 0 : 50);
+
+                $variant = $product->variants()->create([
+                    'sku' => $sku,
+                    'price' => $price,
+                    'compare_price' => $validated['compare_price'] ?? null,
+                    'status' => 'active',
+                ]);
+
+                $variant->inventory()->create([
+                    'on_hand_quantity' => $stockQuantity,
+                    'reserved_quantity' => 0,
+                    'min_stock' => 5,
+                ]);
+
+                if ($stockQuantity > 0) {
+                    $this->createInventoryTransaction(
+                        $variant,
+                        $stockQuantity,
+                        'import',
+                        $product->id,
+                        'Ghi nhận tồn kho ban đầu khi tạo sản phẩm'
+                    );
+                }
+
+                $createdVariants->push($variant);
             }
+
+            // Biến thể đầu tiên được dùng để gắn ảnh khi tạo sản phẩm.
+            $firstVariant = $createdVariants->first();
 
             if ($request->hasFile('images')) {
                 $files = $request->file('images');
-                $primaryIdx = $request->has('primary_index') ? (int) $request->input('primary_index') : 0;
+                $primaryIdx = $request->has('primary_index')
+                    ? (int) $request->input('primary_index')
+                    : 0;
+
                 $mediaService = app(MediaStorageService::class);
+
                 foreach ($files as $idx => $file) {
                     $uploadResult = $mediaService->upload($file, 'products');
+
                     $product->images()->create([
-                        'variant_id' => $variant->id,
+                        'variant_id' => $firstVariant?->id,
                         'image_url' => $uploadResult['url'],
                         'image_path' => $uploadResult['path'],
                         'storage_provider' => $uploadResult['provider'],
@@ -1047,7 +1233,7 @@ class ProductController extends Controller
                 }
             } elseif (! empty($validated['image_url'])) {
                 $product->images()->create([
-                    'variant_id' => $variant->id,
+                    'variant_id' => $firstVariant?->id,
                     'image_url' => $validated['image_url'],
                     'alt_text' => $product->name,
                     'is_primary' => true,
@@ -1055,7 +1241,7 @@ class ProductController extends Controller
                 ]);
             } elseif (! $isAccessory) {
                 $product->images()->create([
-                    'variant_id' => $variant->id,
+                    'variant_id' => $firstVariant?->id,
                     'image_url' => 'https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?w=800&auto=format&fit=crop&q=80',
                     'alt_text' => $product->name,
                     'is_primary' => true,
@@ -1071,6 +1257,7 @@ class ProductController extends Controller
             'category',
             'images',
             'variants.inventory',
+            'variants.attributeValues.attribute',
         ]);
 
         return response()->json([
@@ -1079,6 +1266,7 @@ class ProductController extends Controller
             'data' => $product,
         ], 201);
     }
+
 
     /**
      * API cập nhật sản phẩm.
@@ -1154,8 +1342,10 @@ class ProductController extends Controller
             if ($firstVariant) {
                 $variantData = [];
 
-                if (array_key_exists('price', $validated)
-                    && $validated['price'] !== null) {
+                if (
+                    array_key_exists('price', $validated)
+                    && $validated['price'] !== null
+                ) {
                     $variantData['price'] = $validated['price'];
                 }
 
@@ -1316,8 +1506,8 @@ class ProductController extends Controller
         return response()->json([
             'status' => true,
             'message' => 'Cập nhật trạng thái cho '
-                .count($validated['ids'])
-                .' sản phẩm thành công.',
+                . count($validated['ids'])
+                . ' sản phẩm thành công.',
         ], 200);
     }
 
@@ -1443,7 +1633,7 @@ class ProductController extends Controller
             foreach ($validated['specs'] as $index => $spec) {
                 $code = Str::slug($spec['specification_name']);
                 $def = ProductSpecificationDefinition::firstOrCreate(
-                    ['code' => $code ?: ('spec_'.($index + 1))],
+                    ['code' => $code ?: ('spec_' . ($index + 1))],
                     [
                         'name' => trim($spec['specification_name']),
                         'value_type' => 'text',
