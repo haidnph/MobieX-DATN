@@ -39,14 +39,14 @@ export default function Footer() {
               <li>
                 <Link
                   to="/tracking"
-                  className="text-sm text-on-surface-variant hover:text-on-surface hover:underline"
+                  className="text-sm text-on-surface-variant hover:text-on-surface hover:underline transition-colors"
                 >
                   Tra cứu đơn hàng
                 </Link>
               </li>
               {['Chính sách đổi trả', 'Hướng dẫn mua hàng', 'Chính sách bảo hành'].map((label) => (
                 <li key={label}>
-                  <span className="text-sm text-on-surface-variant">{label}</span>
+                  <span className="text-sm text-on-surface-variant hover:text-on-surface transition-colors cursor-default">{label}</span>
                 </li>
               ))}
             </ul>
@@ -56,15 +56,15 @@ export default function Footer() {
           <div>
             <h3 className="text-sm font-semibold text-on-surface mb-3">Liên hệ</h3>
             <ul className="space-y-2 text-sm text-on-surface-variant">
-              <li className="flex items-center gap-2">
+              <li className="flex items-center gap-2 text-on-surface-variant hover:text-on-surface transition-colors">
                 <span className="material-symbols-outlined text-base text-primary">location_on</span>
                 FPT Polytechnic, Hà Nội
               </li>
-              <li className="flex items-center gap-2">
+              <li className="flex items-center gap-2 text-on-surface-variant hover:text-on-surface transition-colors">
                 <span className="material-symbols-outlined text-base text-primary">email</span>
                 support@mobilex.vn
               </li>
-              <li className="flex items-center gap-2">
+              <li className="flex items-center gap-2 text-on-surface-variant hover:text-on-surface transition-colors">
                 <span className="material-symbols-outlined text-base text-primary">phone</span>
                 1800 6789
               </li>
