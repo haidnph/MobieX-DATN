@@ -1,22 +1,20 @@
 // src/features/catalog/FlashSaleSection.jsx
 // Interactive Flash Sale section with live countdown timer and discount progress.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
 import { useCompare } from '../../contexts/CompareContext'
 import { useWishlist } from '../../contexts/WishlistContext'
 
-function getSessionEndTime() {
-  const now = new Date()
-  const end = new Date(now)
-  end.setHours(23, 59, 59, 999)
-  return end.getTime()
-}
-
 export default function FlashSaleSection({ products = [] }) {
   const { toggleCompare, isInCompare } = useCompare()
   const { toggleWishlist, isInWishlist } = useWishlist()
+  const flashSaleItems = useMemo(() => products.filter((product) => {
+    const sale = product.flash_sale
+    return sale && Number(sale.sale_price) > 0 && Number(sale.original_price) > Number(sale.sale_price)
+  }), [products])
+  const endAt = flashSaleItems[0]?.flash_sale?.end_at
 
   const [timeLeft, setTimeLeft] = useState({
     hours: '00',
@@ -26,7 +24,12 @@ export default function FlashSaleSection({ products = [] }) {
   })
 
   useEffect(() => {
-    const target = getSessionEndTime()
+    const target = new Date(endAt).getTime()
+
+    if (!Number.isFinite(target)) {
+      setTimeLeft({ hours: '00', minutes: '00', seconds: '00', isExpired: true })
+      return undefined
+    }
 
     const updateTimer = () => {
       const diff = target - Date.now()
@@ -48,10 +51,7 @@ export default function FlashSaleSection({ products = [] }) {
     updateTimer()
     const interval = setInterval(updateTimer, 1000)
     return () => clearInterval(interval)
-  }, [])
-
-  // Filter flash sale items: products with compare_price or first 4 products
-  const flashSaleItems = products.slice(0, 4)
+  }, [endAt])
 
   if (flashSaleItems.length === 0 || timeLeft.isExpired) {
     return null
@@ -102,7 +102,8 @@ export default function FlashSaleSection({ products = [] }) {
 
       {/* Product Cards Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4 relative z-10">
-        {flashSaleItems.map((product, idx) => {
+        {flashSaleItems.map((product) => {
+          const sale = product.flash_sale
           const thumbnail =
             product.images?.find((img) => img.is_primary)?.image_url ||
             product.images?.find((img) => img.is_primary)?.image_path ||
@@ -111,29 +112,25 @@ export default function FlashSaleSection({ products = [] }) {
             product.images?.[0]?.image_url ||
             product.images?.[0]?.image_path
 
-          const price =
-            product.min_price && Number(product.min_price) > 0
-              ? Number(product.min_price)
-              : Number(product.base_price) || 20000000
-
-          const originalPrice =
-            product.max_price && Number(product.max_price) > price
-              ? Number(product.max_price)
-              : Math.round(price * 1.15)
-
+          const price = Number(sale.sale_price)
+          const originalPrice = Number(sale.original_price)
           const discountPercent = Math.round(((originalPrice - price) / originalPrice) * 100)
-          const soldCount = 18 + (idx * 5) % 15
-          const totalStock = soldCount + 6 + (idx * 3) % 8
-          const progressPercent = Math.min(100, Math.round((soldCount / totalStock) * 100))
+          const soldCount = Number(sale.quantity_sold) || 0
+          const reservedCount = Number(sale.quantity_reserved) || 0
+          const remainingCount = Number(sale.quantity_remaining) || 0
+          const totalLimit = Number(sale.quantity_limit) || 0
+          const progressPercent = totalLimit > 0
+            ? Math.min(100, Math.round(((soldCount + reservedCount) / totalLimit) * 100))
+            : 0
 
           return (
             <div
-              key={product.id}
+              key={sale.item_id}
               className="group bg-surface-container-high rounded-xl overflow-hidden border border-outline-variant/20 hover:border-error/40 hover:shadow-[0_8px_30px_rgba(239,68,68,0.15)] transition-all flex flex-col justify-between"
             >
               <div className="relative">
                 {/* Thumbnail */}
-                <Link to={`/products/${product.id}`} className="block h-40 bg-surface-container-low p-3 overflow-hidden">
+                <Link to={`/products/${product.id}?variant=${sale.product_variant_id}`} className="block h-40 bg-surface-container-low p-3 overflow-hidden">
                   {thumbnail ? (
                     <img
                       src={thumbnail}
@@ -185,7 +182,7 @@ export default function FlashSaleSection({ products = [] }) {
               <div className="p-3 space-y-2 flex-1 flex flex-col justify-between">
                 <div>
                   <Link
-                    to={`/products/${product.id}`}
+                    to={`/products/${product.id}?variant=${sale.product_variant_id}`}
                     className="text-xs font-bold text-on-surface line-clamp-1 hover:text-primary transition-colors"
                   >
                     {product.name}
@@ -202,13 +199,13 @@ export default function FlashSaleSection({ products = [] }) {
                 </div>
 
                 {/* Sold progress bar */}
-                <div className="space-y-1">
+                {totalLimit > 0 && <div className="space-y-1">
                   <div className="flex items-center justify-between text-[10px] text-on-surface-variant font-medium">
                     <span className="flex items-center gap-0.5 text-error">
                       <span className="material-symbols-outlined text-xs">local_fire_department</span>
                       Đã bán {soldCount}
                     </span>
-                    <span>Còn {totalStock - soldCount}</span>
+                    <span>Còn {remainingCount}</span>
                   </div>
                   <div className="h-1.5 w-full bg-surface-container rounded-full overflow-hidden">
                     <div
@@ -216,7 +213,7 @@ export default function FlashSaleSection({ products = [] }) {
                       style={{ width: `${progressPercent}%` }}
                     />
                   </div>
-                </div>
+                </div>}
               </div>
             </div>
           )
