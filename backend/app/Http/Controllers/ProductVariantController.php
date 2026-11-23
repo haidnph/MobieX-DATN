@@ -99,10 +99,10 @@ class ProductVariantController extends Controller
             ]);
 
             // Liên kết các giá trị thuộc tính
-            $variant->attributeValues()->sync(
+            $this->syncVariantAttributes(
+                $variant,
                 $validated['attribute_value_ids'] ?? []
             );
-
             // Tạo tồn kho ban đầu
             $initialQuantity = $validated['quantity'] ?? 0;
 
@@ -224,13 +224,15 @@ class ProductVariantController extends Controller
             // Cập nhật thông tin biến thể
             $variantData = [];
 
-            foreach ([
-                'price',
-                'compare_price',
-                'cost_price',
-                'image_url',
-                'status',
-            ] as $field) {
+            foreach (
+                [
+                    'price',
+                    'compare_price',
+                    'cost_price',
+                    'image_url',
+                    'status',
+                ] as $field
+            ) {
                 if (array_key_exists($field, $validated)) {
                     $variantData[$field] = $validated[$field];
                 }
@@ -242,7 +244,8 @@ class ProductVariantController extends Controller
 
             // Cập nhật thuộc tính nếu có
             if (array_key_exists('attribute_value_ids', $validated)) {
-                $variant->attributeValues()->sync(
+                $this->syncVariantAttributes(
+                    $variant,
                     $validated['attribute_value_ids']
                 );
             }
@@ -426,7 +429,7 @@ class ProductVariantController extends Controller
             'unit_cost' => ProductVariant::find($variantId)?->cost_price,
             'reference_type' => $referenceType,
             'reference_id' => $referenceId,
-            'idempotency_key' => $referenceType.'_'.$referenceId.'_'.Str::uuid(),
+            'idempotency_key' => $referenceType . '_' . $referenceId . '_' . Str::uuid(),
             'note' => $note,
         ]);
     }
@@ -478,7 +481,7 @@ class ProductVariantController extends Controller
                 );
 
                 if ($attributePrefix && $attributeValueCode) {
-                    $otherCodes[] = $attributePrefix.$attributeValueCode;
+                    $otherCodes[] = $attributePrefix . $attributeValueCode;
                 }
             }
         }
@@ -506,7 +509,7 @@ class ProductVariantController extends Controller
         $counter = 2;
 
         while (ProductVariant::where('sku', $sku)->exists()) {
-            $sku = $baseSku.'-'.$counter;
+            $sku = $baseSku . '-' . $counter;
             $counter++;
         }
 
@@ -562,7 +565,7 @@ class ProductVariantController extends Controller
         foreach ($variants as $existingVariant) {
             $existingIds = $existingVariant->attributeValues
                 ->pluck('id')
-                ->map(fn ($id) => (int) $id)
+                ->map(fn($id) => (int) $id)
                 ->sort()
                 ->values()
                 ->all();
@@ -591,5 +594,26 @@ class ProductVariantController extends Controller
             ->count();
 
         return $duplicateCount > 0;
+    }
+
+    /**
+     * Đồng bộ giá trị thuộc tính cho biến thể.
+     */
+    private function syncVariantAttributes(
+        ProductVariant $variant,
+        array $attributeValueIds
+    ): void {
+        $attributeValues = AttributeValue::whereIn('id', $attributeValueIds)
+            ->get(['id', 'attribute_id']);
+
+        $syncData = [];
+
+        foreach ($attributeValues as $attributeValue) {
+            $syncData[$attributeValue->id] = [
+                'attribute_id' => $attributeValue->attribute_id,
+            ];
+        }
+
+        $variant->attributeValues()->sync($syncData);
     }
 }

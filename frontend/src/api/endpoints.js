@@ -18,7 +18,10 @@ const EP = {
   PRODUCT_COMPARE: '/products/compare',
   PRODUCT_DETAIL: (id) => `/products/${id}`,
   PRODUCT_REVIEWS: (id) => `/products/${id}/reviews`,
-
+  CATEGORY_ATTRIBUTES: (categoryId) =>
+    `/categories/${categoryId}/attributes`,
+  ATTRIBUTE_VALUES: (attributeId) =>
+    `/attributes/${attributeId}/values`,
   // ── Banners & Homepage ───────────────────────────────────────────
   BANNERS: '/banners',
   HOMEPAGE: '/homepage',

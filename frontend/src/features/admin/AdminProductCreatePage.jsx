@@ -40,9 +40,20 @@ export default function AdminProductCreatePage() {
           setCategories(Array.isArray(cData) ? cData : cData?.data ?? [])
         }
         if (sRes.status === 'fulfilled') {
-          const sData = sRes.value.data.data ?? sRes.value.data
-          setSpecDefinitions(Array.isArray(sData) ? sData : [])
-        }
+  const sData = sRes.value.data.data ?? sRes.value.data
+
+  const hiddenSpecCodes = [
+    'charging_power',
+    'cable_length',
+    'material',
+  ]
+
+  const definitions = Array.isArray(sData) ? sData : []
+
+  setSpecDefinitions(
+    definitions.filter((spec) => !hiddenSpecCodes.includes(spec.code))
+  )
+}
       })
       .catch(() => {
         showToast('Không thể tải danh mục hoặc thông số hệ thống', 'error')
@@ -50,7 +61,8 @@ export default function AdminProductCreatePage() {
       .finally(() => setLoadingMeta(false))
   }, [showToast])
 
-  const handleSubmit = async ({ form, specs, draftGallery }) => {
+  const handleSubmit = async ({ form, specs, draftGallery,variants,
+}) => {
     setSubmitting(true)
     setErrors({})
 
@@ -65,6 +77,9 @@ export default function AdminProductCreatePage() {
       compare_price: form.compare_price ? Number(form.compare_price) : null,
       stock_quantity: form.stock_quantity ? Number(form.stock_quantity) : 50,
       image_url: form.image_url.trim() || null,
+      ...(Array.isArray(variants) && variants.length > 0
+  ? { variants }
+  : {}),
     }
 
     try {
