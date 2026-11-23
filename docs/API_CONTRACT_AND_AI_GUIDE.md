@@ -26,12 +26,12 @@ Nếu muốn cập nhật file spec sau khi Backend thêm controller/route mới
 cd backend
 php artisan scramble:export
 ```
-File `backend/api.json` sẽ tự động được cập nhật với toàn bộ 72 operations mới nhất.
+File `backend/api.json` sẽ tự động được cập nhật với toàn bộ operations mới nhất từ Laravel.
 
 ### 3. Nhập vào Postman (1-Click Import)
 1. Mở Postman -> Bấm nút **Import**.
 2. Nhập URL: `http://127.0.0.1:8000/docs/api.json` (hoặc kéo thả file `backend/api.json`).
-3. Postman sẽ tự động sinh ra một Collection hoàn chỉnh chứa đầy đủ 72 API endpoints kèm theo cấu trúc Request mẫu!
+3. Postman sẽ tự động sinh ra một Collection hoàn chỉnh chứa các API endpoints trong contract kèm theo cấu trúc Request mẫu!
 
 ---
 

@@ -114,12 +114,8 @@ echo.
 echo  ╔══════════════════════════════════════════════════════╗
 echo  ║           Setup Complete! Ready to launch.           ║
 echo  ╠══════════════════════════════════════════════════════╣
-echo  ║  Demo Accounts:                                      ║
-echo  ║  Admin:      admin@mobilex.tech / AdminPass123456!   ║
-echo  ║  SuperAdmin: superadmin@gmail.com                    ║
-echo  ║              superadmin1234567890                    ║
-echo  ║  Customer:   customer@mobilex.tech                   ║
-echo  ║              Password123456!                         ║
+echo  ║  Configure RBAC_ADMIN_* in backend/.env to create   ║
+echo  ║  a local admin. No default privileged credentials.  ║
 echo  ╠══════════════════════════════════════════════════════╣
 echo  ║  To start:                                           ║
 echo  ║  Backend:  cd backend ^&^& php artisan serve          ║

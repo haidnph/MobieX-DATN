@@ -142,7 +142,7 @@ Hệ thống Media Storage của MobieX tự động áp dụng các tối ưu h
 ## 6. KIỂM TRA VÀ NGHIỆM THU
 
 Sau khi cấu hình:
-1. Đăng nhập Admin (`admin@mobilex.tech`).
+1. Đăng nhập bằng tài khoản admin local được cấu hình qua `RBAC_ADMIN_*`.
 2. Vào **Quản lý Banner** (`/admin/banners`) -> Nhấn **Tạo banner mới** -> Chọn một file ảnh và tải lên.
 3. Kiểm tra kết quả trả về trong DevTools Network:
    - Nếu Driver là `cloudinary`: Trả về URL Cloudinary bảo mật (`https://res.cloudinary.com/...`).

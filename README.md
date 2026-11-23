@@ -47,13 +47,9 @@ npm run dev
 
 ---
 
-## 👤 Demo Accounts
+## 👤 Local Admin Account
 
-| Role | Email | Password |
-|------|-------|----------|
-| **Super Admin** | `superadmin@gmail.com` | `superadmin1234567890` |
-| **Admin** | `admin@mobilex.tech` | `AdminPass123456!` |
-| **Customer** | `customer@mobilex.tech` | `Password123456!` |
+The project does not create privileged users with default credentials. For local development, set `RBAC_ADMIN_NAME`, `RBAC_ADMIN_EMAIL`, and `RBAC_ADMIN_PASSWORD` in the untracked backend `.env`, then run `php artisan db:seed`. Demo customer data is used to link seeded orders and has no known login password.
 
 ---
 
@@ -206,16 +202,9 @@ Sau khi khởi động backend server, truy cập:
 
 ---
 
-## 💳 Payment Sandbox Credentials
+## Payment Sandbox Configuration
 
-Các credentials dưới đây là **public test credentials**, an toàn để commit:
-
-| Gateway | Key | Value |
-|---------|-----|-------|
-| VNPay | TMN Code | `CGXZLS0Z` |
-| VNPay | Hash Secret | `XNBCJFAKAZQSGTARRLGCHVZWCIOIGSHN` |
-| ZaloPay | App ID | `2554` |
-| MoMo | Partner Code | `MOMOBKUN20180529` |
+Configure gateway credentials in the untracked backend `.env` using the `VNP_*`, `ZALOPAY_*`, and `MOMO_*` variables from [`backend/.env.example`](backend/.env.example). Do not commit merchant credentials, including sandbox credentials.
 
 ---
 
@@ -233,7 +222,7 @@ Sau khi chạy `php artisan migrate --seed` hoặc `mobiex:setup`, database sẽ
 | `banners` | 3+ | Hero slider |
 | `homepage_sections` | 9 | CMS sections (Hero, Flash Sale, ...) |
 | `coupons` | 3 | Demo voucher codes |
-| `users` | 3 | admin, superadmin, customer |
+| `users` | varies | demo customer plus optional local admin configured through `RBAC_ADMIN_*` |
 
 ---
 

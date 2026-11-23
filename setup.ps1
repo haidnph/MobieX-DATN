@@ -152,12 +152,8 @@ Write-Host ""
 Write-Host "  ╔══════════════════════════════════════════════════════╗" -ForegroundColor Green
 Write-Host "  ║            Setup Complete! Ready to launch.          ║" -ForegroundColor Green
 Write-Host "  ╠══════════════════════════════════════════════════════╣" -ForegroundColor Green
-Write-Host "  ║  Demo Accounts:                                      ║" -ForegroundColor Green
-Write-Host "  ║  Admin:      admin@mobilex.tech / AdminPass123456!   ║" -ForegroundColor Green
-Write-Host "  ║  SuperAdmin: superadmin@gmail.com                    ║" -ForegroundColor Green
-Write-Host "  ║              superadmin1234567890                    ║" -ForegroundColor Green
-Write-Host "  ║  Customer:   customer@mobilex.tech                   ║" -ForegroundColor Green
-Write-Host "  ║              Password123456!                         ║" -ForegroundColor Green
+Write-Host "  ║  Configure RBAC_ADMIN_* in backend/.env to create    ║" -ForegroundColor Green
+Write-Host "  ║  a local admin. No default privileged credentials.   ║" -ForegroundColor Green
 Write-Host "  ╠══════════════════════════════════════════════════════╣" -ForegroundColor Green
 Write-Host "  ║  Start the servers:                                  ║" -ForegroundColor Green
 Write-Host "  ║  cd backend ; php artisan serve                      ║" -ForegroundColor Green

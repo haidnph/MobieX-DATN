@@ -79,14 +79,28 @@ GET /api/health
 ## 5. Run the backend
 
 ```bash
-php artisan serve --host=127.0.0.1 --port=8001
+php artisan serve --host=127.0.0.1 --port=8000
 ```
 
 Check the endpoint:
 
 ```text
-http://127.0.0.1:8001/api/health
+http://127.0.0.1:8000/api/health
 ```
+
+## 6. Run scheduled tasks during local development
+
+Order reservations for unpaid online orders expire after the configured
+`ORDER_RESERVATION_EXPIRATION_MINUTES` (30 minutes by default). The scheduler
+cancels expired orders and releases their reserved stock and coupon capacity.
+Run the scheduler in a separate terminal while developing:
+
+```bash
+php artisan schedule:work
+```
+
+On production, configure Laravel's scheduler to run `php artisan schedule:run`
+every minute.
 
 Expected response:
 
