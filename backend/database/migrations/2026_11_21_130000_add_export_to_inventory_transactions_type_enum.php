@@ -7,11 +7,14 @@ return new class extends Migration
 {
     public function up(): void
     {
-        DB::statement("ALTER TABLE inventory_transactions MODIFY COLUMN type ENUM('import', 'export', 'dispatch', 'adjustment', 'reserve', 'release') NOT NULL");
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE inventory_transactions MODIFY COLUMN type ENUM('import', 'export', 'dispatch', 'adjustment', 'reserve', 'release') NOT NULL");
+        }
     }
 
     public function down(): void
     {
-        DB::statement("ALTER TABLE inventory_transactions MODIFY COLUMN type ENUM('import', 'dispatch', 'adjustment', 'reserve', 'release') NOT NULL");
+        // Keep the additive enum value on rollback so existing manual export
+        // transactions remain valid and no inventory history is rewritten.
     }
 };

@@ -14,6 +14,7 @@ import Modal from '../../components/common/Modal'
 import Spinner from '../../components/common/Spinner'
 import Badge from '../../components/common/Badge'
 import Pagination from '../../components/common/Pagination'
+import { clearInventoryOperationKey, getInventoryOperationKey } from './inventoryOperationKey'
 
 const TRANSACTION_TYPES = {
   import: { label: 'Nhập kho', variant: 'success', icon: 'arrow_downward' },
@@ -132,7 +133,9 @@ export default function AdminInventoryPage() {
     }
 
     try {
-      await axiosClient.post(EP.INVENTORY_IMPORT, payload)
+      const idempotency = getInventoryOperationKey('import', payload)
+      await axiosClient.post(EP.INVENTORY_IMPORT, { ...payload, idempotency_key: idempotency.key })
+      clearInventoryOperationKey(idempotency.storageKey)
       showToast(`Đã nhập ${payload.quantity} sản phẩm vào kho thành công!`)
       setImportModalOpen(false)
       fetchInventories()
@@ -167,7 +170,9 @@ export default function AdminInventoryPage() {
     }
 
     try {
-      await axiosClient.post(EP.INVENTORY_EXPORT, payload)
+      const idempotency = getInventoryOperationKey('export', payload)
+      await axiosClient.post(EP.INVENTORY_EXPORT, { ...payload, idempotency_key: idempotency.key })
+      clearInventoryOperationKey(idempotency.storageKey)
       showToast(`Đã xuất ${payload.quantity} sản phẩm khỏi kho!`)
       setExportModalOpen(false)
       fetchInventories()
