@@ -19,7 +19,7 @@ describe('Auth User Normalization', () => {
     const rawUser = {
       id: 1,
       name: 'Super Admin',
-      email: 'superadmin@gmail.com',
+      email: 'admin@example.test',
       roles: [
         { id: 1, slug: 'admin', name: 'Quản trị viên' },
         { id: 2, slug: 'customer', name: 'Khách hàng' },

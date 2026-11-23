@@ -14,8 +14,19 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        // Keep canonical authorization data, but never seed demo users or
+        // known credentials into a production database.
+        $this->call(RolePermissionSeeder::class);
+
+        if (! app()->environment('local', 'testing')) {
+            $this->command?->warn(
+                'Skipped demo data seeders outside local/testing environments.'
+            );
+
+            return;
+        }
+
         $this->call([
-            RolePermissionSeeder::class,
             CategorySeeder::class,
             BrandSeeder::class,
             AttributeSeeder::class,

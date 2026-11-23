@@ -43,11 +43,9 @@ class LoginController extends Controller
             );
         }
 
-        // Compare case-insensitively across MySQL and SQLite environments.
-        $user = User::whereRaw(
-            'LOWER(email) = ?',
-            [$credentials['email']]
-        )->first();
+        $user = User::query()
+            ->whereRaw('LOWER(email) = ?', [mb_strtolower($credentials['email'], 'UTF-8')])
+            ->first();
 
         /*
          * Keep the same response for invalid credentials and
@@ -84,6 +82,7 @@ class LoginController extends Controller
         $roles = $user->roles()
             ->orderBy('roles.slug')
             ->get(['roles.id', 'roles.name', 'roles.slug']);
+        $permissions = $user->getAllPermissions();
 
         return response()->json([
             'message' => 'Login successful.',
@@ -97,6 +96,13 @@ class LoginController extends Controller
                         ->map(static fn (Role $role): array => [
                             'slug' => $role->slug,
                             'name' => $role->name,
+                        ])
+                        ->values()
+                        ->all(),
+                    'permissions' => $permissions
+                        ->map(static fn ($permission): array => [
+                            'slug' => $permission->slug,
+                            'name' => $permission->name,
                         ])
                         ->values()
                         ->all(),

@@ -119,4 +119,14 @@ describe('AuthContext - normalizeUser and ROLE_PERMISSION_MAP', () => {
     expect(normalized.permissions).not.toContain('dashboard.view')
     expect(normalized.permissions).not.toContain('orders.manage')
   })
+
+  it('uses backend permissions as the source of truth when present', () => {
+    const normalized = normalizeUser({
+      id: 22,
+      roles: ['admin'],
+      permissions: [{ slug: 'orders.view', name: 'View orders' }],
+    })
+    expect(normalized.permissions).toEqual(['orders.view'])
+    expect(normalizeUser({ id: 23, roles: ['custom-role'], permissions: [] }).permissions).toEqual([])
+  })
 })

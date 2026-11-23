@@ -69,13 +69,15 @@ export function normalizeUser(rawUser) {
     .filter(Boolean)
 
   const rolePermissions = roleSlugs.flatMap((slug) => ROLE_PERMISSION_MAP[slug] ?? [])
-  const combinedPermissions = Array.from(new Set([...explicitPermissions, ...rolePermissions]))
+  const resolvedPermissions = Array.isArray(rawUser.permissions)
+    ? explicitPermissions
+    : rolePermissions
 
   return {
     ...rawUser,
     roles: roleSlugs,
     rawRoles,
-    permissions: combinedPermissions,
+    permissions: Array.from(new Set(resolvedPermissions)),
   }
 }
 
@@ -173,24 +175,23 @@ export function AuthProvider({ children }) {
     [isAdmin, hasRole],
   )
 
+  const hasPermission = useCallback(
+    (slug) => {
+      const userPermissions = user?.permissions ?? []
+      if (userPermissions.includes('*')) return true
+      return userPermissions.includes(slug)
+    },
+    [user],
+  )
+
   const canAccessAdmin = useCallback(
-    () => isStaff() || (user?.permissions ?? []).includes('dashboard.view'),
-    [isStaff, user],
+    () => hasPermission('dashboard.view'),
+    [hasPermission],
   )
 
   const isCustomer = useCallback(
     () => hasRole('customer'),
     [hasRole],
-  )
-
-  const hasPermission = useCallback(
-    (slug) => {
-      if (isAdmin()) return true
-      const userPermissions = user?.permissions ?? []
-      if (userPermissions.includes('*')) return true
-      return userPermissions.includes(slug)
-    },
-    [user, isAdmin],
   )
 
   return (

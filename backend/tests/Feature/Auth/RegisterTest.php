@@ -97,7 +97,7 @@ class RegisterTest extends TestCase
     public function test_registration_rejects_duplicate_email(): void
     {
         User::factory()->create([
-            'email' => 'existing@example.com',
+            'email' => 'EXISTING@EXAMPLE.COM',
         ]);
 
         $password = 'StrongPass12345';
@@ -113,6 +113,22 @@ class RegisterTest extends TestCase
             ->assertJsonValidationErrors(['email']);
 
         $this->assertDatabaseCount('users', 1);
+    }
+
+    public function test_registration_stores_email_in_canonical_lowercase_form(): void
+    {
+        $password = 'StrongPass12345';
+        $response = $this->postJson('/api/auth/register', [
+            'name' => 'Case Variant',
+            'email' => ' Customer@Example.COM ',
+            'password' => $password,
+            'password_confirmation' => $password,
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.user.email', 'customer@example.com');
+
+        $this->assertDatabaseHas('users', ['email' => 'customer@example.com']);
     }
 
     public function test_registration_rejects_invalid_input(): void

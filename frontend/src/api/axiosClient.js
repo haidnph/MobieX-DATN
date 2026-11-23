@@ -28,6 +28,7 @@ axiosClient.interceptors.request.use(
 )
 
 const ERROR_TRANSLATIONS = {
+  'The provided credentials are incorrect.': 'Email hoặc mật khẩu không chính xác.',
   'You cannot remove your own admin role.': 'Bạn không thể gỡ vai trò quản trị của chính mình.',
   'Cannot remove the admin role from the last active administrator.': 'Không thể gỡ vai trò của quản trị viên duy nhất đang hoạt động trong hệ thống.',
   'You cannot deactivate your own account.': 'Bạn không thể vô hiệu hóa tài khoản của chính mình.',
@@ -57,7 +58,20 @@ axiosClient.interceptors.response.use(
 
     const { status, data } = error.response
 
-    if (status === 401 && !error.config?.url?.includes('/auth/login')) {
+    if (status === 401) {
+      const requestPath = error.config?.url ?? ''
+      const isLoginAttempt = /(?:^|\/)auth\/login\/?(?:[?#].*)?$/.test(requestPath)
+
+      if (isLoginAttempt) {
+        const loginError = new Error(
+          translateMessage(data?.message, 'Email hoặc mật khẩu không chính xác.'),
+        )
+        loginError.response = error.response
+        loginError.status = status
+
+        return Promise.reject(loginError)
+      }
+
       // Clear expired session
       storage.clear()
 
@@ -110,7 +124,10 @@ axiosClient.interceptors.response.use(
     }
 
     if (status >= 500) {
-      return Promise.reject(new Error('Máy chủ gặp sự cố nội bộ. Vui lòng thử lại sau ít phút.'))
+      const serverMessage = status === 503 && typeof data?.message === 'string'
+        ? translateMessage(data.message, '')
+        : ''
+      return Promise.reject(new Error(serverMessage || 'Máy chủ gặp sự cố nội bộ. Vui lòng thử lại sau ít phút.'))
     }
 
     // Generic client error

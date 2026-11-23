@@ -58,6 +58,7 @@ const AdminBrandPage       = lazy(() => import('../features/admin/AdminBrandPage
 const AdminInventoryPage   = lazy(() => import('../features/admin/AdminInventoryPage'))
 const AdminUserPage        = lazy(() => import('../features/admin/AdminUserPage'))
 const AdminCouponPage      = lazy(() => import('../features/admin/AdminCouponPage'))
+const AdminFlashSalesPage  = lazy(() => import('../features/admin/AdminFlashSalesPage'))
 const AdminCouponCreatePage = lazy(() => import('../features/admin/AdminCouponCreatePage'))
 const AdminCouponEditPage   = lazy(() => import('../features/admin/AdminCouponEditPage'))
 const AdminReviewPage      = lazy(() => import('../features/admin/AdminReviewPage'))
@@ -247,6 +248,7 @@ export default function AppRoutes() {
           <Route path="inventories"        element={<PermissionRoute permission="inventory.view"><AdminInventoryPage /></PermissionRoute>} />
           <Route path="users"              element={<PermissionRoute permission="users.view"><AdminUserPage /></PermissionRoute>} />
           <Route path="coupons"            element={<PermissionRoute permission="coupons.view"><AdminCouponPage /></PermissionRoute>} />
+          <Route path="flash-sales"        element={<PermissionRoute permission="flash_sales.view"><AdminFlashSalesPage /></PermissionRoute>} />
           <Route path="coupons/create"     element={<PermissionRoute permission="coupons.manage"><AdminCouponCreatePage /></PermissionRoute>} />
           <Route path="coupons/new"        element={<PermissionRoute permission="coupons.manage"><AdminCouponCreatePage /></PermissionRoute>} />
           <Route path="coupons/:id/edit"   element={<PermissionRoute permission="coupons.manage"><AdminCouponEditPage /></PermissionRoute>} />

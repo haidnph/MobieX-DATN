@@ -2,11 +2,19 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Models\User;
 use App\Rules\PasswordPolicy;
 use Illuminate\Foundation\Http\FormRequest;
 
 class RegisterRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        if (is_string($this->input('email'))) {
+            $this->merge(['email' => mb_strtolower(trim($this->input('email')), 'UTF-8')]);
+        }
+    }
+
     public function authorize(): bool
     {
         return true;
@@ -29,7 +37,15 @@ class RegisterRequest extends FormRequest
                 'string',
                 'email',
                 'max:255',
-                'unique:users,email',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    $exists = User::query()
+                        ->whereRaw('LOWER(email) = ?', [mb_strtolower(trim((string) $value), 'UTF-8')])
+                        ->exists();
+
+                    if ($exists) {
+                        $fail('The email has already been taken.');
+                    }
+                },
             ],
 
             'phone' => [

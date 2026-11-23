@@ -15,6 +15,7 @@ class CurrentUserController extends Controller
         $roles = $user->roles()
             ->orderBy('roles.slug')
             ->get(['roles.id', 'roles.name', 'roles.slug']);
+        $permissions = $user->getAllPermissions();
 
         return response()->json([
             'message' => 'Current user retrieved successfully.',
@@ -28,6 +29,13 @@ class CurrentUserController extends Controller
                         ->map(static fn (Role $role): array => [
                             'slug' => $role->slug,
                             'name' => $role->name,
+                        ])
+                        ->values()
+                        ->all(),
+                    'permissions' => $permissions
+                        ->map(static fn ($permission): array => [
+                            'slug' => $permission->slug,
+                            'name' => $permission->name,
                         ])
                         ->values()
                         ->all(),

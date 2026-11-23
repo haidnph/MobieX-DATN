@@ -118,7 +118,7 @@ export default function AdminLoginPage() {
               icon="mail"
               value={form.email}
               onChange={handleChange}
-              placeholder="admin@mobilex.tech"
+              placeholder="admin@example.com"
               error={errors.email?.[0]}
               required
               autoComplete="email"

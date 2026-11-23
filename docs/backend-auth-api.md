@@ -360,7 +360,7 @@ Validation responses follow Laravel's JSON validation format. Clients should han
 Use the token returned by login or registration:
 
 ```bash
-curl -X GET "http://127.0.0.1:8001/api/me" \
+curl -X GET "http://127.0.0.1:8000/api/me" \
   -H "Accept: application/json" \
   -H "Authorization: Bearer <access_token>"
 ```
@@ -368,7 +368,7 @@ curl -X GET "http://127.0.0.1:8001/api/me" \
 Logout:
 
 ```bash
-curl -X POST "http://127.0.0.1:8001/api/auth/logout" \
+curl -X POST "http://127.0.0.1:8000/api/auth/logout" \
   -H "Accept: application/json" \
   -H "Authorization: Bearer <access_token>"
 ```

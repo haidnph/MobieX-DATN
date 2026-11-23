@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Services\MediaStorageService;
+use App\Services\OrderMailService;
 use App\Support\AuthRateLimitKey;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -18,12 +20,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton(\App\Services\MediaStorageService::class, function ($app) {
-            return new \App\Services\MediaStorageService();
+        $this->app->singleton(MediaStorageService::class, function ($app) {
+            return new MediaStorageService;
         });
 
-        $this->app->singleton(\App\Services\OrderMailService::class, function ($app) {
-            return new \App\Services\OrderMailService();
+        $this->app->singleton(OrderMailService::class, function ($app) {
+            return new OrderMailService;
         });
     }
 
@@ -74,6 +76,19 @@ class AppServiceProvider extends ServiceProvider
                 return Limit::perMinute(30)->by(
                     AuthRateLimitKey::forIp(
                         'auth:login:ip',
+                        $request->ip()
+                    )
+                );
+            }
+        );
+
+        // Public order lookup: limit enumeration attempts per IP.
+        RateLimiter::for(
+            'order-lookup',
+            function (Request $request): Limit {
+                return Limit::perMinute(10)->by(
+                    AuthRateLimitKey::forIp(
+                        'orders:lookup:ip',
                         $request->ip()
                     )
                 );

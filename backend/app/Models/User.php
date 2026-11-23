@@ -32,6 +32,13 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
 
+    public function setEmailAttribute(mixed $value): void
+    {
+        $this->attributes['email'] = is_string($value)
+            ? mb_strtolower(trim($value), 'UTF-8')
+            : $value;
+    }
+
     /**
      * Get the attributes that should be cast.
      *
@@ -151,6 +158,35 @@ class User extends Authenticatable
         return $this->roles()
             ->where('roles.slug', $roleSlug)
             ->exists();
+    }
+
+    /**
+     * A user manager may only grant permissions they already hold.
+     * The super-admin role is reserved to existing super-admins.
+     */
+    public function canAssignRole(Role $role): bool
+    {
+        if ($this->hasRole('super-admin')) {
+            return true;
+        }
+
+        if ($role->slug === 'super-admin') {
+            return false;
+        }
+
+        $heldPermissionSlugs = $this->getAllPermissions()->pluck('slug')->all();
+
+        return ! $role->permissions()
+            ->whereNotIn('permissions.slug', $heldPermissionSlugs)
+            ->exists();
+    }
+
+    /**
+     * Only a super-admin may change a super-admin account.
+     */
+    public function canManageUserAccount(User $target): bool
+    {
+        return ! $target->hasRole('super-admin') || $this->hasRole('super-admin');
     }
 
     /**

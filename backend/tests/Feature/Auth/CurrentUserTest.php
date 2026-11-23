@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -27,6 +28,11 @@ class CurrentUserTest extends TestCase
             'name' => 'Staff',
             'slug' => 'staff',
         ]);
+        $ordersManage = Permission::factory()->create([
+            'name' => 'Manage orders',
+            'slug' => 'orders.manage',
+        ]);
+        $staffRole->permissions()->attach($ordersManage);
 
         $user->assignRole($customerRole);
         $user->assignRole($staffRole);
@@ -61,6 +67,10 @@ class CurrentUserTest extends TestCase
                     'name' => 'Staff',
                 ],
             ])
+            ->assertJsonPath('data.user.permissions', [[
+                'slug' => 'orders.manage',
+                'name' => 'Manage orders',
+            ]])
             ->assertJsonStructure([
                 'message',
                 'data' => [
@@ -75,13 +85,16 @@ class CurrentUserTest extends TestCase
                                 'name',
                             ],
                         ],
+                        'permissions' => [
+                            '*' => ['slug', 'name'],
+                        ],
                     ],
                 ],
             ]);
 
         // Only explicitly approved user fields may be exposed.
         $this->assertSame(
-            ['id', 'name', 'email', 'phone', 'roles'],
+            ['id', 'name', 'email', 'phone', 'roles', 'permissions'],
             array_keys($response->json('data.user'))
         );
 
@@ -99,6 +112,13 @@ class CurrentUserTest extends TestCase
             ->assertUnauthorized();
 
         $this->assertDatabaseCount('personal_access_tokens', 0);
+    }
+
+    public function test_api_authentication_failure_is_json_without_an_accept_header(): void
+    {
+        $this->get('/api/me')
+            ->assertUnauthorized()
+            ->assertHeader('content-type', 'application/json');
     }
 
     public function test_current_user_is_resolved_from_token_not_query_parameter(): void
