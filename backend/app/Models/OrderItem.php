@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class OrderItem extends Model
 {
@@ -60,5 +61,9 @@ class OrderItem extends Model
     public function review(): HasOne
     {
         return $this->hasOne(Review::class, 'order_item_id');
+    }
+    public function returnItems(): HasMany
+    {
+        return $this->hasMany(ReturnItem::class, 'order_item_id');
     }
 }

@@ -34,7 +34,8 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductVariantController;
 use App\Http\Controllers\Profile\ProfileController;
 use Illuminate\Support\Facades\Route;
-
+use App\Http\Controllers\Api\ReturnController;
+use App\Http\Controllers\Admin\AdminReturnController;
 Route::get('/health', function () {
     return response()->json([
         'status' => 'ok',
@@ -823,3 +824,66 @@ Route::prefix('admin')
             )->name('dashboard.revenue-chart');
         });
     });
+/*
+|--------------------------------------------------------------------------
+| CUSTOMER RETURN
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware('auth:sanctum')
+    ->prefix('returns')
+    ->group(function () {
+
+        Route::get('/', [ReturnController::class, 'index']);
+
+        Route::post('/', [ReturnController::class, 'store']);
+
+        Route::get('/{id}', [ReturnController::class, 'show']);
+    });
+
+
+/*
+|--------------------------------------------------------------------------
+| ADMIN RETURN
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware(['auth:sanctum', 'admin'])
+    ->prefix('admin/returns')
+    ->group(function () {
+
+        Route::get('/', [AdminReturnController::class, 'index']);
+
+        Route::get('/{id}', [AdminReturnController::class, 'show']);
+
+        Route::patch('/{id}/approve', [
+            AdminReturnController::class,
+            'approve'
+        ]);
+
+        Route::patch('/{id}/reject', [
+            AdminReturnController::class,
+            'reject'
+        ]);
+
+        Route::patch('/{id}/shipping-back', [
+            AdminReturnController::class,
+            'shippingBack'
+        ]);
+
+        Route::patch('/{id}/receive', [
+            AdminReturnController::class,
+            'receive'
+        ]);
+
+        Route::patch('/{id}/inspect', [
+            AdminReturnController::class,
+            'inspect'
+        ]);
+
+        Route::patch('/{id}/complete', [
+            AdminReturnController::class,
+            'complete'
+        ]);
+    });
+

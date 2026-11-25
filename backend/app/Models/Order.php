@@ -89,4 +89,8 @@ class Order extends Model
     {
         return $this->hasOne(CouponRedemption::class);
     }
+    public function returns(): HasMany
+    {
+        return $this->hasMany(ReturnRequest::class, 'order_id');
+    }
 }
