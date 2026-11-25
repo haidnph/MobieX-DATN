@@ -109,7 +109,7 @@ export default function RevenueAreaChart({
     <div className="bg-surface-container rounded-2xl border border-outline-variant/20 p-5 md:p-6 flex flex-col justify-between shadow-xs h-full">
       {/* ── Top Header & Filter Controls ── */}
       <div className="space-y-4 pb-4 border-b border-outline-variant/15">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="flex flex-col gap-3">
           {/* Section Title */}
           <div>
             <div className="flex items-center gap-2.5">
@@ -127,7 +127,7 @@ export default function RevenueAreaChart({
           </div>
 
           {/* Controls: Mode Switcher & Days Filter */}
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-col items-start gap-2.5">
             {/* View Mode Switcher */}
             <div className="bg-surface-container-high rounded-xl p-1 flex items-center border border-outline-variant/20 text-xs shadow-2xs">
               <button
@@ -169,25 +169,31 @@ export default function RevenueAreaChart({
             </div>
 
             {/* Timeframe Filter */}
-            {onDaysChange && (
-              <div className="flex items-center bg-surface-container-high rounded-xl p-1 border border-outline-variant/20 text-xs shadow-2xs">
-                {[7, 14, 30, 90].map((d) => (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => onDaysChange(d)}
-                    className={`px-2.5 py-1.5 rounded-lg font-medium cursor-pointer active:scale-95 transition-all focus:outline-none focus-visible:ring-1 focus-visible:ring-primary ${
-                      days === d
-                        ? 'bg-surface-bright text-primary font-bold shadow-xs'
-                        : 'text-on-surface-variant hover:text-on-surface'
-                    }`}
-                  >
-                    {d} ngày
-                  </button>
-                ))}
-              </div>
-            )}
-            {onCustomRange && <DateRangePicker value={customRange} onApply={onCustomRange} />}
+            <div className="flex w-full flex-wrap items-center gap-2">
+              {onDaysChange && (
+                <div className="flex shrink-0 items-center bg-surface-container-high rounded-xl p-1 border border-outline-variant/20 text-xs shadow-2xs">
+                  {[7, 14, 30, 90].map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => onDaysChange(d)}
+                      className={`px-2.5 py-1.5 rounded-lg font-medium whitespace-nowrap cursor-pointer active:scale-95 transition-all focus:outline-none focus-visible:ring-1 focus-visible:ring-primary ${
+                        days === d
+                          ? 'bg-surface-bright text-primary font-bold shadow-xs'
+                          : 'text-on-surface-variant hover:text-on-surface'
+                      }`}
+                    >
+                      {d} ngày
+                    </button>
+                  ))}
+                </div>
+              )}
+              {onCustomRange && (
+                <div className="shrink-0 whitespace-nowrap">
+                  <DateRangePicker value={customRange} onApply={onCustomRange} />
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -198,7 +204,7 @@ export default function RevenueAreaChart({
             <div className="bg-surface-container-low p-3.5 rounded-xl border border-outline-variant/20 flex items-center justify-between hover:border-primary/40 transition-colors">
               <div className="space-y-0.5">
                 <span className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider block">
-                  Doanh số trong kỳ ({summary.days ?? days ?? safeData.length} ngày)
+                  Doanh số trong kỳ ({customRange?.start_date && customRange?.end_date ? Math.round((Date.parse(customRange.end_date) - Date.parse(customRange.start_date)) / 86400000) + 1 : Math.round(summary.days ?? days ?? safeData.length)} ngày)
                 </span>
                 <span className="text-base sm:text-lg md:text-xl font-black font-mono tracking-tight text-on-surface">
                   {formatCurrencyVND(summary.total_revenue || 0)}
