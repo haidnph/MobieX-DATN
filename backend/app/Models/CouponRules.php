@@ -1,0 +1,70 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\Coupon;
+use App\Models\Order;
+
+class CouponRules
+{
+    public function customerLimitReached(Coupon $coupon, int $userId): bool
+    {
+
+        $usageCount = Order::query()
+            ->where('coupon_id', $coupon->id)
+            ->where('user_id', $userId)
+            ->where('status', '!=', 'cancelled')
+            ->count();
+
+        return $usageCount >= ($coupon->max_uses_per_customer ?? 1);
+    }
+
+    /**
+     * Calculate the eligible portion of a cart/order. A coupon with no product
+     * rows applies to the complete subtotal for backward compatibility.
+     *
+     * @param  iterable<mixed>  $items
+     */
+    public function eligibleSubtotal(
+        Coupon $coupon,
+        iterable $items,
+        callable $productId,
+        callable $lineSubtotal,
+    ): float {
+        $productIds = $coupon->products()->pluck('products.id')->map(static fn ($id): int => (int) $id)->all();
+        $subtotal = 0.0;
+
+        foreach ($items as $item) {
+            if ($productIds !== [] && ! in_array((int) $productId($item), $productIds, true)) {
+                continue;
+            }
+
+            $subtotal += (float) $lineSubtotal($item);
+        }
+
+        return round($subtotal, 2);
+    }
+
+    public function discountAmount(Coupon $coupon, float $eligibleSubtotal): float
+    {
+        if ($eligibleSubtotal <= 0) {
+            return 0.0;
+        }
+
+        if ($coupon->discount_type === 'percent') {
+            $discount = round(($eligibleSubtotal * (float) $coupon->discount_value) / 100, 2);
+
+            if ($coupon->max_discount !== null) {
+                $discount = min($discount, (float) $coupon->max_discount);
+            }
+
+            return min($discount, $eligibleSubtotal);
+        }
+
+        if ($coupon->discount_type === 'fixed') {
+            return min((float) $coupon->discount_value, $eligibleSubtotal);
+        }
+
+        return 0.0;
+    }
+}
