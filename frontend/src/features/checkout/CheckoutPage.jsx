@@ -1,8 +1,9 @@
+import VoucherWallet from '../../components/common/VoucherWallet'
 // src/features/checkout/CheckoutPage.jsx
 // Order checkout page: shipping information, payment method selection, and atomic order creation.
 
 import { useEffect, useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useCart } from '../../contexts/CartContext'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
@@ -12,7 +13,29 @@ import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
 import Button from '../../components/common/Button'
 import Input from '../../components/common/Input'
 export default function CheckoutPage() {
-  const { cartItems, cartSummary, fetchCart, applyCoupon, clearCoupon } = useCart()
+  const cart = useCart()
+  const [search] = useSearchParams()
+  const variantId = search.get('buy_now')
+  const quantity = Number(search.get('quantity') || 1)
+  const direct = Boolean(variantId)
+  const [quote, setQuote] = useState(null)
+  const [quoteError, setQuoteError] = useState('')
+  const [quoteLoading, setQuoteLoading] = useState(false)
+  const requestQuote = async (code) => {
+    const {data} = await axiosClient.post('/checkout/buy-now/quote', {variant_id:Number(variantId),quantity,coupon_code:code || null})
+    return data.data
+  }
+  useEffect(()=>{
+    if(!direct) return
+    let active=true
+    setQuote(null);setQuoteError('');setQuoteLoading(true)
+    requestQuote().then(q=>{if(active)setQuote(q)}).catch(e=>{if(active)setQuoteError(e.message)}).finally(()=>{if(active)setQuoteLoading(false)})
+    return ()=>{active=false}
+  },[variantId,quantity])
+  const cartItems = direct ? quote?.items ?? [] : cart.cartItems
+  const cartSummary = direct ? quote ?? {subtotal:0,discount:0} : cart.cartSummary
+  const applyCoupon = direct ? async code=>{setQuote(await requestQuote(code));return {message:'Áp dụng Voucher thành công'}} : cart.applyCoupon
+  const clearCoupon = direct ? async()=>setQuote(await requestQuote()) : cart.clearCoupon
   const { user } = useAuth()
   const { showToast } = useToast()
   const navigate = useNavigate()
@@ -168,14 +191,15 @@ export default function CheckoutPage() {
         note: form.note || undefined,
         payment_method: form.payment_method,
         coupon_code: cartSummary.couponCode || undefined,
+        ...(direct ? {buy_now_variant_id:Number(variantId),buy_now_quantity:quantity} : {}),
         shipping_method_id: selectedShippingId || undefined,
       }
 
       const { data } = await axiosClient.post(EP.ORDERS, payload)
       const order = data.data ?? data
 
-      // Clear applied coupon from storage and reset cart
-      await clearCoupon()
+      // Do not mutate regular cart for buy-now orders
+      if (!direct) await clearCoupon()
 
       if (form.payment_method === 'vnpay') {
         // Redirect to VNPay initiate page
@@ -202,6 +226,8 @@ export default function CheckoutPage() {
       setSubmitting(false)
     }
   }
+
+  if (direct && (quoteLoading || !quote)) return <div className="p-8 text-center">{quoteError || "Đang tải sản phẩm mua ngay..."}</div>
 
   if (cartItems.length === 0) {
     return (
@@ -793,6 +819,7 @@ export default function CheckoutPage() {
               })}
             </div>
 
+            <VoucherWallet onSelect={setCouponInput} />
             {/* Coupon Section */}
             <div className="pt-4 border-t border-outline-variant/10 space-y-2">
               <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block">
