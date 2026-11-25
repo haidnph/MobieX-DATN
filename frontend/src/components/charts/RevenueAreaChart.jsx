@@ -3,12 +3,15 @@
 // Native React 19 + Tailwind CSS, zero external chart dependencies.
 
 import { useState, useId } from 'react'
+import DateRangePicker from './DateRangePicker'
 import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
 
 export default function RevenueAreaChart({
   data = [],
   days = 7,
   onDaysChange,
+  customRange,
+  onCustomRange,
   summary,
   loading = false,
 }) {
@@ -184,6 +187,7 @@ export default function RevenueAreaChart({
                 ))}
               </div>
             )}
+            {onCustomRange && <DateRangePicker value={customRange} onApply={onCustomRange} />}
           </div>
         </div>
 
@@ -194,7 +198,7 @@ export default function RevenueAreaChart({
             <div className="bg-surface-container-low p-3.5 rounded-xl border border-outline-variant/20 flex items-center justify-between hover:border-primary/40 transition-colors">
               <div className="space-y-0.5">
                 <span className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider block">
-                  Doanh số trong kỳ ({days} ngày)
+                  Doanh số trong kỳ ({summary.days ?? days ?? safeData.length} ngày)
                 </span>
                 <span className="text-base sm:text-lg md:text-xl font-black font-mono tracking-tight text-on-surface">
                   {formatCurrencyVND(summary.total_revenue || 0)}
