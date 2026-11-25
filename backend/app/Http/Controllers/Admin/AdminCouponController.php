@@ -71,6 +71,7 @@ class AdminCouponController extends Controller
             'start_at' => ['nullable', 'date'],
             'end_at' => ['nullable', 'date', 'after_or_equal:start_at'],
             'is_active' => ['nullable', 'boolean'],
+            'show_on_home' => ['sometimes', 'boolean'],
         ]);
 
         $validated['code'] = strtoupper(trim($validated['code']));
@@ -122,6 +123,7 @@ class AdminCouponController extends Controller
             'start_at' => ['nullable', 'date'],
             'end_at' => ['nullable', 'date', 'after_or_equal:start_at'],
             'is_active' => ['nullable', 'boolean'],
+            'show_on_home' => ['sometimes', 'boolean'],
         ]);
 
         if (isset($validated['code'])) {
