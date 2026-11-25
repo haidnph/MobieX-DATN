@@ -1,5 +1,3 @@
-// src/layouts/AdminLayout.jsx
-// Wraps admin portal pages: collapsible sidebar + top navbar + main content area.
 
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -9,18 +7,22 @@ import EP from '../api/endpoints'
 import AdminOmnisearchModal from '../components/admin/AdminOmnisearchModal'
 
 const NAV_ITEMS = [
-  { to: '/admin',            icon: 'dashboard',           label: 'Tổng quan',       end: true, permission: 'dashboard.view' },
-  { to: '/admin/orders',     icon: 'receipt_long',        label: 'Đơn hàng',                   permission: 'orders.view' },
-  { to: '/admin/products',   icon: 'inventory_2',         label: 'Sản phẩm',                   permission: 'products.view' },
-  { to: '/admin/categories', icon: 'category',            label: 'Danh mục',                   permission: 'categories.view' },
-  { to: '/admin/brands',     icon: 'store',               label: 'Thương hiệu',                permission: 'brands.view' },
-  { to: '/admin/users',      icon: 'group',               label: 'Người dùng',                 permission: 'users.view' },
-  { to: '/admin/coupons',    icon: 'local_offer',         label: 'Mã giảm giá',                permission: 'coupons.view' },
-  { to: '/admin/flash-sales',icon: 'bolt',                 label: 'Flash Sale',                 permission: 'flash_sales.view' },
-  { to: '/admin/reviews',    icon: 'rate_review',         label: 'Đánh giá',                   permission: 'reviews.view' },
-  { to: '/admin/banners',    icon: 'image',               label: 'Banner',                     permission: 'banners.view' },
-  { to: '/admin/homepage',   icon: 'view_quilt',          label: 'Quản lý Trang chủ',         permission: 'banners.view' },
-  { to: '/admin/trash',      icon: 'auto_delete',         label: 'Thùng rác',                  permission: 'products.view' },
+  { to: '/admin',             icon: 'dashboard',          label: 'Tổng quan',          end: true, permission: 'dashboard.view' },
+  { to: '/admin/orders',      icon: 'receipt_long',       label: 'Đơn hàng',                     permission: 'orders.view' },
+
+  // Quản lý hoàn hàng
+  { to: '/admin/returns',     icon: 'assignment_return',  label: 'Hoàn hàng',                    permission: 'orders.view' },
+
+  { to: '/admin/products',    icon: 'inventory_2',        label: 'Sản phẩm',                     permission: 'products.view' },
+  { to: '/admin/categories',  icon: 'category',           label: 'Danh mục',                     permission: 'categories.view' },
+  { to: '/admin/brands',      icon: 'store',              label: 'Thương hiệu',                  permission: 'brands.view' },
+  { to: '/admin/users',       icon: 'group',              label: 'Người dùng',                   permission: 'users.view' },
+  { to: '/admin/coupons',     icon: 'local_offer',        label: 'Mã giảm giá',                  permission: 'coupons.view' },
+  { to: '/admin/flash-sales', icon: 'bolt',               label: 'Flash Sale',                  permission: 'flash_sales.view' },
+  { to: '/admin/reviews',     icon: 'rate_review',        label: 'Đánh giá',                     permission: 'reviews.view' },
+  { to: '/admin/banners',     icon: 'image',              label: 'Banner',                       permission: 'banners.view' },
+  { to: '/admin/homepage',    icon: 'view_quilt',         label: 'Quản lý Trang chủ',            permission: 'banners.view' },
+  { to: '/admin/trash',       icon: 'auto_delete',        label: 'Thùng rác',                    permission: 'products.view' },
 ]
 
 export default function AdminLayout() {
@@ -49,12 +51,14 @@ export default function AdminLayout() {
         setOmnisearchOpen((prev) => !prev)
       }
     }
+
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
   useEffect(() => {
     let mounted = true
+
     axiosClient.get(EP.ADMIN_TRASH_SUMMARY)
       .then(({ data }) => {
         if (mounted && data?.data?.total) {
@@ -62,6 +66,7 @@ export default function AdminLayout() {
         }
       })
       .catch(() => {})
+
     return () => { mounted = false }
   }, [])
 
@@ -99,6 +104,7 @@ export default function AdminLayout() {
               </span>
             )}
           </Link>
+
           {/* Close button for mobile drawer */}
           <button
             type="button"
@@ -128,9 +134,11 @@ export default function AdminLayout() {
               }
             >
               <span className="material-symbols-outlined text-xl shrink-0">{icon}</span>
+
               {(!collapsed || mobileNavOpen) && (
                 <div className="flex-1 flex items-center justify-between min-w-0">
                   <span className="truncate">{label}</span>
+
                   {to === '/admin/trash' && trashCount > 0 && (
                     <span className="px-1.5 py-0.5 rounded-full text-xs font-semibold bg-error-container text-on-error-container shrink-0">
                       {trashCount}
@@ -201,6 +209,7 @@ export default function AdminLayout() {
                 {user?.roles?.[0] ?? 'Admin'}
               </span>
             </div>
+
             <button
               type="button"
               onClick={handleLogout}

@@ -99,6 +99,16 @@ const EP = {
   // ── Admin: Reviews ────────────────────────────────────
   ADMIN_REVIEWS: '/admin/reviews',
   ADMIN_REVIEW_STATUS: (id) => `/admin/reviews/${id}/status`,
+  
+  // ── Admin: Returns ────────────────────────────────────
+  ADMIN_RETURNS: '/admin/returns',
+  ADMIN_RETURN_DETAIL: (id) => `/admin/returns/${id}`,
+  ADMIN_RETURN_APPROVE: (id) => `/admin/returns/${id}/approve`,
+  ADMIN_RETURN_REJECT: (id) => `/admin/returns/${id}/reject`,
+  ADMIN_RETURN_RECEIVE: (id) => `/admin/returns/${id}/receive`,
+  ADMIN_RETURN_INSPECT: (id) => `/admin/returns/${id}/inspect`,
+  ADMIN_RETURN_COMPLETE: (id) => `/admin/returns/${id}/complete`,
+
 
   // ── Admin: Dashboard ──────────────────────────────────
   ADMIN_DASHBOARD_STATS: '/admin/dashboard/stats',

@@ -157,7 +157,9 @@ export default function OrderDetailPage() {
         </nav>
 
         <div className="flex items-center gap-2">
-          {/* Re-order button for completed or cancelled orders */}
+          {['delivered', 'received'].includes(order.status) && (
+            <Link to={`/orders/${id}/return`} className="rounded-xl border border-primary px-3 py-2 text-sm font-semibold text-primary hover:bg-primary/10">Yêu cầu trả hàng</Link>
+          )}
           {(order.status === 'delivered' || order.status === 'cancelled') && (
             <Button
               variant="primary"

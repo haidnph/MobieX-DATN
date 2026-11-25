@@ -117,9 +117,12 @@ export default function OrderHistoryPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-8 lg:px-16 py-8 space-y-6">
       {/* Title */}
-      <div className="flex items-center gap-3">
-        <span className="w-1 h-6 bg-primary rounded-full" />
-        <h1 className="text-2xl font-bold text-on-surface">Đơn hàng của tôi</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="w-1 h-6 bg-primary rounded-full" />
+          <h1 className="text-2xl font-bold text-on-surface">Đơn hàng của tôi</h1>
+        </div>
+        <Link to="/returns" className="text-sm font-semibold text-primary hover:underline">Lịch sử trả hàng</Link>
       </div>
 
       {/* Filter Tabs */}
