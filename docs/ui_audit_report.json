@@ -1,0 +1,190 @@
+[
+  {
+    "viewport": "desktop",
+    "page": "homepage",
+    "url": "/",
+    "status": "SUCCESS",
+    "errors": [],
+    "warnings": [],
+    "networkFailures": []
+  },
+  {
+    "viewport": "desktop",
+    "page": "catalog",
+    "url": "/products",
+    "status": "SUCCESS",
+    "errors": [],
+    "warnings": [],
+    "networkFailures": []
+  },
+  {
+    "viewport": "desktop",
+    "page": "cart",
+    "url": "/cart",
+    "status": "SUCCESS",
+    "errors": [],
+    "warnings": [],
+    "networkFailures": []
+  },
+  {
+    "viewport": "desktop",
+    "page": "checkout",
+    "url": "/checkout",
+    "status": "SUCCESS",
+    "errors": [],
+    "warnings": [],
+    "networkFailures": []
+  },
+  {
+    "viewport": "desktop",
+    "page": "login",
+    "url": "/login",
+    "status": "SUCCESS",
+    "errors": [],
+    "warnings": [],
+    "networkFailures": []
+  },
+  {
+    "viewport": "desktop",
+    "page": "admin-login",
+    "url": "/admin/login",
+    "status": "SUCCESS",
+    "errors": [],
+    "warnings": [],
+    "networkFailures": []
+  },
+  {
+    "viewport": "desktop",
+    "page": "product-detail",
+    "url": "/products/187",
+    "status": "SUCCESS",
+    "errors": [],
+    "networkFailures": []
+  },
+  {
+    "viewport": "desktop",
+    "page": "admin-dashboard",
+    "url": "/admin",
+    "status": "SUCCESS",
+    "errors": [],
+    "networkFailures": []
+  },
+  {
+    "viewport": "desktop",
+    "page": "admin-orders",
+    "url": "/admin/orders",
+    "status": "SUCCESS",
+    "errors": [],
+    "networkFailures": []
+  },
+  {
+    "viewport": "desktop",
+    "page": "admin-products",
+    "url": "/admin/products",
+    "status": "SUCCESS",
+    "errors": [],
+    "networkFailures": []
+  },
+  {
+    "viewport": "desktop",
+    "page": "admin-inventory",
+    "url": "/admin/inventory",
+    "status": "SUCCESS",
+    "errors": [],
+    "networkFailures": []
+  },
+  {
+    "viewport": "desktop",
+    "page": "admin-flash-sales",
+    "url": "/admin/flash-sales",
+    "status": "SUCCESS",
+    "errors": [],
+    "networkFailures": []
+  },
+  {
+    "viewport": "desktop",
+    "page": "admin-users",
+    "url": "/admin/users",
+    "status": "SUCCESS",
+    "errors": [],
+    "networkFailures": []
+  },
+  {
+    "viewport": "desktop",
+    "page": "admin-coupons",
+    "url": "/admin/coupons",
+    "status": "SUCCESS",
+    "errors": [],
+    "networkFailures": []
+  },
+  {
+    "viewport": "desktop",
+    "page": "admin-trash",
+    "url": "/admin/trash",
+    "status": "SUCCESS",
+    "errors": [],
+    "networkFailures": []
+  },
+  {
+    "viewport": "mobile",
+    "page": "homepage",
+    "url": "/",
+    "status": "SUCCESS",
+    "errors": [],
+    "warnings": [],
+    "networkFailures": []
+  },
+  {
+    "viewport": "mobile",
+    "page": "catalog",
+    "url": "/products",
+    "status": "SUCCESS",
+    "errors": [],
+    "warnings": [],
+    "networkFailures": []
+  },
+  {
+    "viewport": "mobile",
+    "page": "cart",
+    "url": "/cart",
+    "status": "SUCCESS",
+    "errors": [],
+    "warnings": [],
+    "networkFailures": []
+  },
+  {
+    "viewport": "mobile",
+    "page": "checkout",
+    "url": "/checkout",
+    "status": "SUCCESS",
+    "errors": [],
+    "warnings": [],
+    "networkFailures": []
+  },
+  {
+    "viewport": "mobile",
+    "page": "login",
+    "url": "/login",
+    "status": "SUCCESS",
+    "errors": [],
+    "warnings": [],
+    "networkFailures": []
+  },
+  {
+    "viewport": "mobile",
+    "page": "admin-login",
+    "url": "/admin/login",
+    "status": "SUCCESS",
+    "errors": [],
+    "warnings": [],
+    "networkFailures": []
+  },
+  {
+    "viewport": "mobile",
+    "page": "product-detail",
+    "url": "/products/187",
+    "status": "SUCCESS",
+    "errors": [],
+    "networkFailures": []
+  }
+]
