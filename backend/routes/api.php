@@ -14,6 +14,7 @@ use App\Http\Controllers\Admin\AdminOmnisearchController;
 use App\Http\Controllers\Admin\AdminOrderController;
 use App\Http\Controllers\Admin\AdminPaymentRefundController;
 use App\Http\Controllers\Admin\AdminReviewController;
+use App\Http\Controllers\Admin\AdminReturnController;
 use App\Http\Controllers\Admin\AdminTrashController;
 use App\Http\Controllers\Admin\PermissionController;
 use App\Http\Controllers\Admin\RoleController;
@@ -32,6 +33,7 @@ use App\Http\Controllers\Api\ProductCompatibilityController;
 use App\Http\Controllers\Api\ProductImageController;
 use App\Http\Controllers\Api\ProductSpecificationController;
 use App\Http\Controllers\Api\ReviewController;
+use App\Http\Controllers\Api\ReturnController;
 use App\Http\Controllers\Auth\CurrentUserController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
@@ -694,6 +696,13 @@ Route::middleware([
         [CouponController::class, 'applyCoupon'],
     )->name('api.cart.apply-coupon');
 
+    // Product returns (customer)
+    Route::get('/returns', [ReturnController::class, 'index'])->name('api.returns.index');
+    Route::post('/returns', [ReturnController::class, 'store'])->middleware('throttle:10,1')->name('api.returns.store');
+    Route::get('/returns/{id}', [ReturnController::class, 'show'])->whereNumber('id')->name('api.returns.show');
+    Route::patch('/returns/{id}/cancel', [ReturnController::class, 'cancel'])->whereNumber('id')->name('api.returns.cancel');
+    Route::patch('/returns/{id}/shipping-back', [ReturnController::class, 'shippingBack'])->whereNumber('id')->name('api.returns.shipping-back');
+
     // Orders
     Route::get(
         '/orders',
@@ -900,6 +909,9 @@ Route::prefix('admin')
     ])
     ->group(function (): void {
         Route::middleware('permission:orders.view')->group(function (): void {
+            Route::get('/returns', [AdminReturnController::class, 'index'])->name('returns.index');
+            Route::get('/returns/{id}', [AdminReturnController::class, 'show'])->whereNumber('id')->name('returns.show');
+
             Route::get(
                 '/orders',
                 [AdminOrderController::class, 'index'],
@@ -921,6 +933,12 @@ Route::prefix('admin')
         });
 
         Route::middleware('permission:orders.manage')->group(function (): void {
+            Route::patch('/returns/{id}/approve', [AdminReturnController::class, 'approve'])->whereNumber('id')->name('returns.approve');
+            Route::patch('/returns/{id}/reject', [AdminReturnController::class, 'reject'])->whereNumber('id')->name('returns.reject');
+            Route::patch('/returns/{id}/receive', [AdminReturnController::class, 'receive'])->whereNumber('id')->name('returns.receive');
+            Route::patch('/returns/{id}/inspect', [AdminReturnController::class, 'inspect'])->whereNumber('id')->name('returns.inspect');
+            Route::patch('/returns/{id}/complete', [AdminReturnController::class, 'complete'])->whereNumber('id')->name('returns.complete');
+
             Route::patch(
                 '/orders/{id}/status',
                 [AdminOrderController::class, 'updateStatus'],
@@ -1167,3 +1185,5 @@ Route::prefix('admin')
             });
         });
     });
+
+
