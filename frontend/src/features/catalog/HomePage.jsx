@@ -1,3 +1,4 @@
+import VoucherWallet from '../../components/common/VoucherWallet'
 // src/features/catalog/HomePage.jsx
 // MobileX Premium Storefront Homepage
 // Fully synchronized with Admin Homepage CMS (Dynamic Sections, Layouts, Products, Categories, Banners & Brands).
@@ -513,6 +514,7 @@ export default function HomePage() {
 
   return (
     <div className="w-full px-4 sm:px-6 lg:px-10 xl:px-12 py-6 space-y-12">
+      <VoucherWallet home />
       {sections.map((section, idx) => {
         // Enforce rule: Section disabled in Admin must NOT appear
         if (!section.is_active) return null
