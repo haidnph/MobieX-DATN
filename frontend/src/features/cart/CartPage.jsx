@@ -1,3 +1,4 @@
+import VoucherWallet from '../../components/common/VoucherWallet'
 // src/features/cart/CartPage.jsx
 // Full shopping cart page with item quantity management, coupon code input, and order summary.
 
@@ -272,6 +273,7 @@ export default function CartPage() {
           <div className="bg-surface-container rounded-2xl border border-outline-variant/20 p-6 space-y-6">
             <h2 className="text-lg font-bold text-on-surface">Tóm tắt đơn hàng</h2>
 
+            <VoucherWallet onSelect={setCouponInput} />
             {/* Coupon input */}
             <form onSubmit={handleApplyCoupon} className="space-y-2">
               <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block">
