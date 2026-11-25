@@ -3,7 +3,7 @@
 // Executive KPI ribbon, interactive area/bar charts, donut status breakdown,
 // best-selling leaderboard, payment method share, and low-stock telemetry.
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import axiosClient from '../../api/axiosClient'
 import EP from '../../api/endpoints'
@@ -19,14 +19,17 @@ export default function AdminDashboard() {
   const [revenueChart, setRevenueChart] = useState([])
   const [chartSummary, setChartSummary] = useState(null)
   const [range, setRange] = useState('7')
-  const [customRange, setCustomRange] = useState({ start: '', end: '' })
   const [appliedRange, setAppliedRange] = useState(null)
+  const requestId = useRef(0)
+  const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
   const [chartLoading, setChartLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
 
   // Fetch all dashboard data
   const loadDashboard = useCallback(async (selectedRange = range, isRefresh = false) => {
+    const id = ++requestId.current
+    setError(null)
     if (isRefresh) setRefreshing(true)
     else setChartLoading(true)
 
@@ -36,6 +39,10 @@ export default function AdminDashboard() {
         axiosClient.get(EP.ADMIN_DASHBOARD_REVENUE_CHART, { params: selectedRange === 'custom' ? appliedRange : { days: Number(selectedRange) } }),
       ])
 
+      if (id !== requestId.current) return
+      if (statsRes.status !== 'fulfilled' || chartRes.status !== 'fulfilled') {
+        throw new Error('Không thể tải dữ liệu thống kê')
+      }
       if (statsRes.status === 'fulfilled') {
         setStats(statsRes.value.data.data ?? statsRes.value.data)
       }
@@ -47,11 +54,18 @@ export default function AdminDashboard() {
         setChartSummary(raw.summary ?? null)
       }
     } catch {
-      // Handled silently
+      if (id === requestId.current) {
+        setError("Không thể tải dữ liệu thống kê. Vui lòng bấm Làm mới.")
+        setStats(null)
+        setRevenueChart([])
+        setChartSummary(null)
+      }
     } finally {
+      if (id === requestId.current) {
       setLoading(false)
       setChartLoading(false)
       setRefreshing(false)
+      }
     }
   }, [range, appliedRange])
 
@@ -64,7 +78,12 @@ export default function AdminDashboard() {
   const handleDaysChange = (newDays) => {
     setRange(String(newDays))
     setAppliedRange(null)
-    loadDashboard(String(newDays))
+
+  }
+
+  const handleCustomRange = (start, end) => {
+    setAppliedRange({ start_date: start, end_date: end })
+    setRange('custom')
   }
 
   // Handle manual refresh
@@ -128,11 +147,7 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-outline-variant/20 bg-surface-container p-4">
-<label className="text-xs text-on-surface-variant">Khoảng thời gian<select value={range} onChange={(event) => { setRange(event.target.value); setAppliedRange(null) }} className="mt-1 block rounded-lg border border-outline-variant/30 bg-surface-container-high px-3 py-2 text-sm text-on-surface"><option value="1">Hôm nay</option><option value="2">Hôm qua</option><option value="7">7 ngày gần nhất</option><option value="14">14 ngày gần nhất</option><option value="30">30 ngày gần nhất</option><option value="90">90 ngày gần nhất</option><option value="month">Tháng này</option><option value="prev_month">Tháng trước</option><option value="custom">Tùy chỉnh</option></select></label>
-        {range === 'custom' && <><label className="text-xs text-on-surface-variant">Từ ngày<input type="date" value={customRange.start} max={customRange.end || undefined} onChange={(event) => setCustomRange((current) => ({ ...current, start: event.target.value }))} className="mt-1 block rounded-lg border border-outline-variant/30 bg-surface-container-high px-3 py-2 text-sm text-on-surface" /></label><label className="text-xs text-on-surface-variant">Đến ngày<input type="date" value={customRange.end} min={customRange.start || undefined} onChange={(event) => setCustomRange((current) => ({ ...current, end: event.target.value }))} className="mt-1 block rounded-lg border border-outline-variant/30 bg-surface-container-high px-3 py-2 text-sm text-on-surface" /></label><button type="button" disabled={!customRange.start || !customRange.end || customRange.start > customRange.end} onClick={() => { setAppliedRange({ start_date: customRange.start, end_date: customRange.end }); loadDashboard('custom') }} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary disabled:opacity-50">Áp dụng</button><button type="button" onClick={() => { setCustomRange({ start: '', end: '' }); setRange('7'); setAppliedRange(null) }} className="rounded-lg border border-outline-variant/30 px-4 py-2 text-sm">Đặt lại</button></>}
-        <span className="text-xs text-on-surface-variant">{appliedRange ? `${appliedRange.start_date} – ${appliedRange.end_date}` : `Đang xem: ${range} ngày gần nhất`}</span>
-      </div>
+      {error && <p role="alert" className="text-red-400 text-sm">{error}</p>}
       {/* Executive KPI Ribbon */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Settled Revenue */}
@@ -212,7 +227,9 @@ insights
         <div className="xl:col-span-8 flex flex-col">
           <RevenueAreaChart
             data={revenueChart}
-            days={Number(range) || 7}
+            days={range === 'custom' ? null : Number(range)}
+            customRange={appliedRange}
+            onCustomRange={handleCustomRange}
             onDaysChange={handleDaysChange}
             summary={chartSummary}
             loading={chartLoading}
