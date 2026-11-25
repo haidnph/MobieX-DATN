@@ -62,11 +62,12 @@ export default function CouponForm({
     min_order_amount: '0',
     max_discount: '',
     usage_limit: '',
-    max_uses_per_customer: '',
+    max_uses_per_customer: '1',
     product_ids: [],
     start_at: '',
     end_at: '',
     is_active: true,
+    show_on_home: false,
   })
 
   const [isDirty, setIsDirty] = useState(false)
@@ -124,6 +125,7 @@ export default function CouponForm({
         start_at: toDatetimeLocal(initialData.start_at),
         end_at: toDatetimeLocal(initialData.end_at),
         is_active: Boolean(initialData.is_active ?? true),
+        show_on_home: Boolean(initialData.show_on_home),
       })
       setIsDirty(false)
     }
@@ -217,6 +219,7 @@ export default function CouponForm({
       start_at: form.start_at ? form.start_at.replace('T', ' ') + ':00' : null,
       end_at: form.end_at ? form.end_at.replace('T', ' ') + ':00' : null,
       is_active: Boolean(form.is_active),
+      show_on_home: form.show_on_home,
     }
 
     if (onSubmit) {
@@ -422,7 +425,8 @@ export default function CouponForm({
                 {form.discount_type === 'percent' && (
                   <div className="flex items-center gap-1.5">
                     {[5, 10, 15, 20, 50].map((pct) => (
-                      <button
+                      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.show_on_home} onChange={e=>handleFieldChange('show_on_home',e.target.checked)} /> Hiển thị Voucher tại trang chủ</label>
+            <button
                         key={pct}
                         type="button"
                         onClick={() => handleFieldChange('discount_value', String(pct))}
