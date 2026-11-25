@@ -25,6 +25,7 @@ class Coupon extends Model
         'start_at',
         'end_at',
         'is_active',
+        'show_on_home',
     ];
 
     protected function casts(): array
@@ -40,6 +41,7 @@ class Coupon extends Model
             'start_at' => 'datetime',
             'end_at' => 'datetime',
             'is_active' => 'boolean',
+            'show_on_home' => 'boolean',
         ];
     }
 
