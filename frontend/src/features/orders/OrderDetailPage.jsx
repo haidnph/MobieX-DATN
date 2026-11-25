@@ -75,22 +75,14 @@ export default function OrderDetailPage() {
     }
   }
 
-const fetchOrderDetail = async () => {
-  setLoading(true)
-
-  try {
-    const { data } = await axiosClient.get(EP.ORDER_DETAIL(id))
-    setOrder(data.data ?? data)
-  } catch (err) {
-    setOrder(null)
-    showToast(
-      err.response?.data?.message || 'Không tìm thấy đơn hàng',
-      'error'
-    )
-  } finally {
-    setLoading(false)
+  const fetchOrderDetail = () => {
+    setLoading(true)
+    axiosClient
+      .get(EP.ORDER_DETAIL(id))
+      .then(({ data }) => setOrder(data.data ?? data))
+      .catch((err) => showToast(err.message || 'Không tìm thấy đơn hàng', 'error'))
+      .finally(() => setLoading(false))
   }
-}
 
   useEffect(() => {
     fetchOrderDetail()
