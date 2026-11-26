@@ -22,7 +22,7 @@ export default function ProductDetailPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const requestedVariantId = searchParams.get('variant')
-  const { addToCart } = useCart()
+  const { addToCart, cartItems } = useCart()
   const { toggleCompare, isInCompare } = useCompare()
   const { toggleWishlist, isInWishlist } = useWishlist()
   const { showToast } = useToast()
@@ -145,6 +145,14 @@ export default function ProductDetailPage() {
     })
 
   const availableStock = selectedVariant?.inventory?.available_quantity ?? selectedVariant?.available_quantity ?? 0
+  const quantityInCart = cartItems
+    .filter((item) => Number(item.product_id ?? item.product?.id ?? item.variant?.product_id) === Number(product?.id))
+    .reduce((total, item) => total + Number(item.quantity || 0), 0)
+  const selectedVariantQuantityInCart = cartItems
+    .filter((item) => Number(item.variant_id ?? item.variant?.id) === Number(selectedVariant?.id))
+    .reduce((total, item) => total + Number(item.quantity || 0), 0)
+  const variantStockRemaining = Math.max(0, availableStock - selectedVariantQuantityInCart)
+  const quantityLimit = Math.min(4 - quantityInCart, variantStockRemaining)
   const isSelectedVariantOutOfStock = isDiscontinued || hasNoVariants || availableStock <= 0
   const currentPrice = selectedVariant?.flash_sale_price ?? selectedVariant?.price ?? product.min_price ?? product.base_price ?? 0
   const originalPrice = selectedVariant?.flash_sale_original_price ?? selectedVariant?.compare_price ?? selectedVariant?.original_price ?? product.max_price ?? null
@@ -189,6 +197,10 @@ export default function ProductDetailPage() {
   }
 
   const handleAddToCart = async () => {
+    if (quantity > quantityLimit) {
+      showToast('Bạn chỉ có thể mua tối đa 4 chiếc cho mỗi sản phẩm trong một đơn hàng.', 'warning')
+      return
+    }
     if (isDiscontinued) {
       showToast('Sản phẩm đã ngừng kinh doanh', 'warning')
       return
@@ -216,6 +228,10 @@ export default function ProductDetailPage() {
   const handleBuyNow = () => {
     if (isDiscontinued || hasNoVariants || !selectedVariant || availableStock <= 0) {
       showToast('Vui lòng chọn phiên bản còn hàng để mua ngay', 'error')
+      return
+    }
+    if (quantity > quantityLimit) {
+      showToast('Bạn chỉ có thể mua tối đa 4 chiếc cho mỗi sản phẩm trong một đơn hàng.', 'warning')
       return
     }
     navigate(`/checkout?buy_now=${selectedVariant.id}&quantity=${quantity}`)
@@ -362,14 +378,19 @@ export default function ProductDetailPage() {
                 </span>
                 <button
                   type="button"
-                  onClick={() => setQuantity((q) => Math.min(availableStock || 1, q + 1))}
-                  disabled={quantity >= availableStock || isSelectedVariantOutOfStock}
+                  onClick={() => setQuantity((q) => Math.min(quantityLimit || 1, q + 1))}
+                  disabled={quantity >= quantityLimit || isSelectedVariantOutOfStock}
                   className="px-3 py-2 text-on-surface hover:bg-surface-container-high active:scale-90 cursor-pointer transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:active:scale-100"
                   aria-label="Tăng số lượng"
                 >
                   <span className="material-symbols-outlined text-base">add</span>
                 </button>
               </div>
+              {quantityInCart + quantity >= 4 && (
+                <p className="text-xs text-amber-600">
+                  {quantityInCart >= 4 ? 'Đã đạt giới hạn mua tối đa 4 chiếc.' : 'Bạn sẽ đạt giới hạn tối đa 4 chiếc sau khi thêm.'}
+                </p>
+              )}
             </div>
 
             <div className="flex gap-3">
@@ -377,7 +398,7 @@ export default function ProductDetailPage() {
                 variant="primary"
                 size="lg"
                 className="flex-1"
-                disabled={isSelectedVariantOutOfStock || addingToCart}
+                disabled={isSelectedVariantOutOfStock || addingToCart || quantity > quantityLimit}
                 loading={addingToCart}
                 onClick={handleAddToCart}
               >
@@ -396,7 +417,7 @@ export default function ProductDetailPage() {
                 variant="secondary"
                 size="lg"
                 className="flex-1"
-                disabled={isSelectedVariantOutOfStock || hasNoVariants || isDiscontinued}
+                disabled={isSelectedVariantOutOfStock || hasNoVariants || isDiscontinued || quantity > quantityLimit}
                 onClick={handleBuyNow}
               >
                 <span className="material-symbols-outlined text-xl">bolt</span>
