@@ -16,6 +16,8 @@ use Illuminate\Support\Facades\DB;
 
 class CartController extends Controller
 {
+    private const MAX_PRODUCT_QUANTITY = 4;
+
     public function __construct(private readonly CouponRules $couponRules) {}
 
     /**
@@ -23,7 +25,36 @@ class CartController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $cart = DB::transaction(fn () => $this->lockActiveCart((int) $request->user()->id, true));
+        [$cart, $wasAdjusted] = DB::transaction(function () use ($request): array {
+            $cart = $this->lockActiveCart((int) $request->user()->id, true);
+            $items = $cart->items()->with('variant')->orderBy('id')->lockForUpdate()->get();
+            $variants = ProductVariant::with('inventory')->whereIn('id', $items->pluck('product_variant_id'))->get()->keyBy('id');
+            $groups = $items->groupBy(fn (CartItem $item) => $variants->get($item->product_variant_id)?->product_id ?? 'missing');
+            $wasAdjusted = false;
+
+            foreach ($groups as $productItems) {
+                $remaining = self::MAX_PRODUCT_QUANTITY;
+                foreach ($productItems as $item) {
+                    $variant = $variants->get($item->product_variant_id);
+                    $stock = (int) ($variant?->inventory?->available_quantity ?? 0);
+                    $quantity = min((int) $item->quantity, $stock, $remaining);
+                    if ($quantity < 1) {
+                        $item->delete();
+                        $wasAdjusted = true;
+
+                        continue;
+                    }
+                    if ($quantity !== (int) $item->quantity) {
+                        $item->quantity = $quantity;
+                        $item->save();
+                        $wasAdjusted = true;
+                    }
+                    $remaining -= $quantity;
+                }
+            }
+
+            return [$cart, $wasAdjusted];
+        });
 
         $cart->load([
             'items.variant.product',
@@ -147,6 +178,7 @@ class CartController extends Controller
                 'coupon_code' => $couponCode,
                 'coupon_id' => $couponId,
                 'coupon_invalid_reason' => $couponInvalidReason,
+                'quantity_limit_adjusted' => $wasAdjusted,
             ],
         ]);
     }
@@ -204,6 +236,14 @@ class CartController extends Controller
                     'error' => "Tồn kho không đủ. Hiện còn {$availableQuantity} sản phẩm.",
                     'code' => 422,
                 ];
+            }
+
+            $productQuantity = CartItem::query()
+                ->where('cart_id', $cart->id)
+                ->whereHas('variant', fn ($query) => $query->where('product_id', $variant->product_id))
+                ->sum('quantity');
+            if ((int) $productQuantity - (int) $currentQuantity + (int) $validated['quantity'] > self::MAX_PRODUCT_QUANTITY) {
+                return ['error' => 'Bạn chỉ có thể mua tối đa 4 chiếc cho mỗi sản phẩm trong một đơn hàng.', 'code' => 422];
             }
 
             if ($cartItem) {
@@ -298,6 +338,15 @@ class CartController extends Controller
                     'error' => "Tồn kho không đủ. Hiện còn {$availableQuantity} sản phẩm.",
                     'code' => 422,
                 ];
+            }
+
+            $productQuantity = CartItem::query()
+                ->where('cart_id', $cart->id)
+                ->whereHas('variant', fn ($query) => $query->where('product_id', $variant->product_id))
+                ->sum('quantity');
+            $newProductQuantity = (int) $productQuantity - (int) $cartItem->quantity + (int) $validated['quantity'];
+            if ($newProductQuantity > self::MAX_PRODUCT_QUANTITY) {
+                return ['error' => 'Bạn chỉ có thể mua tối đa 4 chiếc cho mỗi sản phẩm trong một đơn hàng.', 'code' => 422];
             }
 
             $cartItem->quantity = $validated['quantity'];
