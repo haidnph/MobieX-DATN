@@ -31,16 +31,17 @@ class CartController extends Controller
             'items.variant.inventory',
         ]);
 
+        $userId = (int) $request->user()->id;
         $saleItems = app(FlashSalePricing::class)->activeItemsForVariants(
-            $cart->items->pluck('variant_id')->map(static fn ($id): int => (int) $id)->all(),
+            $cart->items->pluck('variant_id')->map(static fn ($id): int => (int) $id)->all(), $userId,
         );
 
-        $items = $cart->items->map(function ($item) use ($saleItems) {
+        $items = $cart->items->map(function ($item) use ($saleItems, $userId) {
             $variant = $item->variant;
             $product = $variant?->product;
             $saleItem = $variant ? $saleItems->get($variant->id) : null;
             $quantity = (int) $item->quantity;
-            $saleAvailable = $saleItem ? app(FlashSalePricing::class)->remainingQuantity($saleItem) : 0;
+            $saleAvailable = $saleItem ? app(FlashSalePricing::class)->remainingQuantity($saleItem, $userId) : 0;
             $flashSale = $saleItem && $saleAvailable >= $quantity ? [
                 'id' => $saleItem->flash_sale_id,
                 'end_at' => $saleItem->flashSale->end_at->toIso8601String(),
@@ -115,9 +116,7 @@ class CartController extends Controller
                     $coupon,
                     $items,
                     static fn (array $item): int => (int) ($item['product_id'] ?? 0),
-                    fn (array $item): float => ! empty($item['flash_sale']) && ! ($coupon->applies_to_sale_items && $coupon->is_stackable)
-                        ? 0.0
-                        : (float) ($item['subtotal'] ?? 0),
+                    static fn (array $item): float => ! empty($item['flash_sale']) ? 0.0 : (float) ($item['subtotal'] ?? 0),
                 );
 
                 if ($eligibleSubtotal <= 0) {
