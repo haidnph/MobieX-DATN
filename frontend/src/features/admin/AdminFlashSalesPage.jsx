@@ -73,7 +73,7 @@ export default function AdminFlashSalesPage() {
   const startCreate = () => {
     setEditingId(null)
     setOriginalItems('')
-    setForm({ ...EMPTY_FORM, items: [{ product_variant_id: '', sale_price: '', quantity_limit: '' }] })
+    setForm({ ...EMPTY_FORM, items: [{ product_variant_id: '', sale_price: '', quantity_limit: '', max_per_customer: '1' }] })
   }
 
   const startEdit = (sale) => {
@@ -81,6 +81,7 @@ export default function AdminFlashSalesPage() {
       product_variant_id: String(item.product_variant_id),
       sale_price: String(item.sale_price),
       quantity_limit: item.quantity_limit == null ? '' : String(item.quantity_limit),
+      max_per_customer: item.max_per_customer == null ? '' : String(item.max_per_customer),
     }))
     setEditingId(sale.id)
     setOriginalItems(JSON.stringify(items))
@@ -110,6 +111,7 @@ export default function AdminFlashSalesPage() {
         product_variant_id: Number(item.product_variant_id),
         sale_price: Number(item.sale_price),
         quantity_limit: item.quantity_limit === '' ? null : Number(item.quantity_limit),
+        max_per_customer: item.max_per_customer === '' ? null : Number(item.max_per_customer),
       }))
       const payload = {
         name: form.name,
@@ -181,17 +183,18 @@ export default function AdminFlashSalesPage() {
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-3">
               <h3 className="font-semibold">Sản phẩm tham gia</h3>
-              <Button type="button" variant="secondary" onClick={() => setForm((current) => ({ ...current, items: [...current.items, { product_variant_id: '', sale_price: '', quantity_limit: '' }] }))}>Thêm phiên bản</Button>
+              <Button type="button" variant="secondary" onClick={() => setForm((current) => ({ ...current, items: [...current.items, { product_variant_id: '', sale_price: '', quantity_limit: '', max_per_customer: '1' }] }))}>Thêm phiên bản</Button>
             </div>
             <Input label="Tìm phiên bản" value={variantSearch} onChange={(event) => setVariantSearch(event.target.value)} placeholder="Tên sản phẩm hoặc SKU" />
             {form.items.map((item, index) => (
-              <div key={index} className="grid gap-3 rounded-xl border border-outline-variant/20 p-3 md:grid-cols-[2fr_1fr_1fr_auto]">
+              <div key={index} className="grid gap-3 rounded-xl border border-outline-variant/20 p-3 md:grid-cols-[2fr_1fr_1fr_1fr_auto]">
                 <select required className="min-w-0 rounded-xl border border-outline-variant/40 bg-surface-container-low px-3 py-2" value={item.product_variant_id} onChange={(event) => updateItem(index, 'product_variant_id', event.target.value)}>
                   <option value="">Chọn phiên bản</option>
                   {filteredVariants.map((variant) => <option key={variant.id} value={variant.id}>{variant.product?.name} · {variant.option_signature || variant.sku} · {formatCurrencyVND(variant.price)}</option>)}
                 </select>
                 <Input label="Giá sale" type="number" min="1" required value={item.sale_price} onChange={(event) => updateItem(index, 'sale_price', event.target.value)} />
                 <Input label="Giới hạn (trống = tồn kho)" type="number" min="1" value={item.quantity_limit} onChange={(event) => updateItem(index, 'quantity_limit', event.target.value)} />
+                <Input label="Tối đa mỗi khách (trống = không giới hạn)" type="number" min="1" value={item.max_per_customer} onChange={(event) => updateItem(index, 'max_per_customer', event.target.value)} />
                 <button type="button" className="self-end rounded-lg px-3 py-2 text-error hover:bg-error/10" aria-label="Xóa phiên bản" onClick={() => setForm((current) => ({ ...current, items: current.items.filter((_, itemIndex) => itemIndex !== index) }))}>Xóa</button>
               </div>
             ))}
