@@ -132,7 +132,7 @@ export default function AdminLayout() {
             return (
               <div key={section.label} className={collapsed && !mobileNavOpen ? 'mb-2 last:mb-0' : 'mb-5 last:mb-0'}>
                 {(!collapsed || mobileNavOpen) && (
-                  <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-outline">{section.label}</p>
+                  <p className="mb-2 px-3 text-[10px] font-extrabold uppercase tracking-[0.14em] text-slate-500 dark:text-on-surface-variant">{section.label}</p>
                 )}
                 <div className="space-y-1">
           {items.map(({ to, icon, label, end }) => (
