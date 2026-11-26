@@ -8,12 +8,30 @@ import { useCompare } from '../../contexts/CompareContext'
 import { useWishlist } from '../../contexts/WishlistContext'
 
 export default function FlashSaleSection({ products = [] }) {
+  const campaigns = useMemo(() => {
+    const grouped = new Map()
+    products.forEach((product) => {
+      const sale = product.flash_sale
+      if (!sale || !sale.id || Number(sale.sale_price) <= 0 || Number(sale.original_price) <= Number(sale.sale_price)) return
+      if (!Number.isFinite(new Date(sale.end_at).getTime()) || new Date(sale.end_at).getTime() <= Date.now()) return
+      const campaignProducts = grouped.get(sale.id) || []
+      campaignProducts.push(product)
+      grouped.set(sale.id, campaignProducts)
+    })
+    return Array.from(grouped.entries())
+  }, [products])
+
+  if (campaigns.length === 0) return null
+
+  return campaigns.map(([campaignId, campaignProducts]) => (
+    <FlashSaleCampaign key={campaignId} products={campaignProducts} />
+  ))
+}
+
+function FlashSaleCampaign({ products }) {
   const { toggleCompare, isInCompare } = useCompare()
   const { toggleWishlist, isInWishlist } = useWishlist()
-  const flashSaleItems = useMemo(() => products.filter((product) => {
-    const sale = product.flash_sale
-    return sale && Number(sale.sale_price) > 0 && Number(sale.original_price) > Number(sale.sale_price)
-  }), [products])
+  const flashSaleItems = products
   const endAt = flashSaleItems[0]?.flash_sale?.end_at
 
   const [timeLeft, setTimeLeft] = useState({
@@ -71,7 +89,7 @@ export default function FlashSaleSection({ products = [] }) {
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-xl md:text-2xl font-black text-on-surface tracking-tight uppercase">
-                Flash Sale Giờ Vàng
+                {flashSaleItems[0]?.flash_sale?.name || 'Flash Sale Giờ Vàng'}
               </h2>
               <span className="px-2 py-0.5 rounded-full bg-error text-white text-[10px] font-bold tracking-wider animate-bounce">
                 HOT
@@ -115,10 +133,11 @@ export default function FlashSaleSection({ products = [] }) {
           const price = Number(sale.sale_price)
           const originalPrice = Number(sale.original_price)
           const discountPercent = Math.round(((originalPrice - price) / originalPrice) * 100)
-          const soldCount = Number(sale.quantity_sold) || 0
-          const reservedCount = Number(sale.quantity_reserved) || 0
-          const remainingCount = Number(sale.quantity_remaining) || 0
-          const totalLimit = Number(sale.quantity_limit) || 0
+          const soldCount = Math.max(0, Number(sale.quantity_sold) || 0)
+          const reservedCount = Math.max(0, Number(sale.quantity_reserved) || 0)
+          const remainingCount = Math.max(0, Number(sale.quantity_remaining) || 0)
+          const hasQuantityLimit = sale.quantity_limit !== null && sale.quantity_limit !== undefined
+          const totalLimit = hasQuantityLimit ? Math.max(0, Number(sale.quantity_limit) || 0) : null
           const progressPercent = totalLimit > 0
             ? Math.min(100, Math.round(((soldCount + reservedCount) / totalLimit) * 100))
             : 0
@@ -199,7 +218,7 @@ export default function FlashSaleSection({ products = [] }) {
                 </div>
 
                 {/* Sold progress bar */}
-                {totalLimit > 0 && <div className="space-y-1">
+                {hasQuantityLimit && totalLimit > 0 ? <div className="space-y-1">
                   <div className="flex items-center justify-between text-[10px] text-on-surface-variant font-medium">
                     <span className="flex items-center gap-0.5 text-error">
                       <span className="material-symbols-outlined text-xs">local_fire_department</span>
@@ -213,7 +232,7 @@ export default function FlashSaleSection({ products = [] }) {
                       style={{ width: `${progressPercent}%` }}
                     />
                   </div>
-                </div>}
+                </div> : !hasQuantityLimit ? <div className="text-[10px] text-on-surface-variant font-medium">Còn {remainingCount} trong kho</div> : null}
               </div>
             </div>
           )

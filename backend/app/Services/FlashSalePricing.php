@@ -33,6 +33,8 @@ class FlashSalePricing
                 $inventory = $variant?->inventory;
 
                 return $variant
+                    && $variant->is_active
+                    && $variant->product?->status === 'active'
                     && $inventory
                     && (float) $item->sale_price < (float) $variant->price
                     && $this->remainingQuantity($item, $userId) > 0;
@@ -47,10 +49,23 @@ class FlashSalePricing
             return PHP_INT_MAX;
         }
         $used = OrderItem::query()
+            ->select('order_items.quantity')
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
             ->where('flash_sale_id', $item->flash_sale_id)
-            ->where('product_variant_id', $item->product_variant_id)
-            ->whereHas('order', fn ($query) => $query->where('user_id', $userId)->where('status', '!=', 'cancelled'))
+            ->where('order_items.product_variant_id', $item->product_variant_id)
+            ->where('orders.user_id', $userId)
+            ->where(function ($query): void {
+                $query->whereIn('orders.flash_sale_reservation_status', ['reserved', 'consumed'])
+                    ->orWhere(function ($legacyQuery): void {
+                        $legacyQuery->whereNull('orders.flash_sale_reservation_status')
+                            ->where('orders.status', '!=', 'cancelled');
+                    });
+            })
+            ->orderBy('order_items.id')
+            ->lockForUpdate()
+            ->get()
             ->sum('quantity');
+
         return max(0, (int) $item->max_per_customer - (int) $used);
     }
 

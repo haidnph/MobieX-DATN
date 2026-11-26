@@ -18,6 +18,7 @@ use App\Models\ShippingMethod;
 use App\Models\User;
 use App\Services\CouponRules;
 use App\Services\FlashSaleOrderService;
+use App\Services\FlashSalePricing;
 use App\Services\OrderMailService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -150,6 +151,8 @@ class OrderController extends Controller
 
             $fromStatus = $order->status;
 
+            app(FlashSaleOrderService::class)->releaseOrderReservations($order);
+
             $order->update([
                 'status' => 'cancelled',
                 'cancelled_at' => now(),
@@ -188,8 +191,6 @@ class OrderController extends Controller
                     'created_at' => now(),
                 ]);
             }
-
-            app(FlashSaleOrderService::class)->releaseOrderReservations($order);
 
             // Release coupon reservation if any
             if ($order->coupon_id) {
@@ -386,7 +387,7 @@ class OrderController extends Controller
                     ->lockForUpdate()
                     ->first();
 
-                if (! $variant || $variant->status !== 'active') {
+                if (! $variant || $variant->status !== 'active' || ! $variant->is_active) {
                     throw ValidationException::withMessages([
                         'cart' => 'Một sản phẩm trong giỏ hàng không còn khả dụng.',
                     ]);
@@ -426,27 +427,26 @@ class OrderController extends Controller
                     ->lockForUpdate()
                     ->get();
 
-                $flashSaleItem = $flashSaleItems->first(function (FlashSaleItem $item) use ($variant, $inventory): bool {
-                    if ((float) $item->sale_price >= (float) $variant->price) {
-                        return false;
-                    }
-
-                    $saleRemaining = $item->quantity_limit === null
-                        ? (int) $inventory->available_quantity
-                        : (int) $item->quantity_limit - (int) $item->quantity_reserved - (int) $item->quantity_sold;
-
-                    return min((int) $inventory->available_quantity, $saleRemaining) > 0;
-                });
+                $flashSaleItem = $flashSaleItems->first(fn (FlashSaleItem $item): bool => (float) $item->sale_price > 0
+                    && (float) $item->sale_price < (float) $variant->price
+                    && $item->variant?->is_active
+                    && $item->variant?->product?->status === 'active'
+                );
 
                 if ($flashSaleItem) {
                     $remainingSaleQuantity = $flashSaleItem->quantity_limit === null
                         ? (int) $inventory->available_quantity
-                        : (int) $flashSaleItem->quantity_limit
+                        : max(0, (int) $flashSaleItem->quantity_limit
                             - (int) $flashSaleItem->quantity_reserved
-                            - (int) $flashSaleItem->quantity_sold;
+                            - (int) $flashSaleItem->quantity_sold);
+                    $remainingCustomerQuantity = app(FlashSalePricing::class)
+                        ->customerRemaining($flashSaleItem, (int) $userId);
+                    $remainingQuantity = min((int) $inventory->available_quantity, $remainingSaleQuantity, $remainingCustomerQuantity);
 
-                    if ((int) $cartItem->quantity > min((int) $inventory->available_quantity, $remainingSaleQuantity)) {
-                        $flashSaleItem = null;
+                    if ((int) $cartItem->quantity > $remainingQuantity) {
+                        throw ValidationException::withMessages([
+                            'cart' => "Sản phẩm {$variant->sku} chỉ còn {$remainingQuantity} suất Flash Sale phù hợp với giới hạn mua của bạn. Vui lòng điều chỉnh giỏ hàng rồi thử lại.",
+                        ]);
                     }
                 }
 
@@ -581,6 +581,9 @@ class OrderController extends Controller
                 'shipping_ward_name' => $validated['shipping_ward_name'] ?? $validated['shipping_ward'] ?? '',
                 'payment_method' => strtolower($validated['payment_method']),
                 'payment_status' => 'pending',
+                'flash_sale_reservation_status' => collect($preparedItems)->contains(fn (array $item): bool => $item['flash_sale_item'] !== null)
+                    ? 'reserved'
+                    : null,
                 'status' => 'pending',
                 'customer_note' => $validated['customer_note'] ?? null,
                 'reservation_expires_at' => strtolower($validated['payment_method']) === 'cod'
