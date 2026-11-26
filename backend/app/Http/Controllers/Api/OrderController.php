@@ -15,6 +15,7 @@ use App\Models\OrderStatusHistory;
 use App\Models\Payment;
 use App\Models\ProductVariant;
 use App\Models\ShippingMethod;
+use App\Models\User;
 use App\Services\CouponRules;
 use App\Services\FlashSaleOrderService;
 use App\Services\OrderMailService;
@@ -27,6 +28,8 @@ use Illuminate\Validation\ValidationException;
 
 class OrderController extends Controller
 {
+    private const MAX_PRODUCT_QUANTITY = 4;
+
     public function __construct(private readonly CouponRules $couponRules) {}
 
     public function index(Request $request): JsonResponse
@@ -307,15 +310,24 @@ class OrderController extends Controller
             $userId = $request->user()->id;
             $customerEmail = $validated['customer_email'] ?? $request->user()?->email;
 
-            $cart = null;
+            User::query()->whereKey($userId)->lockForUpdate()->firstOrFail();
+            $cart = Cart::where('user_id', $userId)
+                ->where('status', 'active')
+                ->lockForUpdate()
+                ->first();
+
             if (! empty($validated['buy_now_variant_id'])) {
+                $buyNowVariant = ProductVariant::whereKey($validated['buy_now_variant_id'])->first();
+                $alreadyInCart = $cart?->items()
+                    ->whereHas('variant', fn ($query) => $query->where('product_id', $buyNowVariant?->product_id))
+                    ->sum('quantity') ?? 0;
+                if ($alreadyInCart + (int) $validated['buy_now_quantity'] > self::MAX_PRODUCT_QUANTITY) {
+                    throw ValidationException::withMessages([
+                        'quantity' => 'Bạn chỉ có thể mua tối đa 4 chiếc cho mỗi sản phẩm trong một đơn hàng.',
+                    ]);
+                }
                 $cartItems = collect([(object) ['variant_id' => $validated['buy_now_variant_id'], 'quantity' => $validated['buy_now_quantity']]]);
             } else {
-                $cart = Cart::where('user_id', $userId)
-                    ->where('status', 'active')
-                    ->lockForUpdate()
-                    ->first();
-
                 if (! $cart) {
                     throw ValidationException::withMessages([
                         'cart' => 'Không tìm thấy giỏ hàng đang hoạt động.',
@@ -330,6 +342,17 @@ class OrderController extends Controller
             if ($cartItems->isEmpty()) {
                 throw ValidationException::withMessages([
                     'cart' => 'Giỏ hàng đang trống.',
+                ]);
+            }
+
+            $productQuantities = [];
+            foreach ($cartItems as $cartItem) {
+                $productId = ProductVariant::whereKey($cartItem->variant_id)->value('product_id');
+                $productQuantities[$productId] = ($productQuantities[$productId] ?? 0) + (int) $cartItem->quantity;
+            }
+            if (collect($productQuantities)->contains(fn (int $quantity): bool => $quantity > self::MAX_PRODUCT_QUANTITY)) {
+                throw ValidationException::withMessages([
+                    'cart' => 'Bạn chỉ có thể mua tối đa 4 chiếc cho mỗi sản phẩm trong một đơn hàng. Vui lòng điều chỉnh giỏ hàng.',
                 ]);
             }
 
