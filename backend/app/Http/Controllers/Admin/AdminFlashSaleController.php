@@ -69,7 +69,7 @@ class AdminFlashSaleController extends Controller
                 ...$validated,
                 'created_by_user_id' => $request->user()->id,
             ]);
-            $sale->items()->createMany($items);
+            $sale->items()->createMany(array_map(fn ($item) => $item + ['max_per_customer' => 1], $items));
 
             return $sale->load(['items.variant.product', 'creator:id,name']);
         });
@@ -99,11 +99,12 @@ class AdminFlashSaleController extends Controller
 
             if ($configurationChanged) {
                 $configurationItems = $items ?? $lockedSale->items()
-                    ->get(['product_variant_id', 'sale_price', 'quantity_limit'])
+                    ->get(['product_variant_id', 'sale_price', 'quantity_limit', 'max_per_customer'])
                     ->map(static fn ($item): array => [
                         'product_variant_id' => $item->product_variant_id,
                         'sale_price' => $item->sale_price,
                         'quantity_limit' => $item->quantity_limit,
+                        'max_per_customer' => $item->max_per_customer,
                     ])->all();
                 $this->assertSaleConfiguration(
                     $configurationItems,
@@ -128,7 +129,7 @@ class AdminFlashSaleController extends Controller
                 }
 
                 $lockedSale->items()->delete();
-                $lockedSale->items()->createMany($items);
+                $lockedSale->items()->createMany(array_map(fn ($item) => $item + ['max_per_customer' => 1], $items));
             }
 
             $lockedSale->update($validated);
@@ -196,6 +197,7 @@ class AdminFlashSaleController extends Controller
             'items.*.product_variant_id' => ['required_with:items', 'integer', 'distinct', 'exists:product_variants,id'],
             'items.*.sale_price' => ['required_with:items', 'numeric', 'gt:0'],
             'items.*.quantity_limit' => ['nullable', 'integer', 'min:1'],
+            'items.*.max_per_customer' => ['nullable', 'integer', 'min:1'],
         ]);
 
         $startAt = $validated['start_at'] ?? $existing?->start_at;
@@ -239,6 +241,12 @@ class AdminFlashSaleController extends Controller
             if ((float) $item['sale_price'] >= (float) $variant->price) {
                 throw ValidationException::withMessages([
                     "items.{$index}.sale_price" => 'Giá Flash Sale phải thấp hơn giá bán hiện tại.',
+                ]);
+            }
+
+            if (isset($item['quantity_limit'], $item['max_per_customer']) && $item['max_per_customer'] > $item['quantity_limit']) {
+                throw ValidationException::withMessages([
+                    "items.{$index}.max_per_customer" => 'Giới hạn mỗi khách không được vượt tổng suất.',
                 ]);
             }
 
