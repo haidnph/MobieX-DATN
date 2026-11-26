@@ -14,11 +14,14 @@ class Coupon extends Model
 
     protected $fillable = [
         'code',
+        'name',
+        'description',
         'discount_type',
         'discount_value',
         'min_order_amount',
         'max_discount',
         'usage_limit',
+        'issued_quantity',
         'max_uses_per_customer',
         'reserved_count',
         'used_count',
@@ -26,6 +29,8 @@ class Coupon extends Model
         'end_at',
         'is_active',
         'show_on_home',
+        'applies_to_sale_items',
+        'is_stackable',
     ];
 
     protected function casts(): array
@@ -35,6 +40,7 @@ class Coupon extends Model
             'min_order_amount' => 'decimal:2',
             'max_discount' => 'decimal:2',
             'usage_limit' => 'integer',
+            'issued_quantity' => 'integer',
             'max_uses_per_customer' => 'integer',
             'reserved_count' => 'integer',
             'used_count' => 'integer',
@@ -42,6 +48,8 @@ class Coupon extends Model
             'end_at' => 'datetime',
             'is_active' => 'boolean',
             'show_on_home' => 'boolean',
+            'applies_to_sale_items' => 'boolean',
+            'is_stackable' => 'boolean',
         ];
     }
 
@@ -58,5 +66,20 @@ class Coupon extends Model
     public function products(): BelongsToMany
     {
         return $this->belongsToMany(Product::class, 'coupon_products');
+    }
+
+    public function categories(): BelongsToMany
+    {
+        return $this->belongsToMany(Category::class, 'coupon_categories');
+    }
+
+    public function brands(): BelongsToMany
+    {
+        return $this->belongsToMany(Brand::class, 'coupon_brands');
+    }
+
+    public function collectors(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'user_coupons');
     }
 }
