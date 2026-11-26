@@ -181,6 +181,19 @@ export default function HomepagePreviewModal({ open = false, onClose }) {
                       </div>
                     )}
 
+                    {sec.section_type === 'vouchers' && (
+                      <div className={`grid gap-2 ${device === 'mobile' ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                        {(sec.items || []).map((coupon) => (
+                          <div key={coupon.id} className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs">
+                            <p className="font-bold text-primary">{coupon.code}</p>
+                            <p className="font-semibold text-on-surface">{coupon.name || coupon.discount_value}{coupon.discount_type === 'percent' ? '%' : 'đ'}</p>
+                            <p className="text-on-surface-variant">Đơn tối thiểu {formatCurrencyVND(Number(coupon.min_order_amount || 0))}</p>
+                          </div>
+                        ))}
+                        {(sec.items || []).length === 0 && <p className="text-xs text-outline">Chưa chọn voucher để hiển thị.</p>}
+                      </div>
+                    )}
+
                     {sec.section_type === 'banner_promo' && (
                       <div className="p-4 rounded-xl bg-gradient-to-r from-primary-container/20 to-surface-container flex items-center justify-between">
                         <div>

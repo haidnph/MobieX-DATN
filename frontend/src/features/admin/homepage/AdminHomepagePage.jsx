@@ -19,6 +19,7 @@ const SECTION_TYPE_META = {
   banner_slider:   { label: 'Hero Banner Slider', icon: 'view_carousel', color: 'text-primary' },
   categories:      { label: 'Danh mục sản phẩm', icon: 'category', color: 'text-secondary' },
   flash_sale:      { label: 'Flash Sale Giờ Vàng', icon: 'local_fire_department', color: 'text-error' },
+  vouchers:        { label: 'Săn Voucher Ưu Đãi', icon: 'confirmation_number', color: 'text-primary' },
   products:        { label: 'Sản phẩm nổi bật / Mới về', icon: 'inventory_2', color: 'text-tertiary' },
   banner_promo:    { label: 'Banner quảng bá / CTA', icon: 'featured_play_list', color: 'text-primary' },
   brands:          { label: 'Thương hiệu đối tác', icon: 'store', color: 'text-secondary' },

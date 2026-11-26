@@ -6,6 +6,8 @@ import Modal from '../../../components/common/Modal'
 import Input from '../../../components/common/Input'
 import Button from '../../../components/common/Button'
 import ProductPickerModal from './ProductPickerModal'
+import axiosClient from '../../../api/axiosClient'
+import EP from '../../../api/endpoints'
 
 export default function SectionEditModal({
   open = false,
@@ -25,6 +27,7 @@ export default function SectionEditModal({
   })
 
   const [productPickerOpen, setProductPickerOpen] = useState(false)
+  const [coupons, setCoupons] = useState([])
 
   useEffect(() => {
     if (section) {
@@ -38,6 +41,13 @@ export default function SectionEditModal({
       })
     }
   }, [section])
+
+  useEffect(() => {
+    if (section?.section_type !== 'vouchers') return
+    axiosClient.get(EP.ADMIN_COUPONS, { params: { per_page: 100, is_active: true } })
+      .then(({ data }) => setCoupons(data?.data ?? []))
+      .catch(() => setCoupons([]))
+  }, [section?.id, section?.section_type])
 
   if (!section) return null
 
@@ -148,6 +158,37 @@ export default function SectionEditModal({
                   Xóa danh sách chỉ định (hiển thị tự động)
                 </button>
               )}
+            </div>
+          )}
+
+          {section.section_type === 'vouchers' && (
+            <div className="p-4 rounded-xl bg-surface-container-high/50 border border-outline-variant/20 space-y-3">
+              <div>
+                <span className="text-xs font-bold text-on-surface block">Voucher hiển thị</span>
+                <span className="text-[11px] text-on-surface-variant">Chỉ voucher đang hoạt động và còn hạn mới xuất hiện trên Storefront.</span>
+              </div>
+              <div className="max-h-52 overflow-y-auto space-y-2">
+                {coupons.map((coupon) => {
+                  const selectedIds = (form.settings?.coupon_ids || []).map(Number)
+                  return (
+                    <label key={coupon.id} className="flex items-center gap-2 text-xs cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(Number(coupon.id))}
+                        onChange={(event) => {
+                          const next = event.target.checked
+                            ? [...selectedIds, Number(coupon.id)]
+                            : selectedIds.filter((id) => id !== Number(coupon.id))
+                          handleSettingChange('coupon_ids', next)
+                        }}
+                      />
+                      <span className="font-mono font-bold">{coupon.code}</span>
+                      <span>{coupon.name || coupon.discount_type === 'percent' ? coupon.name || `${coupon.discount_value}%` : `${coupon.discount_value}đ`}</span>
+                    </label>
+                  )
+                })}
+                {coupons.length === 0 && <p className="text-xs text-on-surface-variant">Chưa có voucher hoạt động.</p>}
+              </div>
             </div>
           )}
 

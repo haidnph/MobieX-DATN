@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Banner;
 use App\Models\Brand;
 use App\Models\Category;
+use App\Models\Coupon;
 use App\Models\FlashSale;
 use App\Models\FlashSaleItem;
 use App\Models\HomepageAuditLog;
@@ -57,6 +58,17 @@ class HomepageService
                 ],
             ],
             [
+                'section_key' => 'voucher_hunt',
+                'title' => 'Săn Voucher Ưu Đãi',
+                'subtitle' => 'Lưu mã giảm giá và dùng khi thanh toán',
+                'section_type' => 'vouchers',
+                'layout_type' => 'grid',
+                'items_limit' => 6,
+                'sort_order' => 4,
+                'is_active' => true,
+                'settings' => ['coupon_ids' => []],
+            ],
+            [
                 'section_key' => 'flash_sale',
                 'title' => 'Flash Sale Giờ Vàng',
                 'subtitle' => 'Ưu đãi giảm giá sốc có hạn trong ngày',
@@ -77,7 +89,7 @@ class HomepageService
                 'section_type' => 'products',
                 'layout_type' => 'grid',
                 'items_limit' => 8,
-                'sort_order' => 4,
+                'sort_order' => 5,
                 'is_active' => true,
                 'settings' => [
                     'product_ids' => [],
@@ -91,7 +103,7 @@ class HomepageService
                 'section_type' => 'banner_promo',
                 'layout_type' => 'split',
                 'items_limit' => 1,
-                'sort_order' => 5,
+                'sort_order' => 6,
                 'is_active' => true,
                 'settings' => [
                     'cta_label' => 'Mua sắm ngay',
@@ -106,7 +118,7 @@ class HomepageService
                 'section_type' => 'brands',
                 'layout_type' => 'grid',
                 'items_limit' => 8,
-                'sort_order' => 6,
+                'sort_order' => 7,
                 'is_active' => true,
                 'settings' => [
                     'brand_ids' => [],
@@ -120,7 +132,7 @@ class HomepageService
                 'section_type' => 'products',
                 'layout_type' => 'grid',
                 'items_limit' => 4,
-                'sort_order' => 7,
+                'sort_order' => 8,
                 'is_active' => true,
                 'settings' => [
                     'sort_by' => 'newest',
@@ -134,7 +146,7 @@ class HomepageService
                 'section_type' => 'trust_services',
                 'layout_type' => 'standard',
                 'items_limit' => 4,
-                'sort_order' => 8,
+                'sort_order' => 9,
                 'is_active' => true,
                 'settings' => [
                     'items' => [
@@ -168,7 +180,7 @@ class HomepageService
                 'section_type' => 'recently_viewed',
                 'layout_type' => 'grid',
                 'items_limit' => 6,
-                'sort_order' => 9,
+                'sort_order' => 10,
                 'is_active' => true,
                 'settings' => [
                     'items_limit' => 6,
@@ -659,6 +671,29 @@ class HomepageService
                             ]);
                         })
                         ->values();
+                } else {
+                    $items = collect();
+                }
+                break;
+
+            case 'vouchers':
+                $couponIds = array_values(array_filter(array_map('intval', $settings['coupon_ids'] ?? [])));
+                $query = Coupon::query()
+                    ->where('is_active', true)
+                    ->where(function ($couponQuery): void {
+                        $couponQuery->whereNull('start_at')->orWhere('start_at', '<=', now());
+                    })
+                    ->where(function ($couponQuery): void {
+                        $couponQuery->whereNull('end_at')->orWhere('end_at', '>=', now());
+                    })
+                    ->where(function ($couponQuery): void {
+                        $couponQuery->whereNull('usage_limit')->orWhereRaw('(used_count + reserved_count) < usage_limit');
+                    })
+                    ->with(['products:id,name', 'categories:id,name', 'brands:id,name']);
+                if ($couponIds !== []) {
+                    $query->whereIn('id', $couponIds);
+                    $coupons = $query->get()->keyBy('id');
+                    $items = collect($couponIds)->map(static fn (int $id) => $coupons->get($id))->filter()->take($limit)->values();
                 } else {
                     $items = collect();
                 }

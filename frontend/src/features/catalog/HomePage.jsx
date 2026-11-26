@@ -514,7 +514,6 @@ export default function HomePage() {
 
   return (
     <div className="w-full px-4 sm:px-6 lg:px-10 xl:px-12 py-6 space-y-12">
-      <VoucherWallet home />
       {sections.map((section, idx) => {
         // Enforce rule: Section disabled in Admin must NOT appear
         if (!section.is_active) return null
@@ -538,6 +537,18 @@ export default function HomePage() {
               <section key={section.id || idx}>
                 <FlashSaleSection products={section.items} />
               </section>
+            )
+
+          case 'vouchers':
+            return (
+              <VoucherWallet
+                key={section.id || idx}
+                home
+                title={section.title}
+                subtitle={section.subtitle}
+                couponIds={section.settings?.coupon_ids || []}
+                limit={section.items_limit}
+              />
             )
 
           case 'products':

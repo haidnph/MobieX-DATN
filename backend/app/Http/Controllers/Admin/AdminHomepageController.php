@@ -43,6 +43,8 @@ class AdminHomepageController extends Controller
             'sort_order' => ['sometimes', 'required', 'integer', 'min:0'],
             'is_active' => ['sometimes', 'required', 'boolean'],
             'settings' => ['nullable', 'array'],
+            'settings.coupon_ids' => ['sometimes', 'array'],
+            'settings.coupon_ids.*' => ['integer', 'distinct', 'exists:coupons,id'],
         ]);
 
         $updated = $this->homepageService->updateSection($section, $validated, $request->user());
