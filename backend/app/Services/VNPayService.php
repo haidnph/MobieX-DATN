@@ -232,6 +232,35 @@ class VNPayService
         }
     }
 
+    /**
+     * Query VNPay transaction status (querydr) server-to-server for delayed IPN verification.
+     *
+     * @param  array{
+     *     request_id: string,
+     *     transaction_reference: string,
+     *     transaction_date: string,
+     *     ip_address?: string,
+     *     description?: string,
+     * }  $data
+     * @return array<string, mixed>
+     */
+    public function queryTransactionStatus(array $data): array
+    {
+        return $this->queryRefund([
+            'query_request_id' => $data['request_id'],
+            'transaction_reference' => $data['transaction_reference'],
+            'transaction_date' => $data['transaction_date'],
+            'ip_address' => $data['ip_address'] ?? '127.0.0.1',
+            'description' => $data['description'] ?? ('Query order '.$data['transaction_reference']),
+        ]);
+    }
+
+    /** @param array<string, mixed> $response */
+    public function verifyTransactionApiResponse(array $response): bool
+    {
+        return $this->verifyRefundApiResponse($response);
+    }
+
     /** @param array<string, mixed> $response */
     public function verifyRefundApiResponse(array $response): bool
     {

@@ -1,15 +1,15 @@
 // src/features/orders/OrderDetailPage.jsx
 // Order details view with live timeline, cancellation modal, and verified review triggers.
 
-import { useEffect, useState } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useState } from 'react'
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import axiosClient from '../../api/axiosClient'
 import EP from '../../api/endpoints'
 import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
 import { formatDateTime } from '../../utils/formatDate'
-import { useAuth } from '../../contexts/AuthContext'
 import { useCart } from '../../contexts/CartContext'
 import { useToast } from '../../contexts/ToastContext'
+import { getGatewayConfig, isOnlineGateway, subscribePaymentResult } from '../../utils/paymentTabSync'
 import Badge from '../../components/common/Badge'
 import Button from '../../components/common/Button'
 import Modal from '../../components/common/Modal'
@@ -28,12 +28,14 @@ const STATUS_CONFIG = {
 
 export default function OrderDetailPage() {
   const { id } = useParams()
+  const [searchParams] = useSearchParams()
   const { showToast } = useToast()
   const { addToCart } = useCart()
   const navigate = useNavigate()
 
   const [order, setOrder] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [verifyingPayment, setVerifyingPayment] = useState(false)
 
   // Reorder state
   const [reordering, setReordering] = useState(false)
@@ -75,18 +77,52 @@ export default function OrderDetailPage() {
     }
   }
 
-  const fetchOrderDetail = () => {
-    setLoading(true)
+  const fetchOrderDetail = useCallback((silent = false) => {
+    if (!silent) setLoading(true)
     axiosClient
       .get(EP.ORDER_DETAIL(id))
       .then(({ data }) => setOrder(data.data ?? data))
-      .catch((err) => showToast(err.message || 'Không tìm thấy đơn hàng', 'error'))
-      .finally(() => setLoading(false))
-  }
+      .catch((err) => {
+        if (!silent) showToast(err.message || 'Không tìm thấy đơn hàng', 'error')
+      })
+      .finally(() => {
+        if (!silent) setLoading(false)
+      })
+  }, [id, showToast])
 
   useEffect(() => {
     fetchOrderDetail()
-  }, [id])
+  }, [fetchOrderDetail])
+
+  // Instant cross-tab sync if user completes payment in separate tab while viewing OrderDetail
+  useEffect(() => {
+    if (!id) return undefined
+    return subscribePaymentResult(id, (event) => {
+      if (event?.status === 'paid') {
+        showToast('Thanh toán đơn hàng đã được xác nhận!', 'success')
+      }
+      fetchOrderDetail(true)
+    })
+  }, [id, fetchOrderDetail, showToast])
+
+  const handleVerifyPaymentStatus = async () => {
+    if (!id || verifyingPayment) return
+    setVerifyingPayment(true)
+    try {
+      const { data } = await axiosClient.post(EP.PAYMENT_VERIFY_STATUS(id), {}, { timeout: 15000 })
+      const resData = data.data ?? data
+      if (resData?.payment_status === 'paid') {
+        showToast('Thanh toán đã được xác nhận từ cổng thanh toán!', 'success')
+      } else {
+        showToast(data.message || 'Đơn hàng vẫn đang chờ xác nhận thanh toán.', 'info')
+      }
+      fetchOrderDetail(true)
+    } catch (err) {
+      showToast(err.message || 'Không thể kiểm tra trạng thái thanh toán.', 'error')
+    } finally {
+      setVerifyingPayment(false)
+    }
+  }
 
   const handleCancelOrder = async () => {
     if (!cancelReason.trim()) {
@@ -143,11 +179,60 @@ export default function OrderDetailPage() {
   const cfg = STATUS_CONFIG[order.status] || { label: order.status, variant: 'neutral', icon: 'info' }
   const items = order.items ?? []
   const histories = order.status_histories ?? []
-  const isCancellable = order.status === 'pending'
+  const isCancellable = order.status === 'pending' && order.payment_status !== 'paid'
   const isDelivered = order.status === 'delivered'
+  const isPaid = order.payment_status === 'settled' || order.payment_status === 'paid'
+  const isPaymentFailed = order.payment_status === 'failed'
+  const isPaymentRefunded = order.payment_status === 'refunded'
+  const methodLower = (order.payment_method || 'cod').toLowerCase()
+  const canPayOnlineNow =
+    order.status === 'pending' &&
+    !isPaid &&
+    (isOnlineGateway(methodLower) || methodLower === 'bank_transfer')
+
+  const paymentMethodLabel = {
+    vnpay: 'VNPay',
+    zalopay: 'ZaloPay',
+    momo: 'Ví MoMo',
+    bank_transfer: 'Chuyển khoản VietQR',
+    cod: 'Thanh toán khi nhận hàng (COD)',
+  }[methodLower] || order.payment_method
+
+  const payRouteMap = {
+    vnpay: `/payment/vnpay?order_id=${order.id}`,
+    zalopay: `/payment/zalopay?order_id=${order.id}`,
+    momo: `/payment/momo?order_id=${order.id}`,
+    bank_transfer: `/payment/bank-transfer?order_id=${order.id}`,
+  }
+
+  const showPaymentSuccessBanner = searchParams.get('payment_success') === '1' && isPaid
+  const showCodSuccessBanner = searchParams.get('success') === '1' && methodLower === 'cod'
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-8 lg:px-16 py-8 space-y-8">
+      {showPaymentSuccessBanner && (
+        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 sm:p-5 flex items-center gap-3 text-emerald-700 dark:text-emerald-300">
+          <span className="material-symbols-outlined text-2xl shrink-0">check_circle</span>
+          <div className="text-sm">
+            <p className="font-bold">Thanh toán trực tuyến thành công!</p>
+            <p className="text-xs text-on-surface-variant mt-0.5">
+              Đơn hàng #{order.order_code || order.id} đã được xác nhận thanh toán qua {paymentMethodLabel}.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {showCodSuccessBanner && (
+        <div className="bg-primary/10 border border-primary/25 rounded-2xl p-4 sm:p-5 flex items-center gap-3">
+          <span className="material-symbols-outlined text-2xl text-primary shrink-0">local_shipping</span>
+          <div className="text-sm">
+            <p className="font-bold text-on-surface">Đặt hàng thành công!</p>
+            <p className="text-xs text-on-surface-variant mt-0.5">
+              Đơn hàng #{order.order_code || order.id} đã được tiếp nhận. Bạn sẽ thanh toán khi nhận hàng (COD).
+            </p>
+          </div>
+        </div>
+      )}
       {/* Breadcrumb & Actions */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <nav className="flex items-center gap-2 text-sm text-on-surface-variant">
@@ -189,10 +274,10 @@ export default function OrderDetailPage() {
           {/* Invoice print link — available once order is confirmed */}
           {order.status !== 'pending' && order.status !== 'cancelled' && (
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               onClick={() => navigate(`/orders/${id}/invoice`)}
-              className="border-outline-variant/40 text-on-surface-variant hover:border-primary hover:text-primary"
+              className="border border-outline-variant/40 text-on-surface-variant hover:border-primary hover:text-primary"
             >
               <span className="material-symbols-outlined text-base">receipt_long</span>
               In hóa đơn
@@ -245,32 +330,92 @@ export default function OrderDetailPage() {
             <h3 className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">
               Địa chỉ nhận hàng
             </h3>
-            <p className="text-sm font-semibold text-on-surface">{order.recipient_name || order.user?.name}</p>
-            <p className="text-xs text-on-surface-variant">{order.recipient_phone || order.phone}</p>
-            <p className="text-xs text-on-surface-variant leading-relaxed">{order.shipping_address}</p>
-            {order.note && (
-              <p className="text-xs text-outline italic pt-1">Ghi chú: {order.note}</p>
+            <p className="text-sm font-semibold text-on-surface">
+              {order.shipping_name || order.recipient_name || order.user?.name}
+            </p>
+            <p className="text-xs text-on-surface-variant font-mono">
+              {order.shipping_phone || order.recipient_phone || order.phone}
+            </p>
+            <p className="text-xs text-on-surface-variant leading-relaxed">
+              {[
+                order.shipping_address_line || order.shipping_address,
+                order.shipping_ward_name,
+                order.shipping_province_name,
+              ]
+                .filter(Boolean)
+                .join(', ') || '—'}
+            </p>
+            {(order.customer_note || order.note) && (
+              <p className="text-xs text-outline italic pt-1">
+                Ghi chú: {order.customer_note || order.note}
+              </p>
             )}
           </div>
 
-          <div className="bg-surface-container-low rounded-xl p-4 space-y-2">
+          <div className="bg-surface-container-low rounded-xl p-4 space-y-3">
             <h3 className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">
               Thông tin thanh toán
             </h3>
-            <div className="flex justify-between text-xs">
+            <div className="flex justify-between text-xs items-center">
               <span className="text-outline">Phương thức:</span>
-              <span className="font-semibold text-on-surface uppercase">{order.payment_method || 'COD'}</span>
+              <span className="font-semibold text-on-surface">{paymentMethodLabel}</span>
             </div>
-            <div className="flex justify-between text-xs">
+            <div className="flex justify-between text-xs items-center">
               <span className="text-outline">Trạng thái thanh toán:</span>
-              <span className="font-semibold text-secondary">
-                {order.payment_status === 'settled' || order.payment_status === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán'}
+              <span className={`font-semibold px-2 py-0.5 rounded-full text-[11px] ${
+                isPaid
+                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                  : isPaymentFailed
+                    ? 'bg-error/15 text-error'
+                    : isPaymentRefunded
+                      ? 'bg-primary/15 text-primary'
+                      : 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+              }`}>
+                {isPaid
+                  ? 'Đã thanh toán'
+                  : isPaymentFailed
+                    ? 'Thanh toán thất bại'
+                    : isPaymentRefunded
+                      ? 'Đã hoàn tiền'
+                      : methodLower === 'cod'
+                        ? 'Thanh toán khi nhận hàng'
+                        : 'Chờ thanh toán'}
               </span>
             </div>
             {order.coupon_code && (
               <div className="flex justify-between text-xs">
                 <span className="text-outline">Mã ưu đãi áp dụng:</span>
                 <span className="font-mono text-secondary">{order.coupon_code}</span>
+              </div>
+            )}
+
+            {canPayOnlineNow && (
+              <div className="pt-2 border-t border-outline-variant/15 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  onClick={() => navigate(payRouteMap[methodLower])}
+                  className="flex-1 text-xs"
+                >
+                  <span className="material-symbols-outlined text-sm">payments</span>
+                  {isPaymentFailed
+                    ? `Thử thanh toán lại ${getGatewayConfig(methodLower)?.label || ''}`
+                    : `Thanh toán ngay`}
+                </Button>
+                {isOnlineGateway(methodLower) && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    loading={verifyingPayment}
+                    onClick={handleVerifyPaymentStatus}
+                    className="border border-outline-variant/30 text-xs"
+                  >
+                    <span className="material-symbols-outlined text-sm">sync</span>
+                    Kiểm tra trạng thái
+                  </Button>
+                )}
               </div>
             )}
           </div>

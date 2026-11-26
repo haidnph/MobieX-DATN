@@ -740,6 +740,11 @@ Route::middleware([
     Route::post('/payments/bank-transfer/confirm-paid', [PaymentController::class, 'confirmBankTransferPaid'])
         ->name('api.payments.bank.confirm-paid');
 
+    Route::post('/payments/orders/{orderId}/verify-status', [PaymentController::class, 'verifyOrderPaymentStatus'])
+        ->whereNumber('orderId')
+        ->middleware('throttle:30,1')
+        ->name('api.payments.orders.verify-status');
+
 });
 
 /*

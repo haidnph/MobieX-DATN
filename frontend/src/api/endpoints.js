@@ -62,6 +62,7 @@ const EP = {
   PAYMENT_MOMO_RETURN: '/payments/momo/return',
   PAYMENT_BANK_CREATE: '/payments/bank-transfer/create',
   PAYMENT_BANK_CONFIRM_PAID: '/payments/bank-transfer/confirm-paid',
+  PAYMENT_VERIFY_STATUS: (orderId) => `/payments/orders/${orderId}/verify-status`,
 
   // ── Admin: Orders ─────────────────────────────────────
   ADMIN_ORDERS: '/admin/orders',

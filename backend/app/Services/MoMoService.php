@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -96,7 +97,12 @@ class MoMoService
         }
 
         try {
-            $response = Http::retry(3, 300)
+            $response = Http::retry(
+                2,
+                250,
+                static fn (\Exception $exception): bool => $exception instanceof ConnectionException,
+                throw: false
+            )
                 ->timeout(10)
                 ->withHeaders([
                     'Content-Type' => 'application/json; charset=UTF-8',
@@ -145,7 +151,7 @@ class MoMoService
 
             return [
                 'status' => 'failed',
-                'message' => "MoMo Sandbox trả lỗi HTTP {$response->status()} (mã {$resultCode}). Kiểm tra cấu hình Sandbox và log backend.",
+                'message' => "Cổng thanh toán MoMo từ chối yêu cầu (HTTP {$response->status()} · mã {$resultCode}). Vui lòng kiểm tra cấu hình merchant MoMo hoặc thử phương thức khác.",
             ];
         } catch (\Throwable $e) {
             Log::warning('MoMo create payment connection exception', [
@@ -221,11 +227,15 @@ class MoMoService
      */
     public function queryOrderStatus(string $orderId, string $requestId): array
     {
+        if (! $this->isConfigured()) {
+            return ['resultCode' => 99, 'transport_error' => true, 'message' => 'MoMo credentials are not configured.'];
+        }
+
         $rawHash = "accessKey={$this->accessKey}&orderId={$orderId}&partnerCode={$this->partnerCode}&requestId={$requestId}";
         $signature = hash_hmac('sha256', $rawHash, $this->secretKey);
 
         try {
-            $response = Http::timeout(10)->post($this->queryEndpoint, [
+            $response = Http::timeout(10)->acceptJson()->post($this->queryEndpoint, [
                 'partnerCode' => $this->partnerCode,
                 'requestId' => $requestId,
                 'orderId' => $orderId,
@@ -234,7 +244,7 @@ class MoMoService
             ]);
 
             if ($response->successful()) {
-                return $response->json();
+                return $response->json() ?: ['resultCode' => 99, 'transport_error' => true, 'message' => 'Empty response from MoMo.'];
             }
         } catch (\Throwable $e) {
             Log::warning('MoMo Query Order Exception: '.$e->getMessage());
@@ -242,6 +252,7 @@ class MoMoService
 
         return [
             'resultCode' => 99,
+            'transport_error' => true,
             'message' => 'Không thể kết nối truy vấn trạng thái MoMo.',
         ];
     }

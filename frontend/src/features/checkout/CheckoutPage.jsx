@@ -1,8 +1,9 @@
 import VoucherWallet from '../../components/common/VoucherWallet'
 // src/features/checkout/CheckoutPage.jsx
-// Order checkout page: shipping information, payment method selection, and atomic order creation.
+// Order checkout page: shipping information, payment method selection, atomic order creation,
+// and separate-tab online payment session coordination.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useCart } from '../../contexts/CartContext'
 import { useAuth } from '../../contexts/AuthContext'
@@ -12,6 +13,17 @@ import EP from '../../api/endpoints'
 import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
 import Button from '../../components/common/Button'
 import Input from '../../components/common/Input'
+import PaymentWaitingPanel from './PaymentWaitingPanel'
+import {
+  clearActivePaymentSession,
+  closeReservedTab,
+  getGatewayConfig,
+  isOnlineGateway,
+  loadActivePaymentSession,
+  navigateReservedTab,
+  reserveGatewayTab,
+  saveActivePaymentSession,
+} from '../../utils/paymentTabSync'
 export default function CheckoutPage() {
   const cart = useCart()
   const [search] = useSearchParams()
@@ -61,6 +73,45 @@ export default function CheckoutPage() {
   const [shippingMethods, setShippingMethods] = useState([])
   const [selectedShippingId, setSelectedShippingId] = useState(null)
   const [shippingFee, setShippingFee] = useState(0)
+
+  // Separate-tab online payment session state (preserves MobieX Checkout tab cleanly)
+  const [activePaymentSession, setActivePaymentSession] = useState(null)
+  const submittingRef = useRef(false)
+  const paymentTabRef = useRef(null)
+
+  // Restore pending payment session on page reload when cart became empty due to created order
+  useEffect(() => {
+    if (direct || activePaymentSession || cart.loading || cartItems.length > 0) return
+    const saved = loadActivePaymentSession()
+    if (!saved?.orderId) return
+
+    let active = true
+    axiosClient
+      .get(EP.ORDER_DETAIL(saved.orderId))
+      .then(({ data }) => {
+        if (!active) return
+        const ord = data.data ?? data
+        if (ord.status === 'cancelled') {
+          clearActivePaymentSession()
+          return
+        }
+        setActivePaymentSession({
+          orderId: ord.id,
+          gateway: saved.gateway,
+          order: ord,
+          paymentData: null,
+          popupBlocked: false,
+          tabOpened: false,
+          createError: '',
+          checkoutSnapshot: saved.checkoutSnapshot || null,
+        })
+      })
+      .catch(() => {
+        clearActivePaymentSession()
+      })
+
+    return () => { active = false }
+  }, [direct, activePaymentSession, cart.loading, cartItems.length])
 
   // ── Fetch saved addresses ──────────────────────────────────────────────────
   useEffect(() => {
@@ -156,75 +207,210 @@ export default function CheckoutPage() {
     }
   }
 
+  const validateCheckoutForm = () => {
+    const nextErrors = {}
+    if (!form.recipient_name?.trim()) {
+      nextErrors.recipient_name = ['Vui lòng nhập họ và tên người nhận.']
+    }
+    if (!form.phone?.trim()) {
+      nextErrors.phone = ['Vui lòng nhập số điện thoại nhận hàng.']
+    }
+    if (form.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      nextErrors.email = ['Địa chỉ email không hợp lệ.']
+    }
+    if (!form.shipping_address?.trim()) {
+      nextErrors.shipping_address = ['Vui lòng nhập địa chỉ giao hàng chi tiết.']
+    }
+    if (!form.city?.trim()) {
+      nextErrors.city = ['Vui lòng nhập Tỉnh / Thành phố.']
+    }
+    return nextErrors
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (submittingRef.current || submitting) return
+
     if (cartItems.length === 0) {
       showToast('Giỏ hàng của bạn đang trống', 'error')
       navigate('/cart')
       return
     }
 
+    const clientErrors = validateCheckoutForm()
+    if (Object.keys(clientErrors).length > 0) {
+      setErrors(clientErrors)
+      showToast('Vui lòng kiểm tra lại thông tin giao hàng.', 'warning')
+      return
+    }
+
+    submittingRef.current = true
     setSubmitting(true)
     setErrors({})
 
+    const method = form.payment_method
+    const onlineGateway = isOnlineGateway(method)
+    const gatewayCfg = onlineGateway ? getGatewayConfig(method) : null
+
+    // Synchronously reserve separate tab inside click gesture BEFORE async calls
+    let reservedTabInfo = { tab: null, blocked: false }
+    if (onlineGateway) {
+      reservedTabInfo = reserveGatewayTab(paymentTabRef.current, gatewayCfg.label)
+      if (reservedTabInfo.tab) {
+        paymentTabRef.current = reservedTabInfo.tab
+      }
+    }
+
     try {
-      // Build order payload matching backend OrderController store endpoint
       const selectedAddress = !useCustomAddress
         ? savedAddresses.find((address) => address.id === selectedAddressId)
         : null
       const payload = {
-        shipping_name: form.recipient_name,
-        recipient_name: form.recipient_name,
-        shipping_phone: form.phone,
-        recipient_phone: form.phone,
-        phone: form.phone,
-        customer_email: form.email || user?.email || undefined,
-        email: form.email || user?.email || undefined,
-        shipping_address: form.shipping_address,
-        shipping_address_line: form.shipping_address,
-        shipping_city: form.city,
+        shipping_name: form.recipient_name.trim(),
+        recipient_name: form.recipient_name.trim(),
+        shipping_phone: form.phone.trim(),
+        recipient_phone: form.phone.trim(),
+        phone: form.phone.trim(),
+        customer_email: form.email?.trim() || user?.email || undefined,
+        email: form.email?.trim() || user?.email || undefined,
+        shipping_address: form.shipping_address.trim(),
+        shipping_address_line: form.shipping_address.trim(),
+        shipping_city: form.city.trim(),
         shipping_province_code: selectedAddress?.province_code || undefined,
-        shipping_province_name: selectedAddress?.province_name || form.city,
+        shipping_province_name: selectedAddress?.province_name || form.city.trim(),
         shipping_ward_code: selectedAddress?.ward_code || undefined,
         shipping_ward_name: selectedAddress?.ward_name || selectedAddress?.ward || undefined,
         customer_note: form.note || undefined,
         note: form.note || undefined,
-        payment_method: form.payment_method,
+        payment_method: method,
         coupon_code: cartSummary.couponCode || undefined,
-        ...(direct ? {buy_now_variant_id:Number(variantId),buy_now_quantity:quantity} : {}),
+        ...(direct ? { buy_now_variant_id: Number(variantId), buy_now_quantity: quantity } : {}),
         shipping_method_id: selectedShippingId || undefined,
       }
 
       const { data } = await axiosClient.post(EP.ORDERS, payload)
-      const order = data.data ?? data
+      const createdOrder = data.data ?? data
 
-      // Do not mutate regular cart for buy-now orders
-      if (!direct) await clearCoupon()
+      const snapshot = {
+        orderCode: createdOrder.order_code || `#${createdOrder.id}`,
+        totalAmount: Number(createdOrder.total_amount ?? createdOrder.grand_total ?? 0),
+        recipientName: form.recipient_name.trim(),
+        phone: form.phone.trim(),
+        shippingAddress: form.shipping_address.trim(),
+        city: form.city.trim(),
+      }
 
-      if (form.payment_method === 'vnpay') {
-        // Redirect to VNPay initiate page
-        navigate(`/payment/vnpay?order_id=${order.id}`)
-      } else if (form.payment_method === 'zalopay') {
-        // Redirect to ZaloPay initiate page
-        navigate(`/payment/zalopay?order_id=${order.id}`)
-      } else if (form.payment_method === 'momo') {
-        // Redirect to MoMo initiate page
-        navigate(`/payment/momo?order_id=${order.id}`)
-      } else if (form.payment_method === 'bank_transfer') {
-        navigate(`/payment/bank-transfer?order_id=${order.id}`)
+      if (onlineGateway) {
+        try {
+          const paymentRes = await axiosClient.post(
+            gatewayCfg.createEndpoint,
+            { order_id: Number(createdOrder.id) },
+            { timeout: 30000 },
+          )
+          const payPayload = paymentRes.data.data ?? paymentRes.data
+          const paymentUrl = payPayload.payment_url || payPayload.order_url
+
+          if (!paymentUrl) {
+            closeReservedTab(reservedTabInfo.tab)
+            paymentTabRef.current = null
+            const errMsg = `Không nhận được liên kết thanh toán từ ${gatewayCfg.label}.`
+            setActivePaymentSession({
+              orderId: createdOrder.id,
+              gateway: method,
+              order: createdOrder,
+              paymentData: null,
+              popupBlocked: false,
+              tabOpened: false,
+              createError: errMsg,
+              checkoutSnapshot: snapshot,
+            })
+            saveActivePaymentSession({ orderId: createdOrder.id, gateway: method, checkoutSnapshot: snapshot })
+          } else {
+            let popupBlocked = reservedTabInfo.blocked
+            let tabOpened = false
+            if (!popupBlocked && reservedTabInfo.tab) {
+              const navigated = navigateReservedTab(reservedTabInfo.tab, paymentUrl)
+              if (navigated) {
+                tabOpened = true
+                paymentTabRef.current = reservedTabInfo.tab
+              } else {
+                closeReservedTab(reservedTabInfo.tab)
+                paymentTabRef.current = null
+                popupBlocked = true
+              }
+            }
+
+            setActivePaymentSession({
+              orderId: createdOrder.id,
+              gateway: method,
+              order: { ...createdOrder, ...(payPayload.order || {}) },
+              paymentData: payPayload,
+              popupBlocked,
+              tabOpened,
+              createError: '',
+              checkoutSnapshot: snapshot,
+            })
+            saveActivePaymentSession({ orderId: createdOrder.id, gateway: method, checkoutSnapshot: snapshot })
+          }
+        } catch (payErr) {
+          closeReservedTab(reservedTabInfo.tab)
+          paymentTabRef.current = null
+          const errMsg = payErr.response?.data?.message || payErr.message || `Không thể kết nối ${gatewayCfg.fullName}.`
+          setActivePaymentSession({
+            orderId: createdOrder.id,
+            gateway: method,
+            order: createdOrder,
+            paymentData: null,
+            popupBlocked: false,
+            tabOpened: false,
+            createError: errMsg,
+            checkoutSnapshot: snapshot,
+          })
+          saveActivePaymentSession({ orderId: createdOrder.id, gateway: method, checkoutSnapshot: snapshot })
+          showToast(errMsg, 'error')
+        }
+
+        // Refresh cart in background after payment waiting panel is active
+        if (!direct) clearCoupon().catch(() => {})
       } else {
-        // COD order created successfully
-        showToast('Đặt hàng thành công!', 'success')
-        navigate(`/orders/${order.id}?success=1`)
+        if (!direct) await clearCoupon()
+        clearActivePaymentSession()
+
+        if (method === 'bank_transfer') {
+          navigate(`/payment/bank-transfer?order_id=${createdOrder.id}`)
+        } else {
+          showToast('Đặt hàng thành công!', 'success')
+          navigate(`/orders/${createdOrder.id}?success=1`)
+        }
       }
     } catch (err) {
+      closeReservedTab(reservedTabInfo.tab)
+      paymentTabRef.current = null
       if (err.validationErrors) {
         setErrors(err.validationErrors)
       }
       showToast(err.message || 'Không thể tạo đơn hàng, vui lòng thử lại', 'error')
     } finally {
+      submittingRef.current = false
       setSubmitting(false)
     }
+  }
+
+  if (activePaymentSession) {
+    return (
+      <PaymentWaitingPanel
+        gateway={activePaymentSession.gateway}
+        orderId={activePaymentSession.orderId}
+        initialOrder={activePaymentSession.order}
+        initialPayment={activePaymentSession.paymentData}
+        initialPopupBlocked={activePaymentSession.popupBlocked}
+        initialTabOpened={activePaymentSession.tabOpened}
+        initialCreateError={activePaymentSession.createError}
+        externalTabRef={paymentTabRef}
+        checkoutSnapshot={activePaymentSession.checkoutSnapshot}
+        onClearSession={() => setActivePaymentSession(null)}
+      />
+    )
   }
 
   if (direct && (quoteLoading || !quote)) return <div className="p-8 text-center">{quoteError || "Đang tải sản phẩm mua ngay..."}</div>
@@ -402,6 +588,7 @@ export default function CheckoutPage() {
                 value={form.city}
                 onChange={handleChange}
                 placeholder="Hà Nội, TP.HCM, ..."
+                error={errors.city?.[0] || errors.shipping_city?.[0]}
                 required
               />
 
@@ -584,9 +771,9 @@ export default function CheckoutPage() {
                   <div className="bg-primary/10 rounded-xl p-3 text-xs text-primary flex items-start gap-2.5">
                     <span className="material-symbols-outlined text-base shrink-0 mt-0.5">info</span>
                     <div className="space-y-1 text-[11px] leading-relaxed">
-                      <p className="font-semibold text-primary">Mở cổng giao dịch an toàn:</p>
+                      <p className="font-semibold text-primary">Thanh toán trong cửa sổ riêng bảo mật:</p>
                       <p className="text-on-surface-variant">
-                        Sau khi bấm <strong>&quot;Tiến hành thanh toán VNPay&quot;</strong>, hệ thống sẽ mở cổng thanh toán bảo mật. Bạn có thể quét mã QR bằng ứng dụng ngân hàng hoặc sử dụng thông tin thẻ test NCB Sandbox có sẵn trên màn hình để thử nghiệm ngay.
+                        Sau khi bấm <strong>&quot;Thanh toán qua VNPay&quot;</strong>, cổng thanh toán VNPay sẽ được mở trong một tab mới. Trang MobieX vẫn giữ nguyên để theo dõi và tự động cập nhật kết quả giao dịch.
                       </p>
                     </div>
                   </div>
@@ -655,9 +842,9 @@ export default function CheckoutPage() {
                   <div className="rounded-xl p-3 text-xs flex items-start gap-2.5" style={{ backgroundColor: 'rgba(0,159,115,0.1)' }}>
                     <span className="material-symbols-outlined text-base shrink-0 mt-0.5" style={{ color: '#009f73' }}>info</span>
                     <div className="space-y-1 text-[11px] leading-relaxed">
-                      <p className="font-semibold" style={{ color: '#009f73' }}>Mở cổng giao dịch an toàn:</p>
+                      <p className="font-semibold" style={{ color: '#009f73' }}>Thanh toán trong cửa sổ riêng bảo mật:</p>
                       <p className="text-on-surface-variant">
-                        Sau khi bấm <strong>&quot;Thanh toán qua ZaloPay&quot;</strong>, hệ thống sẽ mở cổng thanh toán bảo mật. Bạn có thể quét mã QR bằng ứng dụng ZaloPay hoặc dùng thông tin thẻ test Sandbox có sẵn để thử nghiệm ngay.
+                        Sau khi bấm <strong>&quot;Thanh toán qua ZaloPay&quot;</strong>, cổng thanh toán ZaloPay sẽ mở trong tab mới. Trang MobieX vẫn giữ nguyên để tự động cập nhật trạng thái đơn hàng khi hoàn tất.
                       </p>
                     </div>
                   </div>
@@ -696,11 +883,11 @@ export default function CheckoutPage() {
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-bold text-on-surface">Cổng thanh toán Ví MoMo</p>
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pink-100 text-pink-700 dark:bg-pink-950 dark:text-pink-300">
-                        Ví điện tử số 1 VN
+                        Ví điện tử phổ biến
                       </span>
                     </div>
                     <p className="text-xs text-on-surface-variant">
-                      Thanh toán qua Ví MoMo, Quét mã QR, hoặc Thẻ ATM Nội Địa Sacombank
+                      Thanh toán qua Ví MoMo, Quét mã QR hoặc Thẻ ngân hàng liên kết
                     </p>
                   </div>
                 </div>
@@ -717,7 +904,7 @@ export default function CheckoutPage() {
                   </span>
                   <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container text-on-surface font-medium border border-outline-variant/20">
                     <span className="material-symbols-outlined text-sm text-blue-500">credit_card</span>
-                    ATM Sacombank Sandbox
+                    Thẻ ATM / Quốc tế
                   </span>
                 </div>
 
@@ -726,9 +913,9 @@ export default function CheckoutPage() {
                   <div className="rounded-xl p-3 text-xs flex items-start gap-2.5" style={{ backgroundColor: 'rgba(165,0,100,0.08)' }}>
                     <span className="material-symbols-outlined text-base shrink-0 mt-0.5" style={{ color: '#a50064' }}>info</span>
                     <div className="space-y-1 text-[11px] leading-relaxed">
-                      <p className="font-semibold" style={{ color: '#a50064' }}>Mở cổng giao dịch an toàn:</p>
+                      <p className="font-semibold" style={{ color: '#a50064' }}>Thanh toán trong cửa sổ riêng bảo mật:</p>
                       <p className="text-on-surface-variant">
-                        Sau khi bấm <strong>&quot;Thanh toán qua Ví MoMo&quot;</strong>, hệ thống sẽ mở cổng thanh toán MoMo Sandbox. Bạn có thể sử dụng Ví MoMo giả lập hoặc thẻ ATM Sacombank Sandbox có sẵn để thanh toán tức thì.
+                        Sau khi bấm <strong>&quot;Thanh toán qua Ví MoMo&quot;</strong>, cổng thanh toán Ví MoMo sẽ mở trong tab mới (kèm mã QR thanh toán nhanh). Trang MobieX vẫn giữ nguyên để theo dõi kết quả.
                       </p>
                     </div>
                   </div>

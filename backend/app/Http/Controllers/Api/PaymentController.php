@@ -58,6 +58,12 @@ class PaymentController extends Controller
             ], 422);
         }
 
+        if ($order->payment_method !== 'vnpay') {
+            return response()->json([
+                'message' => 'Phương thức thanh toán của đơn hàng không phải VNPay.',
+            ], 422);
+        }
+
         if (! $this->vnpayService->isConfigured()) {
             return response()->json(['message' => 'VNPay chưa được cấu hình thông tin merchant.'], 503);
         }
@@ -101,9 +107,17 @@ class PaymentController extends Controller
             'message' => 'Tạo URL thanh toán VNPay thành công.',
             'data' => [
                 'payment_id' => $payment->id,
+                'order_id' => $order->id,
                 'order_code' => $order->order_code,
                 'amount' => (float) $order->total_amount,
                 'payment_url' => $paymentUrl,
+                'order' => [
+                    'id' => $order->id,
+                    'order_code' => $order->order_code,
+                    'grand_total' => (float) $order->total_amount,
+                    'status' => $order->status,
+                    'payment_status' => $order->payment_status,
+                ],
             ],
         ]);
     }
@@ -174,6 +188,8 @@ class PaymentController extends Controller
                 'transaction_no' => $transactionNo,
                 'amount' => $amount,
                 'payment_status' => $order->payment_status,
+                'order_status' => $order->status,
+                'verification_status' => $returnStatus,
             ],
         ], $isSuccess ? 200 : 400);
     }
@@ -377,6 +393,12 @@ class PaymentController extends Controller
             ], 422);
         }
 
+        if ($order->payment_method !== 'zalopay') {
+            return response()->json([
+                'message' => 'Phương thức thanh toán của đơn hàng không phải ZaloPay.',
+            ], 422);
+        }
+
         if (! $this->zalopayService->isConfigured()) {
             return response()->json(['message' => 'ZaloPay chưa được cấu hình thông tin merchant.'], 503);
         }
@@ -529,6 +551,9 @@ class PaymentController extends Controller
                 'status' => $status,
                 'amount' => $amount,
                 'bank_code' => $bankCode,
+                'payment_status' => $order?->payment_status,
+                'order_status' => $order?->status,
+                'verification_status' => $returnStatus,
             ],
         ], $isSuccess ? 200 : 400);
     }
@@ -688,6 +713,12 @@ class PaymentController extends Controller
             ], 422);
         }
 
+        if ($order->payment_method !== 'momo') {
+            return response()->json([
+                'message' => 'Phương thức thanh toán của đơn hàng không phải Ví MoMo.',
+            ], 422);
+        }
+
         if (! $this->momoService->isConfigured()) {
             return response()->json(['message' => 'MoMo chưa được cấu hình thông tin merchant.'], 503);
         }
@@ -719,6 +750,7 @@ class PaymentController extends Controller
                 'qr_code_url' => $savedCheckout['qr_code_url'] ?? null,
                 'deeplink' => $savedCheckout['deeplink'] ?? null,
                 'order_id' => $payment->gateway_transaction_id,
+                'request_id' => $savedCheckout['request_id'] ?? null,
             ]
             : $this->momoService->createPaymentOrder([
                 'order_id' => $order->id,
@@ -750,6 +782,7 @@ class PaymentController extends Controller
                 'order_url' => $mmResult['order_url'],
                 'qr_code_url' => $mmResult['qr_code_url'] ?? null,
                 'deeplink' => $mmResult['deeplink'] ?? null,
+                'request_id' => $mmResult['request_id'] ?? null,
                 'checkout_created_at' => now()->toIso8601String(),
             ]]);
         }
@@ -844,6 +877,9 @@ class PaymentController extends Controller
                 'result_code' => $resultCode,
                 'amount' => $amount,
                 'pay_type' => $payType,
+                'payment_status' => $order?->payment_status,
+                'order_status' => $order?->status,
+                'verification_status' => $returnStatus,
             ],
         ], $isSuccess ? 200 : 400);
     }
@@ -997,6 +1033,256 @@ class PaymentController extends Controller
             'resultCode' => 0,
             'message' => 'success',
         ]);
+    }
+
+    /**
+     * Actively verify an order's online payment status against the configured Payment Gateway
+     * server-to-server (handles delayed webhooks and local sandbox verification securely).
+     */
+    public function verifyOrderPaymentStatus(Request $request, int $orderId): JsonResponse
+    {
+        $order = Order::findOrFail($orderId);
+
+        if ((int) $order->user_id !== (int) $request->user()->id) {
+            return response()->json([
+                'message' => 'Bạn không có quyền kiểm tra thanh toán cho đơn hàng này.',
+            ], 403);
+        }
+
+        if ($order->payment_status === 'paid') {
+            return $this->paymentStatusResponse($order, true, 'Thanh toán đã được hệ thống xác nhận.');
+        }
+
+        if ($order->status === 'cancelled') {
+            return $this->paymentStatusResponse($order, false, 'Đơn hàng đã bị hủy.');
+        }
+
+        if (! in_array($order->payment_method, ['vnpay', 'zalopay', 'momo'], true)) {
+            return $this->paymentStatusResponse($order, false, 'Trạng thái đơn hàng hiện tại.');
+        }
+
+        $payment = Payment::query()
+            ->where('order_id', $order->id)
+            ->where('method', $order->payment_method)
+            ->where('status', 'pending')
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $payment) {
+            return $this->paymentStatusResponse(
+                $order,
+                false,
+                $order->payment_status === 'failed'
+                    ? 'Giao dịch gần nhất không thành công. Bạn có thể thử thanh toán lại.'
+                    : 'Đang chờ xác nhận từ cổng thanh toán.'
+            );
+        }
+
+        $gatewayVerified = false;
+
+        if ($order->payment_method === 'vnpay') {
+            $txnDate = (string) (($payment->response_data ?? [])['vnp_CreateDate']
+                ?? $order->created_at?->setTimezone('Asia/Ho_Chi_Minh')->format('YmdHis')
+                ?? now('Asia/Ho_Chi_Minh')->format('YmdHis'));
+
+            $res = $this->vnpayService->queryTransactionStatus([
+                'request_id' => 'QDR-'.$payment->id.'-'.Str::upper(Str::random(6)),
+                'transaction_reference' => $payment->transaction_code,
+                'transaction_date' => $txnDate,
+                'ip_address' => $request->ip() ?? '127.0.0.1',
+                'description' => 'Verify payment '.$order->order_code,
+            ]);
+
+            $expectedAmount = (int) round((float) $order->total_amount * 100);
+            if (
+                empty($res['transport_error'])
+                && $this->vnpayService->verifyTransactionApiResponse($res)
+                && (string) ($res['vnp_ResponseCode'] ?? '') === '00'
+                && (string) ($res['vnp_TransactionStatus'] ?? '') === '00'
+                && (string) ($res['vnp_TxnRef'] ?? '') === (string) $payment->transaction_code
+                && (int) ($res['vnp_Amount'] ?? 0) === $expectedAmount
+            ) {
+                $vnpTxNo = (string) ($res['vnp_TransactionNo'] ?? $payment->transaction_code);
+                $this->settleVerifiedGatewayPayment(
+                    $order,
+                    $payment,
+                    'vnpay',
+                    $vnpTxNo,
+                    $vnpTxNo,
+                    $vnpTxNo,
+                    $res,
+                    'Thanh toán VNPay thành công (Đối soát cổng - Mã GD: '.$vnpTxNo.')'
+                );
+                $gatewayVerified = true;
+            }
+        } elseif ($order->payment_method === 'zalopay' && ! empty($payment->gateway_transaction_id)) {
+            $res = $this->zalopayService->queryOrderStatus((string) $payment->gateway_transaction_id);
+            $expectedAmount = (int) round((float) $order->total_amount);
+
+            if (
+                is_array($res)
+                && (int) ($res['return_code'] ?? 0) === 1
+                && (int) ($res['amount'] ?? 0) === $expectedAmount
+            ) {
+                $zpTxId = (string) ($res['zp_trans_id'] ?? $payment->gateway_transaction_id);
+                $this->settleVerifiedGatewayPayment(
+                    $order,
+                    $payment,
+                    'zalopay',
+                    (string) $payment->gateway_transaction_id,
+                    $zpTxId,
+                    $zpTxId,
+                    $res,
+                    'Thanh toán ZaloPay thành công (Đối soát cổng - Mã GD: '.$zpTxId.')'
+                );
+                $gatewayVerified = true;
+            }
+        } elseif ($order->payment_method === 'momo' && ! empty($payment->gateway_transaction_id)) {
+            $requestId = (string) (($payment->response_data ?? [])['request_id']
+                ?? ('REQ_MM_'.substr((string) $payment->gateway_transaction_id, 6)));
+
+            $res = $this->momoService->queryOrderStatus((string) $payment->gateway_transaction_id, $requestId);
+
+            if (
+                is_array($res)
+                && empty($res['transport_error'])
+                && (int) ($res['resultCode'] ?? -1) === 0
+                && abs((float) ($res['amount'] ?? 0) - (float) $order->total_amount) < 0.01
+                && (string) ($res['orderId'] ?? $payment->gateway_transaction_id) === (string) $payment->gateway_transaction_id
+            ) {
+                $momoTxId = (string) ($res['transId'] ?? $payment->gateway_transaction_id);
+                $this->settleVerifiedGatewayPayment(
+                    $order,
+                    $payment,
+                    'momo',
+                    (string) $payment->gateway_transaction_id,
+                    $momoTxId,
+                    $momoTxId,
+                    $res,
+                    'Thanh toán MoMo thành công (Đối soát cổng - Mã GD: '.$momoTxId.')'
+                );
+                $gatewayVerified = true;
+            }
+        }
+
+        $order->refresh();
+
+        return $this->paymentStatusResponse(
+            $order,
+            $gatewayVerified || $order->payment_status === 'paid',
+            $order->payment_status === 'paid'
+                ? 'Thanh toán đã được xác nhận từ cổng thanh toán.'
+                : 'Chưa nhận được xác nhận hoàn tất từ cổng thanh toán. Hệ thống vẫn đang giữ đơn cho bạn.'
+        );
+    }
+
+    private function paymentStatusResponse(Order $order, bool $gatewayVerified, string $message): JsonResponse
+    {
+        return response()->json([
+            'status' => $order->payment_status === 'paid'
+                ? 'paid'
+                : ($order->payment_status === 'failed' ? 'failed' : 'pending'),
+            'message' => $message,
+            'data' => [
+                'order_id' => $order->id,
+                'order_code' => $order->order_code,
+                'payment_method' => $order->payment_method,
+                'payment_status' => $order->payment_status,
+                'order_status' => $order->status,
+                'total_amount' => (float) $order->total_amount,
+                'gateway_verified' => $gatewayVerified,
+            ],
+        ]);
+    }
+
+    /**
+     * Atomically settle a verified gateway transaction inside a lock.
+     *
+     * @param  array<string, mixed>  $gatewayPayload
+     */
+    private function settleVerifiedGatewayPayment(
+        Order $order,
+        Payment $payment,
+        string $method,
+        string $paymentGatewayTxId,
+        string $eventKey,
+        string $providerReference,
+        array $gatewayPayload,
+        string $historyNote
+    ): void {
+        DB::transaction(function () use (
+            $order,
+            $payment,
+            $method,
+            $paymentGatewayTxId,
+            $eventKey,
+            $providerReference,
+            $gatewayPayload,
+            $historyNote
+        ): void {
+            $lockedOrder = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
+            $lockedPayment = Payment::query()->whereKey($payment->id)->lockForUpdate()->firstOrFail();
+
+            if ($lockedOrder->payment_status === 'paid' || $lockedOrder->status === 'cancelled') {
+                if ($lockedPayment->status !== 'success') {
+                    $this->recordDuplicateGatewaySuccess(
+                        $lockedOrder,
+                        $lockedPayment,
+                        $method,
+                        $eventKey,
+                        $providerReference,
+                        $gatewayPayload,
+                    );
+                }
+
+                return;
+            }
+
+            $lockedPayment->update([
+                'status' => 'success',
+                'gateway_transaction_id' => $paymentGatewayTxId,
+                'response_data' => array_merge($lockedPayment->response_data ?? [], $gatewayPayload),
+                'paid_at' => now(),
+            ]);
+
+            PaymentWebhookEvent::firstOrCreate(
+                [
+                    'method' => $method,
+                    'event_key' => $eventKey,
+                ],
+                [
+                    'payment_id' => $lockedPayment->id,
+                    'provider_reference' => $providerReference,
+                    'signature_verified' => true,
+                    'processing_status' => 'processed',
+                    'event_payload' => $gatewayPayload,
+                    'processed_at' => now(),
+                ]
+            );
+
+            $fromStatus = $lockedOrder->status;
+            $newStatus = ($fromStatus === 'pending') ? 'confirmed' : $fromStatus;
+
+            $lockedOrder->update([
+                'payment_status' => 'paid',
+                'status' => $newStatus,
+            ]);
+
+            $this->markCouponAsConsumed($lockedOrder);
+
+            OrderStatusHistory::create([
+                'order_id' => $lockedOrder->id,
+                'user_id' => null,
+                'from_status' => $fromStatus,
+                'status' => $newStatus,
+                'note' => $historyNote,
+                'created_at' => now(),
+            ]);
+
+            DB::afterCommit(function () use ($lockedOrder) {
+                app(OrderMailService::class)->sendOrderConfirmation($lockedOrder);
+            });
+        });
     }
 
     private function paymentWindowSeconds(Order $order): ?int

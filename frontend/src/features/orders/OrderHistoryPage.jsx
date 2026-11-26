@@ -175,12 +175,43 @@ export default function OrderHistoryPage() {
               >
                 {/* Header */}
                 <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-outline-variant/10 text-sm">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-wrap">
                     <span className="font-mono font-bold text-on-surface">#{order.order_code || order.id}</span>
                     <span className="text-outline">•</span>
                     <span className="text-on-surface-variant text-xs">{formatDate(order.created_at)}</span>
+                    {order.payment_method && (
+                      <>
+                        <span className="text-outline">•</span>
+                        <span className="text-xs font-medium text-on-surface-variant uppercase">
+                          {order.payment_method}
+                        </span>
+                      </>
+                    )}
                   </div>
-                  <Badge variant={cfg.variant}>{cfg.label}</Badge>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {order.payment_method && order.payment_method !== 'cod' && (
+                      <Badge
+                        variant={
+                          order.payment_status === 'paid' || order.payment_status === 'settled'
+                            ? 'success'
+                            : order.payment_status === 'failed'
+                              ? 'error'
+                              : order.payment_status === 'refunded'
+                                ? 'info'
+                                : 'warning'
+                        }
+                      >
+                        {order.payment_status === 'paid' || order.payment_status === 'settled'
+                          ? 'Đã thanh toán'
+                          : order.payment_status === 'failed'
+                            ? 'TT thất bại'
+                            : order.payment_status === 'refunded'
+                              ? 'Đã hoàn tiền'
+                              : 'Chờ thanh toán'}
+                      </Badge>
+                    )}
+                    <Badge variant={cfg.variant}>{cfg.label}</Badge>
+                  </div>
                 </div>
 
                 {/* Items Preview */}
@@ -229,6 +260,19 @@ export default function OrderHistoryPage() {
                         <span>{reorderingOrderId === order.id ? 'Đang thêm...' : 'Mua lại'}</span>
                       </button>
                     )}
+
+                    {order.status === 'pending' &&
+                      order.payment_status !== 'paid' &&
+                      order.payment_status !== 'settled' &&
+                      ['vnpay', 'zalopay', 'momo', 'bank_transfer'].includes((order.payment_method || '').toLowerCase()) && (
+                        <Link
+                          to={`/payment/${order.payment_method === 'bank_transfer' ? 'bank-transfer' : order.payment_method}?order_id=${order.id}`}
+                          className="flex items-center gap-1 px-3 py-2 bg-primary-container text-on-primary-container hover:bg-primary hover:text-on-primary rounded-xl text-xs font-bold transition-all"
+                        >
+                          <span className="material-symbols-outlined text-sm">payments</span>
+                          <span>Thanh toán ngay</span>
+                        </Link>
+                      )}
 
                     <Link
                       to={`/orders/${order.id}`}

@@ -1,4 +1,18 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import {
+  GATEWAY_CONFIGS,
+  closeReservedTab,
+  getOrderTabName,
+  isOnlineGateway,
+  isValidPaymentUrl,
+  navigateReservedTab,
+  openPaymentTabOnUserAction,
+  reserveGatewayTab,
+} from '../utils/paymentTabSync'
+import { parseVNPayReturnState } from '../features/checkout/PaymentReturnPage'
+import { parseZaloPayReturnState } from '../features/checkout/ZaloPayReturnPage'
+import { parseMoMoReturnState } from '../features/checkout/MoMoReturnPage'
+import EP from '../api/endpoints'
 
 // VNPay response mapping and date formatting logic test
 const VNPAY_RESPONSE_MESSAGES = {
@@ -85,5 +99,111 @@ describe('ZaloPay & MoMo Payment Status Handlers', () => {
     expect(MOMO_RESULT_MESSAGES['1001']).toContain('không đủ số dư')
     expect(MOMO_RESULT_MESSAGES['1003']).toContain('đã bị hủy')
     expect(MOMO_RESULT_MESSAGES['49']).toContain('hủy tại màn hình')
+  })
+})
+
+describe('Separate-Tab Payment Flow & Sync', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('recognizes vnpay, zalopay, momo as online gateways and exposes verify status endpoint', () => {
+    expect(isOnlineGateway('vnpay')).toBe(true)
+    expect(isOnlineGateway('zalopay')).toBe(true)
+    expect(isOnlineGateway('momo')).toBe(true)
+    expect(isOnlineGateway('cod')).toBe(false)
+    expect(isOnlineGateway('bank_transfer')).toBe(false)
+    expect(EP.PAYMENT_VERIFY_STATUS(42)).toBe('/payments/orders/42/verify-status')
+    expect(GATEWAY_CONFIGS.vnpay.label).toBe('VNPay')
+    expect(GATEWAY_CONFIGS.zalopay.label).toBe('ZaloPay')
+    expect(GATEWAY_CONFIGS.momo.label).toBe('Ví MoMo')
+  })
+
+  it('validates payment redirect URLs and blocks unsafe schemes', () => {
+    expect(isValidPaymentUrl('https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?foo=1')).toBe(true)
+    expect(isValidPaymentUrl('javascript:alert(1)')).toBe(false)
+    expect(isValidPaymentUrl('data:text/html,hi')).toBe(false)
+    expect(isValidPaymentUrl('')).toBe(false)
+  })
+
+  it('handles popup blocker gracefully and reuses existing open tab on repeat click', () => {
+    const fakeDoc = { open: vi.fn(), write: vi.fn(), close: vi.fn() }
+    const fakeTab = {
+      closed: false,
+      opener: {},
+      document: fakeDoc,
+      focus: vi.fn(),
+      close: vi.fn(() => { fakeTab.closed = true }),
+      location: { replace: vi.fn() },
+    }
+    vi.stubGlobal('window', {
+      open: vi.fn(() => fakeTab),
+    })
+
+    // 1st click reserves tab cleanly using stable per-order name
+    const targetName = getOrderTabName(42)
+    expect(targetName).toBe('mobiex_order_42')
+    const first = reserveGatewayTab(null, 'VNPay', targetName)
+    expect(first.blocked).toBe(false)
+    expect(first.reused).toBe(false)
+    expect(first.tab).toBe(fakeTab)
+    expect(window.open).toHaveBeenCalledWith('', 'mobiex_order_42')
+    expect(fakeDoc.write).toHaveBeenCalledTimes(1)
+
+    // 2nd rapid click reuses existing tab without opening another popup
+    const second = reserveGatewayTab(first.tab, 'VNPay', targetName)
+    expect(second.reused).toBe(true)
+    expect(window.open).toHaveBeenCalledTimes(1)
+    expect(fakeTab.focus).toHaveBeenCalledTimes(1)
+
+    // Navigate schedules replace BEFORE severing opener cleanly
+    const navigated = navigateReservedTab(first.tab, 'https://sandbox.vnpayment.vn/pay')
+    expect(navigated).toBe(true)
+    expect(fakeTab.opener).toBeNull()
+    expect(fakeTab.location.replace).toHaveBeenCalledWith('https://sandbox.vnpayment.vn/pay')
+
+    // Close reserved tab on failure leaves no orphan tab
+    closeReservedTab(first.tab)
+    expect(fakeTab.closed).toBe(true)
+
+    // Popup blocked path
+    window.open.mockReturnValue(null)
+    const blockedRes = openPaymentTabOnUserAction(null, 'https://sandbox.vnpayment.vn/pay', targetName)
+    expect(blockedRes.blocked).toBe(true)
+    expect(blockedRes.tab).toBeNull()
+  })
+
+  it('never marks pending_confirmation as confirmed paid across VNPay, ZaloPay, and MoMo return parsers', () => {
+    const vnpPending = parseVNPayReturnState(
+      new URLSearchParams({ vnp_ResponseCode: '00', vnp_Amount: '50000000', vnp_TxnRef: 'PAY-1' }),
+      { order_id: 10, payment_status: 'pending', verification_status: 'pending_confirmation' },
+      '',
+    )
+    expect(vnpPending.gatewaySucceeded).toBe(true)
+    expect(vnpPending.isConfirmed).toBe(false)
+
+    const zpPending = parseZaloPayReturnState(
+      new URLSearchParams({ status: '1', amount: '500000', apptransid: '261126_10_abc' }),
+      { order_id: 10, payment_status: 'pending', verification_status: 'pending_confirmation' },
+      '',
+    )
+    expect(zpPending.gatewaySucceeded).toBe(true)
+    expect(zpPending.isConfirmed).toBe(false)
+
+    const mmConfirmed = parseMoMoReturnState(
+      new URLSearchParams({ resultCode: '0', amount: '500000', orderId: 'MX_MM_10_ABC' }),
+      { order_id: 10, payment_status: 'paid', verification_status: 'success' },
+      '',
+    )
+    expect(mmConfirmed.gatewaySucceeded).toBe(true)
+    expect(mmConfirmed.isConfirmed).toBe(true)
+
+    const mmCancelled = parseMoMoReturnState(
+      new URLSearchParams({ resultCode: '1006', amount: '500000' }),
+      { order_id: 10, payment_status: 'pending', verification_status: 'failed' },
+      'Giao dịch bị hủy',
+    )
+    expect(mmCancelled.isCancelled).toBe(true)
+    expect(mmCancelled.isConfirmed).toBe(false)
   })
 })

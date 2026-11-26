@@ -5,12 +5,13 @@
  * @param {{
  *   label?: string,
  *   error?: string,
+ *   helperText?: string,
  *   icon?: string,
  *   className?: string,
  *   [key: string]: any
  * }} props
  */
-export default function Input({ label, error, icon, className = '', ...rest }) {
+export default function Input({ label, error, helperText, icon, className = '', ...rest }) {
   return (
     <div className={['flex flex-col gap-1', className].join(' ')}>
       {label && (
@@ -37,6 +38,7 @@ export default function Input({ label, error, icon, className = '', ...rest }) {
         />
       </div>
       {error && <p className="text-xs text-error mt-0.5">{error}</p>}
+      {!error && helperText && <p className="text-[11px] text-outline mt-0.5">{helperText}</p>}
     </div>
   )
 }

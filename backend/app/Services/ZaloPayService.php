@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -109,7 +110,12 @@ class ZaloPayService
         }
 
         try {
-            $response = Http::retry(3, 300)
+            $response = Http::retry(
+                2,
+                250,
+                static fn (\Exception $exception): bool => $exception instanceof ConnectionException,
+                throw: false
+            )
                 ->timeout(10)
                 ->asForm()
                 ->post($this->endpoint, $payload);
