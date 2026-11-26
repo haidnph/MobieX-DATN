@@ -102,6 +102,7 @@ export default function AdminCouponPage() {
                   <th className="px-5 py-3.5">Loại & Mức giảm</th>
                   <th className="px-5 py-3.5">Đơn tối thiểu</th>
                   <th className="px-5 py-3.5 text-center">Lượt dùng</th>
+                  <th className="px-5 py-3.5 text-center">Đã lưu / Phát hành</th>
                   <th className="px-5 py-3.5">Hạn dùng</th>
                   <th className="px-5 py-3.5 text-center">Trạng thái</th>
                   <th className="px-5 py-3.5 text-right">Thao tác</th>
@@ -118,6 +119,7 @@ export default function AdminCouponPage() {
                     <tr key={c.id} className="hover:bg-surface-container-high/40 transition-colors">
                       <td className="px-5 py-4">
                         <span className="font-mono font-bold text-primary text-sm">{c.code}</span>
+                        {c.name && <span className="block text-xs text-on-surface-variant">{c.name}</span>}
                       </td>
                       <td className="px-5 py-4">
                         {isPercent ? (
@@ -141,6 +143,10 @@ export default function AdminCouponPage() {
                       <td className="px-5 py-4 text-center font-mono text-xs">
                         <span className="font-semibold text-on-surface">{c.used_count ?? 0}</span>
                         <span className="text-outline"> / {c.usage_limit ?? '∞'}</span>
+                      </td>
+                      <td className="px-5 py-4 text-center font-mono text-xs">
+                        <span className="font-semibold text-on-surface">{c.collectors_count ?? 0}</span>
+                        <span className="text-outline"> / {c.issued_quantity ?? '∞'}</span>
                       </td>
                       <td className="px-5 py-4 text-xs text-on-surface-variant">
                         {expiry ? formatDate(expiry) : 'Vĩnh viễn'}

@@ -2,7 +2,7 @@
 // Detailed product page with variant selector, stock display, gallery, and approved reviews.
 
 import { useEffect, useState } from 'react'
-import { useParams, Link, useSearchParams } from 'react-router-dom'
+import { useParams, Link, useSearchParams, useNavigate } from 'react-router-dom'
 import axiosClient from '../../api/axiosClient'
 import EP from '../../api/endpoints'
 import { useCart } from '../../contexts/CartContext'
@@ -19,6 +19,7 @@ import { useRecentlyViewed } from '../../hooks/useRecentlyViewed'
 
 export default function ProductDetailPage() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const requestedVariantId = searchParams.get('variant')
   const { addToCart } = useCart()
@@ -212,6 +213,14 @@ export default function ProductDetailPage() {
     }
   }
 
+  const handleBuyNow = () => {
+    if (isDiscontinued || hasNoVariants || !selectedVariant || availableStock <= 0) {
+      showToast('Vui lòng chọn phiên bản còn hàng để mua ngay', 'error')
+      return
+    }
+    navigate(`/checkout?buy_now=${selectedVariant.id}&quantity=${quantity}`)
+  }
+
   return (
     <div className="w-full px-4 sm:px-6 lg:px-10 xl:px-12 py-8 pb-24 md:pb-8 space-y-12">
       {/* Breadcrumbs */}
@@ -380,6 +389,18 @@ export default function ProductDetailPage() {
                     : isSelectedVariantOutOfStock
                       ? 'Phiên bản này tạm hết hàng'
                       : 'Thêm vào giỏ hàng'}
+              </Button>
+
+              <Button
+                type="button"
+                variant="secondary"
+                size="lg"
+                className="flex-1"
+                disabled={isSelectedVariantOutOfStock || hasNoVariants || isDiscontinued}
+                onClick={handleBuyNow}
+              >
+                <span className="material-symbols-outlined text-xl">bolt</span>
+                Mua ngay
               </Button>
 
               <Button
@@ -633,6 +654,15 @@ export default function ProductDetailPage() {
           >
             <span className="material-symbols-outlined text-base">shopping_cart</span>
             <span>{isOutOfStock ? 'Hết hàng' : 'Thêm giỏ'}</span>
+          </Button>
+          <Button
+            variant="secondary"
+            size="md"
+            disabled={isOutOfStock || isSelectedVariantOutOfStock || hasNoVariants || isDiscontinued}
+            onClick={handleBuyNow}
+            className="rounded-xl font-bold text-xs px-3"
+          >
+            Mua ngay
           </Button>
         </div>
       </div>

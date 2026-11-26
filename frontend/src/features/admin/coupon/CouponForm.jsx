@@ -57,17 +57,24 @@ export default function CouponForm({
 }) {
   const [form, setForm] = useState({
     code: '',
+    name: '',
+    description: '',
     discount_type: 'fixed', // 'fixed' | 'percent'
     discount_value: '',
     min_order_amount: '0',
     max_discount: '',
     usage_limit: '',
+    issued_quantity: '',
     max_uses_per_customer: '1',
     product_ids: [],
+    category_ids: [],
+    brand_ids: [],
     start_at: '',
     end_at: '',
     is_active: true,
     show_on_home: false,
+    applies_to_sale_items: false,
+    is_stackable: false,
   })
 
   const [isDirty, setIsDirty] = useState(false)
@@ -76,6 +83,8 @@ export default function CouponForm({
   const [productSearch, setProductSearch] = useState('')
   const [productOptions, setProductOptions] = useState([])
   const [productLoadError, setProductLoadError] = useState('')
+  const [categoryOptions, setCategoryOptions] = useState([])
+  const [brandOptions, setBrandOptions] = useState([])
 
   useEffect(() => {
     let active = true
@@ -105,11 +114,20 @@ export default function CouponForm({
     }
   }, [productSearch, initialData])
 
+  useEffect(() => {
+    Promise.allSettled([axiosClient.get(EP.CATEGORIES), axiosClient.get(EP.BRANDS)]).then(([categories, brands]) => {
+      if (categories.status === 'fulfilled') setCategoryOptions(categories.value.data?.data ?? [])
+      if (brands.status === 'fulfilled') setBrandOptions(brands.value.data?.data ?? [])
+    })
+  }, [])
+
   // Populate data when editing
   useEffect(() => {
     if (initialData) {
       setForm({
         code: initialData.code || '',
+        name: initialData.name || '',
+        description: initialData.description || '',
         discount_type: initialData.discount_type || 'fixed',
         discount_value:
           initialData.discount_value != null ? String(initialData.discount_value) : '',
@@ -119,13 +137,19 @@ export default function CouponForm({
           initialData.max_discount != null ? String(initialData.max_discount) : '',
         usage_limit:
           initialData.usage_limit != null ? String(initialData.usage_limit) : '',
+        issued_quantity:
+          initialData.issued_quantity != null ? String(initialData.issued_quantity) : '',
         max_uses_per_customer:
           initialData.max_uses_per_customer != null ? String(initialData.max_uses_per_customer) : '',
         product_ids: (initialData.products ?? []).map((product) => Number(product.id)),
+        category_ids: (initialData.categories ?? []).map((category) => Number(category.id)),
+        brand_ids: (initialData.brands ?? []).map((brand) => Number(brand.id)),
         start_at: toDatetimeLocal(initialData.start_at),
         end_at: toDatetimeLocal(initialData.end_at),
         is_active: Boolean(initialData.is_active ?? true),
         show_on_home: Boolean(initialData.show_on_home),
+        applies_to_sale_items: Boolean(initialData.applies_to_sale_items),
+        is_stackable: Boolean(initialData.is_stackable),
       })
       setIsDirty(false)
     }
@@ -206,6 +230,8 @@ export default function CouponForm({
 
     const payload = {
       code: form.code.trim().toUpperCase(),
+      name: form.name.trim() || null,
+      description: form.description.trim() || null,
       discount_type: form.discount_type,
       discount_value: Number(form.discount_value),
       min_order_amount: form.min_order_amount ? Number(form.min_order_amount) : 0,
@@ -214,12 +240,17 @@ export default function CouponForm({
           ? Number(form.max_discount)
           : null,
       usage_limit: form.usage_limit ? Number(form.usage_limit) : null,
+      issued_quantity: form.issued_quantity ? Number(form.issued_quantity) : null,
       max_uses_per_customer: form.max_uses_per_customer ? Number(form.max_uses_per_customer) : null,
       product_ids: form.product_ids,
-      start_at: form.start_at ? form.start_at.replace('T', ' ') + ':00' : null,
-      end_at: form.end_at ? form.end_at.replace('T', ' ') + ':00' : null,
+      category_ids: form.category_ids,
+      brand_ids: form.brand_ids,
+      start_at: form.start_at ? new Date(form.start_at).toISOString() : null,
+      end_at: form.end_at ? new Date(form.end_at).toISOString() : null,
       is_active: Boolean(form.is_active),
       show_on_home: form.show_on_home,
+      applies_to_sale_items: form.applies_to_sale_items,
+      is_stackable: form.is_stackable,
     }
 
     if (onSubmit) {
@@ -333,6 +364,14 @@ export default function CouponForm({
               <p className="text-xs text-outline">
                 Mã duy nhất viết hoa không dấu, khách hàng sẽ nhập chuỗi này tại trang Giỏ hàng & Thanh toán.
               </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input label="Tên chương trình" name="name" value={form.name} onChange={(event) => handleFieldChange('name', event.target.value)} placeholder="Ví dụ: Ưu đãi thành viên" />
+              <label className="space-y-1 text-xs font-semibold text-on-surface-variant">
+                Mô tả voucher
+                <textarea value={form.description} onChange={(event) => handleFieldChange('description', event.target.value)} rows={2} className="w-full bg-surface-container-low text-on-surface rounded-xl px-4 py-2.5 text-sm border border-outline-variant/50" placeholder="Điều kiện và nội dung ưu đãi" />
+              </label>
+            </div>
             </div>
 
             {/* Discount Type: Segmented Cards */}
@@ -417,16 +456,16 @@ export default function CouponForm({
 
             {/* Discount Value */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block">
                   Giá trị giảm ({form.discount_type === 'percent' ? '%' : 'VND'}){' '}
                   <span className="text-error">*</span>
                 </label>
-                {form.discount_type === 'percent' && (
-                  <div className="flex items-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={form.show_on_home} onChange={(event) => handleFieldChange('show_on_home', event.target.checked)} /> Hiển thị Voucher tại trang chủ</label>
+                  {form.discount_type === 'percent' && <div className="flex items-center gap-1.5">
                     {[5, 10, 15, 20, 50].map((pct) => (
-                      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.show_on_home} onChange={e=>handleFieldChange('show_on_home',e.target.checked)} /> Hiển thị Voucher tại trang chủ</label>
-            <button
+                      <button
                         key={pct}
                         type="button"
                         onClick={() => handleFieldChange('discount_value', String(pct))}
@@ -435,8 +474,8 @@ export default function CouponForm({
                         {pct}%
                       </button>
                     ))}
-                  </div>
-                )}
+                  </div>}
+                </div>
               </div>
 
               <div className="relative">
@@ -548,6 +587,22 @@ export default function CouponForm({
 
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block">
+                Số lượng voucher phát hành
+              </label>
+              <Input
+                type="number"
+                name="issued_quantity"
+                value={form.issued_quantity}
+                onChange={(e) => handleFieldChange('issued_quantity', e.target.value)}
+                placeholder="Để trống nếu không giới hạn số lượng lưu"
+                error={getFieldError('issued_quantity')}
+                min="1"
+              />
+              <p className="text-[11px] text-outline">Giới hạn số khách hàng có thể lưu voucher; khác với tổng lượt sử dụng.</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block">
                 Lượt sử dụng tối đa mỗi khách
               </label>
               <Input
@@ -565,6 +620,27 @@ export default function CouponForm({
             </div>
 
             <div className="space-y-2 md:col-span-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  ['category_ids', 'Danh mục áp dụng', categoryOptions],
+                  ['brand_ids', 'Thương hiệu áp dụng', brandOptions],
+                ].map(([field, label, options]) => (
+                  <fieldset key={field} className="rounded-xl border border-outline-variant/30 p-3 space-y-2">
+                    <legend className="px-1 text-xs font-semibold text-on-surface-variant">{label}</legend>
+                    <div className="max-h-32 overflow-y-auto space-y-1">
+                      {options.map((option) => {
+                        const id = Number(option.id)
+                        const selected = (form[field] || []).includes(id)
+                        return <label key={id} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={selected} onChange={(event) => handleFieldChange(field, event.target.checked ? [...form[field], id] : form[field].filter((value) => value !== id))} />{option.name}</label>
+                      })}
+                    </div>
+                  </fieldset>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-4 text-xs">
+                <label className="flex items-center gap-2"><input type="checkbox" checked={form.applies_to_sale_items} onChange={(event) => handleFieldChange('applies_to_sale_items', event.target.checked)} /> Cho phép áp dụng với sản phẩm Flash Sale</label>
+                <label className="flex items-center gap-2"><input type="checkbox" checked={form.is_stackable} onChange={(event) => handleFieldChange('is_stackable', event.target.checked)} /> Cho phép cộng dồn với khuyến mãi khác</label>
+              </div>
               <label htmlFor="coupon-product-search" className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider block">
                 Sản phẩm được áp dụng
               </label>
