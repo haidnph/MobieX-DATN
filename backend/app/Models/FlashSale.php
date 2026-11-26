@@ -7,45 +7,35 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class FlashSaleItem extends Model
+class FlashSale extends Model
 {
     use HasFactory;
 
-    protected $table = 'flash_sale_items';
-
     protected $fillable = [
-        'flash_sale_id',
-        'product_variant_id',
-        'sale_price',
-        'quantity_limit',
-        'max_per_customer',
-        'quantity_reserved',
-        'quantity_sold',
+        'created_by_user_id',
+        'name',
+        'slug',
+        'description',
+        'start_at',
+        'end_at',
+        'status',
     ];
 
     protected function casts(): array
     {
         return [
-            'sale_price' => 'decimal:2',
-            'quantity_limit' => 'integer',
-            'max_per_customer' => 'integer',
-            'quantity_reserved' => 'integer',
-            'quantity_sold' => 'integer',
+            'start_at' => 'datetime',
+            'end_at' => 'datetime',
         ];
     }
 
-    public function flashSale(): BelongsTo
+    public function items(): HasMany
     {
-        return $this->belongsTo(FlashSale::class);
+        return $this->hasMany(FlashSaleItem::class);
     }
 
-    public function variant(): BelongsTo
+    public function creator(): BelongsTo
     {
-        return $this->belongsTo(ProductVariant::class, 'product_variant_id');
-    }
-
-    public function orderItems(): HasMany
-    {
-        return $this->hasMany(OrderItem::class, 'product_variant_id', 'product_variant_id');
+        return $this->belongsTo(User::class, 'created_by_user_id');
     }
 }

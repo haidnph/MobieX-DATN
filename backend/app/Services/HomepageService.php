@@ -609,7 +609,7 @@ class HomepageService
                 break;
 
             case 'flash_sale':
-                $sale = FlashSale::query()
+                $sales = FlashSale::query()
                     ->whereIn('status', ['scheduled', 'active'])
                     ->where('start_at', '<=', now())
                     ->where('end_at', '>', now())
@@ -620,57 +620,58 @@ class HomepageService
                         'items.variant.product.category',
                     ])
                     ->orderBy('end_at')
-                    ->first();
+                    ->get();
 
-                if ($sale) {
+                if ($sales->isNotEmpty()) {
                     app(ProductComparisonService::class)->attachGroups(
-                        $sale->items->map(fn (FlashSaleItem $item) => $item->variant?->product)->filter()
+                        $sales->flatMap(fn (FlashSale $sale) => $sale->items->map(fn (FlashSaleItem $item) => $item->variant?->product))->filter()
                     );
-                    $source['title'] = $sale->name;
-                    $source['subtitle'] = $sale->description ?: $source['subtitle'];
-                    $items = $sale->items
-                        ->filter(function (FlashSaleItem $saleItem): bool {
-                            $variant = $saleItem->variant;
-                            $product = $variant?->product;
+                    $items = $sales->flatMap(function (FlashSale $sale) use ($limit) {
+                        return $sale->items
+                            ->filter(function (FlashSaleItem $saleItem): bool {
+                                $variant = $saleItem->variant;
+                                $product = $variant?->product;
 
-                            if (! $variant || ! $product || ! $variant->is_active || $product->status !== 'active') {
-                                return false;
-                            }
+                                if (! $variant || ! $product || ! $variant->is_active || $product->status !== 'active') {
+                                    return false;
+                                }
 
-                            $availableStock = (int) ($variant->inventory?->available_quantity ?? 0);
-                            $availableSaleQuantity = $saleItem->quantity_limit === null
-                                ? $availableStock
-                                : (int) $saleItem->quantity_limit - (int) $saleItem->quantity_reserved - (int) $saleItem->quantity_sold;
+                                $availableStock = (int) ($variant->inventory?->available_quantity ?? 0);
+                                $availableSaleQuantity = $saleItem->quantity_limit === null
+                                    ? $availableStock
+                                    : (int) $saleItem->quantity_limit - (int) $saleItem->quantity_reserved - (int) $saleItem->quantity_sold;
 
-                            return (float) $saleItem->sale_price < (float) $variant->price
-                                && $availableStock > 0
-                                && $availableSaleQuantity > 0;
-                        })
-                        ->take($limit)
-                        ->map(function (FlashSaleItem $saleItem) use ($sale): array {
-                            $variant = $saleItem->variant;
-                            $product = $variant->product;
-                            $availableStock = (int) ($variant->inventory?->available_quantity ?? 0);
-                            $availableSaleQuantity = $saleItem->quantity_limit === null
-                                ? $availableStock
-                                : (int) $saleItem->quantity_limit - (int) $saleItem->quantity_reserved - (int) $saleItem->quantity_sold;
+                                return (float) $saleItem->sale_price > 0
+                                    && (float) $saleItem->sale_price < (float) $variant->price
+                                    && $availableStock > 0
+                                    && $availableSaleQuantity > 0;
+                            })
+                            ->take($limit)
+                            ->map(function (FlashSaleItem $saleItem) use ($sale): array {
+                                $variant = $saleItem->variant;
+                                $product = $variant->product;
+                                $availableStock = (int) ($variant->inventory?->available_quantity ?? 0);
+                                $availableSaleQuantity = $saleItem->quantity_limit === null
+                                    ? $availableStock
+                                    : max(0, (int) $saleItem->quantity_limit - (int) $saleItem->quantity_reserved - (int) $saleItem->quantity_sold);
 
-                            return array_merge($product->toArray(), [
-                                'flash_sale' => [
-                                    'id' => $sale->id,
-                                    'name' => $sale->name,
-                                    'end_at' => $sale->end_at->toIso8601String(),
-                                    'item_id' => $saleItem->id,
-                                    'product_variant_id' => $variant->id,
-                                    'sale_price' => (float) $saleItem->sale_price,
-                                    'original_price' => (float) $variant->price,
-                                    'quantity_sold' => (int) $saleItem->quantity_sold,
-                                    'quantity_remaining' => min($availableStock, $availableSaleQuantity),
-                                    'quantity_limit' => $saleItem->quantity_limit,
-                                ],
-                            ]);
-                        })
-                        ->values();
+                                return array_merge($product->toArray(), [
+                                    'flash_sale' => [
+                                        'id' => $sale->id,
+                                        'name' => $sale->name,
+                                        'end_at' => $sale->end_at->toIso8601String(),
+                                        'item_id' => $saleItem->id,
+                                        'product_variant_id' => $variant->id,
+                                        'sale_price' => (float) $saleItem->sale_price,
+                                        'original_price' => (float) $variant->price,
+                                        'quantity_sold' => (int) $saleItem->quantity_sold,
+                                        'quantity_reserved' => (int) $saleItem->quantity_reserved,
+                                        'quantity_remaining' => min($availableStock, $availableSaleQuantity),
+                                        'quantity_limit' => $saleItem->quantity_limit,
+                                    ],
+                                ]);
+                            });
+                    })->values();
                 } else {
                     $items = collect();
                 }

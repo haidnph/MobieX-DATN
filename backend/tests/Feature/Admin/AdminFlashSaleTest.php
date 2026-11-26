@@ -140,6 +140,24 @@ class AdminFlashSaleTest extends TestCase
         $this->assertDatabaseHas('flash_sale_items', ['flash_sale_id' => $sale->id, 'quantity_sold' => 1]);
     }
 
+    public function test_ended_or_cancelled_campaign_cannot_be_reopened(): void
+    {
+        foreach (['ended', 'cancelled'] as $status) {
+            $sale = FlashSale::create([
+                'name' => ucfirst($status).' campaign',
+                'slug' => $status.'-campaign',
+                'start_at' => now()->subHours(2),
+                'end_at' => now()->subHour(),
+                'status' => $status,
+            ]);
+
+            $this->actingAs($this->admin, 'sanctum')
+                ->patchJson('/api/admin/flash-sales/'.$sale->id, ['status' => 'active'])
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors('status');
+        }
+    }
+
     private function payload(float $salePrice = 750000): array
     {
         return [

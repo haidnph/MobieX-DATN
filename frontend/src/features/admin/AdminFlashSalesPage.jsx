@@ -8,6 +8,14 @@ import Button from '../../components/common/Button'
 import Input from '../../components/common/Input'
 import Spinner from '../../components/common/Spinner'
 
+const STATUS_LABELS = {
+  draft: 'Bản nháp',
+  scheduled: 'Sắp diễn ra',
+  active: 'Đang diễn ra',
+  ended: 'Đã kết thúc',
+  cancelled: 'Đã hủy',
+}
+
 const EMPTY_FORM = {
   name: '',
   slug: '',
@@ -57,7 +65,11 @@ export default function AdminFlashSalesPage() {
     loadSales()
     if (canManage) {
       axiosClient.get(EP.ADMIN_FLASH_SALE_VARIANTS, { params: { per_page: 100 } })
-        .then(({ data }) => setVariants(data?.data?.data ?? []))
+        .then(({ data }) => {
+          // Laravel paginate() trả về object có data là mảng phiên bản.
+          const list = Array.isArray(data) ? data : (data?.data ?? data?.data?.data ?? [])
+          setVariants(Array.isArray(list) ? list : [])
+        })
         .catch((error) => showToast(error.message || 'Không tải được danh sách phiên bản sản phẩm.', 'error'))
     }
   }, [])
@@ -174,7 +186,7 @@ export default function AdminFlashSalesPage() {
             <Input label="Kết thúc" type="datetime-local" required value={form.end_at} onChange={(event) => setForm((current) => ({ ...current, end_at: event.target.value }))} />
             <label className="flex flex-col gap-1 text-sm">Trạng thái
               <select className="rounded-xl border border-outline-variant/40 bg-surface-container-low px-3 py-2" value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
-                {['draft', 'scheduled', 'active', 'ended', 'cancelled'].map((status) => <option key={status} value={status}>{status}</option>)}
+                {['draft', 'scheduled', 'active', 'ended', 'cancelled'].map((status) => <option key={status} value={status}>{STATUS_LABELS[status]}</option>)}
               </select>
             </label>
             <Input label="Mô tả" value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} />
@@ -212,7 +224,7 @@ export default function AdminFlashSalesPage() {
               <article key={sale.id} className="flex flex-col justify-between gap-4 p-4 md:flex-row md:items-center">
                 <div className="min-w-0">
                   <h3 className="font-bold">{sale.name}</h3>
-                  <p className="text-xs text-on-surface-variant">{sale.start_at} → {sale.end_at} · {sale.items_count ?? sale.items?.length ?? 0} phiên bản · {sale.status}</p>
+                  <p className="text-xs text-on-surface-variant">{sale.start_at} → {sale.end_at} · {sale.items_count ?? sale.items?.length ?? 0} phiên bản · {STATUS_LABELS[sale.status] ?? sale.status}</p>
                   <p className="mt-1 text-xs text-on-surface-variant">{(sale.items ?? []).map((item) => `${item.variant?.product?.name ?? item.variant?.sku}: ${formatCurrencyVND(item.sale_price)} (${item.quantity_sold} bán / ${item.quantity_reserved} giữ)`).join(' · ')}</p>
                 </div>
                 {canManage && <div className="flex shrink-0 gap-2">

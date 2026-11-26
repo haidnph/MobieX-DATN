@@ -12,6 +12,8 @@ class Order extends Model
 {
     use HasFactory;
 
+    protected $hidden = ['flash_sale_reservation_status'];
+
     protected $fillable = [
         'order_code',
         'user_id',
@@ -35,6 +37,7 @@ class Order extends Model
         'shipping_address_line',
         'payment_method',
         'payment_status',
+        'flash_sale_reservation_status',
         'status',
         'customer_note',
         'cancel_reason',

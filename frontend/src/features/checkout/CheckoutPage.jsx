@@ -193,6 +193,7 @@ export default function CheckoutPage() {
         coupon_code: cartSummary.couponCode || undefined,
         ...(direct ? {buy_now_variant_id:Number(variantId),buy_now_quantity:quantity} : {}),
         shipping_method_id: selectedShippingId || undefined,
+        expected_total: Math.max(0, (cartSummary.subtotal || 0) - (cartSummary.discount || 0)) + shippingFee,
       }
 
       const { data } = await axiosClient.post(EP.ORDERS, payload)

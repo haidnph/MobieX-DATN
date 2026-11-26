@@ -18,6 +18,7 @@ class FlashSaleItem extends Model
         'product_variant_id',
         'sale_price',
         'quantity_limit',
+        'max_per_customer',
         'quantity_reserved',
         'quantity_sold',
     ];
@@ -27,6 +28,7 @@ class FlashSaleItem extends Model
         return [
             'sale_price' => 'decimal:2',
             'quantity_limit' => 'integer',
+            'max_per_customer' => 'integer',
             'quantity_reserved' => 'integer',
             'quantity_sold' => 'integer',
         ];

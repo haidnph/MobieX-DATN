@@ -16,7 +16,9 @@ use App\Models\ProductVariant;
 use App\Models\ShippingMethod;
 use App\Models\User;
 use App\Services\FlashSaleOrderService;
+use App\Services\FlashSalePricing;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Tests\TestCase;
 
 class FlashSaleCheckoutTest extends TestCase
@@ -102,25 +104,82 @@ class FlashSaleCheckoutTest extends TestCase
         $this->assertSame(2, $this->saleItem->fresh()->quantity_reserved);
     }
 
-    public function test_checkout_uses_regular_price_when_cart_quantity_exceeds_sale_limit(): void
+    public function test_checkout_rejects_quantity_above_remaining_flash_sale_limit(): void
     {
         $this->putCartItem(3);
 
         $response = $this->actingAs($this->user)
             ->postJson('/api/orders', $this->checkoutPayload())
-            ->assertCreated();
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('cart');
 
         $this->assertSame(0, $this->saleItem->fresh()->quantity_reserved);
-        $this->assertDatabaseHas('order_items', [
-            'order_id' => $response->json('data.id'),
-            'flash_sale_id' => null,
-            'price' => 1000000,
-            'quantity' => 3,
-        ]);
         $this->assertDatabaseHas('inventories', [
             'product_variant_id' => $this->variant->id,
-            'reserved_quantity' => 3,
+            'reserved_quantity' => 0,
         ]);
+        $this->assertDatabaseCount('orders', 0);
+    }
+
+    public function test_customer_limit_counts_successful_and_reserved_flash_sale_items(): void
+    {
+        $this->saleItem->update(['quantity_limit' => 10, 'max_per_customer' => 2]);
+
+        $this->putCartItem(1);
+        $firstOrder = $this->actingAs($this->user)
+            ->postJson('/api/orders', $this->checkoutPayload())
+            ->assertCreated();
+
+        $this->putCartItem(1);
+        $this->actingAs($this->user)
+            ->postJson('/api/orders', $this->checkoutPayload())
+            ->assertCreated();
+
+        $this->assertSame(0, app(FlashSalePricing::class)->customerRemaining($this->saleItem->fresh(), $this->user->id));
+
+        $this->putCartItem(1);
+        $this->actingAs($this->user)
+            ->postJson('/api/orders', $this->checkoutPayload())
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('cart');
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $firstOrder->json('data.id'),
+            'flash_sale_reservation_status' => 'reserved',
+        ]);
+        $this->assertSame(2, $this->saleItem->fresh()->quantity_reserved);
+    }
+
+    public function test_cancelled_flash_sale_reservation_no_longer_counts_toward_customer_limit(): void
+    {
+        $this->saleItem->update(['quantity_limit' => 10, 'max_per_customer' => 2]);
+        $this->putCartItem(2);
+        $firstOrder = $this->actingAs($this->user)
+            ->postJson('/api/orders', $this->checkoutPayload())
+            ->assertCreated();
+
+        $this->actingAs($this->user)
+            ->postJson('/api/orders/'.$firstOrder->json('data.id').'/cancel')
+            ->assertOk();
+
+        $this->putCartItem(2);
+        $this->actingAs($this->user)
+            ->postJson('/api/orders', $this->checkoutPayload())
+            ->assertCreated();
+
+        $this->assertSame(2, $this->saleItem->fresh()->quantity_reserved);
+    }
+
+    public function test_null_customer_limit_allows_more_than_default_single_item(): void
+    {
+        $this->saleItem->update(['quantity_limit' => 10, 'max_per_customer' => null]);
+        $this->putCartItem(3);
+
+        $this->actingAs($this->user)
+            ->postJson('/api/orders', $this->checkoutPayload())
+            ->assertCreated();
+
+        $this->assertSame(3, $this->saleItem->fresh()->quantity_reserved);
     }
 
     public function test_cart_reports_real_flash_sale_price_and_remaining_quantity(): void
@@ -155,6 +214,30 @@ class FlashSaleCheckoutTest extends TestCase
         $this->getJson('/api/products')
             ->assertOk()
             ->assertJsonMissing(['sku' => 'SALE-PHONE-INACTIVE']);
+    }
+
+    public function test_only_campaigns_inside_their_active_window_apply_flash_sale_prices(): void
+    {
+        $this->putCartItem(1);
+
+        foreach ([
+            ['status' => 'draft', 'start_at' => now()->subHour(), 'end_at' => now()->addHour(), 'expected' => 1000000],
+            ['status' => 'scheduled', 'start_at' => now()->addHour(), 'end_at' => now()->addHours(2), 'expected' => 1000000],
+            ['status' => 'active', 'start_at' => now()->subHour(), 'end_at' => now()->addHour(), 'expected' => 750000],
+            ['status' => 'cancelled', 'start_at' => now()->subHour(), 'end_at' => now()->addHour(), 'expected' => 1000000],
+            ['status' => 'active', 'start_at' => now()->subHours(2), 'end_at' => now()->subHour(), 'expected' => 1000000],
+        ] as $state) {
+            $this->sale->update([
+                'status' => $state['status'],
+                'start_at' => $state['start_at'],
+                'end_at' => $state['end_at'],
+            ]);
+
+            $this->actingAs($this->user)
+                ->getJson('/api/cart')
+                ->assertOk()
+                ->assertJsonPath('data.items.0.price', $state['expected']);
+        }
     }
 
     public function test_variant_management_apis_require_authentication(): void
@@ -215,6 +298,8 @@ class FlashSaleCheckoutTest extends TestCase
 
         $this->assertSame(0, $this->saleItem->fresh()->quantity_reserved);
         $this->assertSame(0, $this->saleItem->fresh()->quantity_sold);
+        app(FlashSaleOrderService::class)->releaseOrderReservations($order);
+        $this->assertSame('released', $order->fresh()->flash_sale_reservation_status);
 
         // Start another order and exercise the same settlement operation used by payment callbacks.
         $this->putCartItem(1);
@@ -222,9 +307,36 @@ class FlashSaleCheckoutTest extends TestCase
         $settledOrder = Order::query()->findOrFail($response->json('data.id'));
 
         app(FlashSaleOrderService::class)->consumeOrderReservations($settledOrder);
+        app(FlashSaleOrderService::class)->consumeOrderReservations($settledOrder);
+        app(FlashSaleOrderService::class)->releaseOrderReservations($settledOrder);
 
         $this->assertSame(0, $this->saleItem->fresh()->quantity_reserved);
         $this->assertSame(1, $this->saleItem->fresh()->quantity_sold);
+        $this->assertSame('consumed', $settledOrder->fresh()->flash_sale_reservation_status);
+    }
+
+    public function test_expired_unpaid_order_releases_flash_sale_reservation_once(): void
+    {
+        $this->putCartItem(1);
+        $response = $this->actingAs($this->user)
+            ->postJson('/api/orders', $this->checkoutPayload())
+            ->assertCreated();
+        $order = Order::query()->findOrFail($response->json('data.id'));
+        $order->update([
+            'payment_method' => 'vnpay',
+            'reservation_expires_at' => now()->subMinute(),
+        ]);
+
+        Artisan::call('orders:expire-reservations');
+        Artisan::call('orders:expire-reservations');
+
+        $this->assertSame(0, $this->saleItem->fresh()->quantity_reserved);
+        $this->assertSame(0, $this->saleItem->fresh()->quantity_sold);
+        $this->assertSame('released', $order->fresh()->flash_sale_reservation_status);
+        $this->assertDatabaseHas('inventories', [
+            'product_variant_id' => $this->variant->id,
+            'reserved_quantity' => 0,
+        ]);
     }
 
     private function putCartItem(int $quantity): void

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\FlashSale;
+use App\Models\FlashSaleItem;
 use App\Models\ProductVariant;
 use App\Services\HomepageService;
 use Illuminate\Http\JsonResponse;
@@ -69,7 +70,7 @@ class AdminFlashSaleController extends Controller
                 ...$validated,
                 'created_by_user_id' => $request->user()->id,
             ]);
-            $sale->items()->createMany(array_map(fn ($item) => $item + ['max_per_customer' => 1], $items));
+            $sale->items()->createMany(array_map(fn ($item) => $item + ['max_per_customer' => null], $items));
 
             return $sale->load(['items.variant.product', 'creator:id,name']);
         });
@@ -90,7 +91,41 @@ class AdminFlashSaleController extends Controller
         unset($validated['items']);
 
         $sale = DB::transaction(function () use ($sale, $validated, $items): FlashSale {
+            $variantIds = FlashSaleItem::query()
+                ->where('flash_sale_id', $sale->id)
+                ->pluck('product_variant_id')
+                ->merge(collect($items ?? [])->pluck('product_variant_id'))
+                ->map(static fn ($id): int => (int) $id)
+                ->unique()
+                ->sort()
+                ->values();
+
+            ProductVariant::query()
+                ->whereIn('id', $variantIds)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+
             $lockedSale = FlashSale::query()->whereKey($sale->id)->lockForUpdate()->firstOrFail();
+
+            $campaignAlreadyEnded = in_array($lockedSale->status, ['ended', 'cancelled'], true)
+                || Carbon::parse($lockedSale->end_at)->lte(now());
+            $requestedOperationalStatus = isset($validated['status'])
+                && in_array($validated['status'], ['scheduled', 'active'], true);
+            $timeWindowChanged = array_key_exists('start_at', $validated) || array_key_exists('end_at', $validated);
+
+            if ($campaignAlreadyEnded && ($requestedOperationalStatus || $timeWindowChanged)) {
+                throw ValidationException::withMessages([
+                    'status' => 'Chiến dịch đã kết thúc hoặc bị hủy không thể mở lại.',
+                ]);
+            }
+
+            $hasOrderHistory = DB::table('order_items')->where('flash_sale_id', $lockedSale->id)->exists();
+            if ($hasOrderHistory && $timeWindowChanged) {
+                throw ValidationException::withMessages([
+                    'start_at' => 'Không thể thay đổi thời gian chiến dịch sau khi đã phát sinh đơn hàng.',
+                ]);
+            }
 
             $configurationChanged = $items !== null
                 || array_key_exists('start_at', $validated)
@@ -129,7 +164,7 @@ class AdminFlashSaleController extends Controller
                 }
 
                 $lockedSale->items()->delete();
-                $lockedSale->items()->createMany(array_map(fn ($item) => $item + ['max_per_customer' => 1], $items));
+                $lockedSale->items()->createMany(array_map(fn ($item) => $item + ['max_per_customer' => null], $items));
             }
 
             $lockedSale->update($validated);
@@ -147,21 +182,34 @@ class AdminFlashSaleController extends Controller
 
     public function destroy(int|string $id): JsonResponse
     {
-        $sale = FlashSale::query()->findOrFail($id);
-        $hasOrderHistory = DB::table('order_items')->where('flash_sale_id', $sale->id)->exists();
-        $hasReservedOrSoldItems = $sale->items()
-            ->where(function ($query): void {
-                $query->where('quantity_reserved', '>', 0)
-                    ->orWhere('quantity_sold', '>', 0);
-            })->exists();
+        $message = DB::transaction(function () use ($id): string {
+            $variantIds = FlashSaleItem::query()
+                ->where('flash_sale_id', $id)
+                ->pluck('product_variant_id');
+            ProductVariant::query()
+                ->whereIn('id', $variantIds)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
 
-        if ($hasOrderHistory || $hasReservedOrSoldItems) {
-            $sale->update(['status' => 'cancelled']);
-            $message = 'Chiến dịch đã có đơn hàng nên được chuyển sang trạng thái đã hủy để giữ lịch sử.';
-        } else {
+            $sale = FlashSale::query()->whereKey($id)->lockForUpdate()->firstOrFail();
+            $hasOrderHistory = DB::table('order_items')->where('flash_sale_id', $sale->id)->exists();
+            $hasReservedOrSoldItems = $sale->items()
+                ->where(function ($query): void {
+                    $query->where('quantity_reserved', '>', 0)
+                        ->orWhere('quantity_sold', '>', 0);
+                })->exists();
+
+            if ($hasOrderHistory || $hasReservedOrSoldItems) {
+                $sale->update(['status' => 'cancelled']);
+
+                return 'Chiến dịch đã có đơn hàng nên được chuyển sang trạng thái đã hủy để giữ lịch sử.';
+            }
+
             $sale->delete();
-            $message = 'Đã xóa chiến dịch Flash Sale.';
-        }
+
+            return 'Đã xóa chiến dịch Flash Sale.';
+        });
 
         app(HomepageService::class)->clearCache();
 
