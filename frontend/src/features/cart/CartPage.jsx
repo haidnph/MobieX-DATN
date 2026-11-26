@@ -135,6 +135,12 @@ export default function CartPage() {
     )
   }
 
+  const productQuantities = cartItems.reduce((totals, item) => {
+    const productId = item.product_id ?? item.product?.id ?? item.variant?.product_id
+    totals[productId] = (totals[productId] ?? 0) + Number(item.quantity || 0)
+    return totals
+  }, {})
+
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-8 lg:px-16 py-8 space-y-8">
       {/* Title */}
@@ -158,10 +164,17 @@ export default function CartPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Cart items list (8 cols) */}
         <div className="lg:col-span-8 space-y-4">
+          {cartSummary.quantityLimitAdjusted && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700">
+              Một số lượng trong giỏ hàng cũ đã được điều chỉnh theo giới hạn mua tối đa 4 chiếc và tồn kho hiện tại.
+            </div>
+          )}
           <div className="bg-surface-container rounded-2xl border border-outline-variant/20 overflow-hidden divide-y divide-outline-variant/10">
             {cartItems.map((item) => {
               const variant = item.variant || item.product_variant || {}
               const product = variant.product || item.product || {}
+              const productQuantity = productQuantities[item.product_id ?? product.id ?? variant.product_id] ?? 0
+              const productLimitReached = productQuantity >= 4
               const maxStock = variant.inventory?.available_quantity ?? variant.available_quantity ?? 99
               const price = item.price ?? variant.price ?? 0
               const itemTotal = price * item.quantity
@@ -226,13 +239,14 @@ export default function CartPage() {
                     <button
                       type="button"
                       onClick={() => handleQuantity(item.id, item.quantity, 1, maxStock)}
-                      disabled={item.quantity >= maxStock || updatingId === item.id}
+                      disabled={productLimitReached || item.quantity >= maxStock || updatingId === item.id}
                       className="px-2.5 py-1.5 text-on-surface hover:bg-surface-container-high active:scale-90 cursor-pointer transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:active:scale-100 focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
                       aria-label="Tăng số lượng"
                     >
                       <span className="material-symbols-outlined text-sm">add</span>
                     </button>
                   </div>
+                  {productLimitReached && <p className="text-[11px] text-amber-600">Đã đạt giới hạn mua tối đa 4 chiếc.</p>}
 
                   {/* Subtotal */}
                   <div className="text-right shrink-0 min-w-[100px]">

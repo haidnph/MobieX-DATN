@@ -21,6 +21,7 @@ export function CartProvider({ children }) {
     total: 0,
     couponCode: storage.get(COUPON_STORAGE_KEY) || null,
     couponInvalidReason: null,
+    quantityLimitAdjusted: false,
   })
   const [loading, setLoading] = useState(false)
 
@@ -28,7 +29,7 @@ export function CartProvider({ children }) {
   const fetchCart = useCallback(async (forcedCouponCode) => {
     if (!user) {
       setCartItems([])
-      setCartSummary({ subtotal: 0, discount: 0, total: 0, couponCode: null, couponInvalidReason: null })
+      setCartSummary({ subtotal: 0, discount: 0, total: 0, couponCode: null, couponInvalidReason: null, quantityLimitAdjusted: false })
       return
     }
     setLoading(true)
@@ -51,6 +52,7 @@ export function CartProvider({ children }) {
           total: payload.total ?? (payload.subtotal ?? 0),
           couponCode: payload.coupon_code,
           couponInvalidReason: null,
+          quantityLimitAdjusted: Boolean(payload.quantity_limit_adjusted),
         })
       } else {
         if (payload.coupon_invalid_reason) {
@@ -62,6 +64,7 @@ export function CartProvider({ children }) {
           total: payload.total ?? (payload.subtotal ?? 0),
           couponCode: null,
           couponInvalidReason: payload.coupon_invalid_reason ?? null,
+          quantityLimitAdjusted: Boolean(payload.quantity_limit_adjusted),
         })
       }
     } catch {
