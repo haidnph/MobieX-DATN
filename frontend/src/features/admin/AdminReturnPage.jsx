@@ -52,4 +52,5 @@ export default function AdminReturnPage() {
       <div className="rounded-xl bg-surface p-3 text-xs text-on-surface-variant"><strong>Lịch sử xử lý</strong>{(selected.histories || []).map((history) => <p key={history.id} className="mt-2">{new Date(history.created_at).toLocaleString('vi-VN')} · {STATUS[history.status] || history.status} · {history.note}</p>)}</div>
     </>}</section></div>
   </main>
+  
 }
