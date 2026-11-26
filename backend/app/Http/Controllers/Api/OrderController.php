@@ -243,6 +243,7 @@ class OrderController extends Controller
                 'note' => 'Khách hàng xác nhận đã nhận hàng',
                 'created_at' => now(),
             ]);
+
             return $order;
         });
 
@@ -289,8 +290,8 @@ class OrderController extends Controller
             'shipping_method_id' => ['nullable', 'integer', 'exists:shipping_methods,id'],
             'payment_method' => ['required', Rule::in(['COD', 'VNPAY', 'MOMO', 'ZALOPAY', 'BANK_TRANSFER', 'cod', 'vnpay', 'momo', 'zalopay', 'bank_transfer'])],
             'coupon_code' => ['nullable', 'string', 'max:50'],
-            'buy_now_variant_id' => ['nullable','integer','exists:product_variants,id'],
-            'buy_now_quantity' => ['required_with:buy_now_variant_id','integer','min:1'],
+            'buy_now_variant_id' => ['nullable', 'integer', 'exists:product_variants,id'],
+            'buy_now_quantity' => ['required_with:buy_now_variant_id', 'integer', 'min:1'],
             'customer_note' => ['nullable', 'string'],
         ]);
 
@@ -306,23 +307,23 @@ class OrderController extends Controller
             $customerEmail = $validated['customer_email'] ?? $request->user()?->email;
 
             $cart = null;
-            if (!empty($validated['buy_now_variant_id'])) {
-                $cartItems = collect([(object)['variant_id'=>$validated['buy_now_variant_id'],'quantity'=>$validated['buy_now_quantity']]]);
+            if (! empty($validated['buy_now_variant_id'])) {
+                $cartItems = collect([(object) ['variant_id' => $validated['buy_now_variant_id'], 'quantity' => $validated['buy_now_quantity']]]);
             } else {
-            $cart = Cart::where('user_id', $userId)
-                ->where('status', 'active')
-                ->lockForUpdate()
-                ->first();
+                $cart = Cart::where('user_id', $userId)
+                    ->where('status', 'active')
+                    ->lockForUpdate()
+                    ->first();
 
-            if (! $cart) {
-                throw ValidationException::withMessages([
-                    'cart' => 'Không tìm thấy giỏ hàng đang hoạt động.',
-                ]);
-            }
+                if (! $cart) {
+                    throw ValidationException::withMessages([
+                        'cart' => 'Không tìm thấy giỏ hàng đang hoạt động.',
+                    ]);
+                }
 
-            $cartItems = $cart->items()->with([
-                'variant.product',
-            ])->orderBy('product_variant_id')->get();
+                $cartItems = $cart->items()->with([
+                    'variant.product',
+                ])->orderBy('product_variant_id')->get();
 
             }
             if ($cartItems->isEmpty()) {
@@ -506,7 +507,9 @@ class OrderController extends Controller
                     $coupon,
                     $preparedItems,
                     static fn (array $item): int => (int) $item['product']->id,
-                    static fn (array $item): float => $item['flash_sale_item'] ? 0.0 : (float) $item['subtotal'],
+                    fn (array $item): float => $item['flash_sale_item'] && ! ($coupon->applies_to_sale_items && $coupon->is_stackable)
+                        ? 0.0
+                        : (float) $item['subtotal'],
                 );
 
                 if ($eligibleSubtotal <= 0) {

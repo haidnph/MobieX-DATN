@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Coupon;
 use App\Models\Order;
+use App\Models\Product;
 
 class CouponRules
 {
@@ -35,10 +36,19 @@ class CouponRules
         callable $lineSubtotal,
     ): float {
         $productIds = $coupon->products()->pluck('products.id')->map(static fn ($id): int => (int) $id)->all();
+        $categoryIds = $coupon->categories()->pluck('categories.id')->map(static fn ($id): int => (int) $id)->all();
+        $brandIds = $coupon->brands()->pluck('brands.id')->map(static fn ($id): int => (int) $id)->all();
+        $candidateProductIds = collect($items)->map(static fn ($item): int => (int) $productId($item))->filter()->unique();
+        $products = Product::query()->whereIn('id', $candidateProductIds)->get(['id', 'category_id', 'brand_id'])->keyBy('id');
         $subtotal = 0.0;
 
         foreach ($items as $item) {
-            if ($productIds !== [] && ! in_array((int) $productId($item), $productIds, true)) {
+            $id = (int) $productId($item);
+            $product = $products->get($id);
+            if (! $product
+                || ($productIds !== [] && ! in_array($id, $productIds, true))
+                || ($categoryIds !== [] && ! in_array((int) $product->category_id, $categoryIds, true))
+                || ($brandIds !== [] && ! in_array((int) $product->brand_id, $brandIds, true))) {
                 continue;
             }
 

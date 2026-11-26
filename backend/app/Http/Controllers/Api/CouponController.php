@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Cart;
 use App\Models\Coupon;
+use App\Models\ProductVariant;
 use App\Services\CouponRules;
 use App\Services\FlashSalePricing;
 use Illuminate\Http\JsonResponse;
@@ -100,7 +101,7 @@ class CouponController extends Controller
             $coupon,
             $cart->items,
             static fn ($item): int => (int) ($item->variant?->product_id ?? 0),
-            function ($item) use ($saleItems): float {
+            function ($item) use ($saleItems, $coupon): float {
                 $variant = $item->variant;
                 if (! $variant || ! $variant->is_active) {
                     return 0.0;
@@ -108,7 +109,9 @@ class CouponController extends Controller
 
                 $saleItem = $saleItems->get($variant->id);
                 if ($saleItem && app(FlashSalePricing::class)->remainingQuantity($saleItem) >= (int) $item->quantity) {
-                    return 0.0;
+                    return $coupon->applies_to_sale_items && $coupon->is_stackable
+                        ? (float) $saleItem->sale_price * (int) $item->quantity
+                        : 0.0;
                 }
 
                 return (float) $variant->price * (int) $item->quantity;
@@ -146,24 +149,33 @@ class CouponController extends Controller
             ],
         ]);
     }
+
     public function buyNowQuote(Request $request): JsonResponse
     {
-        $v = $request->validate(['variant_id'=>['required','integer'], 'quantity'=>['required','integer','min:1'], 'coupon_code'=>['nullable','string','max:50']]);
-        $variant = \App\Models\ProductVariant::with(['product','inventory'])->findOrFail($v['variant_id']);
-        if (!$variant->is_active || $variant->product?->status !== 'active' || $variant->available_quantity < $v['quantity']) {
-            return response()->json(['message'=>'Sản phẩm không còn đủ tồn kho.'],422);
+        $v = $request->validate(['variant_id' => ['required', 'integer'], 'quantity' => ['required', 'integer', 'min:1'], 'coupon_code' => ['nullable', 'string', 'max:50']]);
+        $variant = ProductVariant::with(['product', 'inventory'])->findOrFail($v['variant_id']);
+        if (! $variant->is_active || $variant->product?->status !== 'active' || $variant->available_quantity < $v['quantity']) {
+            return response()->json(['message' => 'Sản phẩm không còn đủ tồn kho.'], 422);
         }
         $sale = app(FlashSalePricing::class)->activeItemsForVariants([$variant->id])->get($variant->id);
         $onSale = $sale && app(FlashSalePricing::class)->remainingQuantity($sale) >= $v['quantity'];
         $price = (float) ($onSale ? $sale->sale_price : $variant->price);
-        $subtotal = $price * $v['quantity']; $discount = 0; $code = null;
-        if (!empty($v['coupon_code'])) {
-            $coupon = Coupon::where('code',strtoupper(trim($v['coupon_code'])))->first();
-            if (!$coupon || !$coupon->is_active || ($coupon->start_at && now()->lt($coupon->start_at)) || ($coupon->end_at && now()->gt($coupon->end_at)) || ($coupon->usage_limit !== null && $coupon->used_count+$coupon->reserved_count >= $coupon->usage_limit) || $this->couponRules->customerLimitReached($coupon,$request->user()->id)) return response()->json(['message'=>'Voucher không còn khả dụng.'],422);
-            $eligible = $this->couponRules->eligibleSubtotal($coupon,[$variant],fn($x)=>$x->product_id,fn($x)=>$onSale ? 0 : $subtotal);
-            if ($eligible <= 0 || $eligible < (float)$coupon->min_order_amount) return response()->json(['message'=>'Sản phẩm hoặc giá trị đơn chưa đủ điều kiện Voucher.'],422);
-            $discount = $this->couponRules->discountAmount($coupon,$eligible); $code=$coupon->code;
+        $subtotal = $price * $v['quantity'];
+        $discount = 0;
+        $code = null;
+        if (! empty($v['coupon_code'])) {
+            $coupon = Coupon::where('code', strtoupper(trim($v['coupon_code'])))->first();
+            if (! $coupon || ! $coupon->is_active || ($coupon->start_at && now()->lt($coupon->start_at)) || ($coupon->end_at && now()->gt($coupon->end_at)) || ($coupon->usage_limit !== null && $coupon->used_count + $coupon->reserved_count >= $coupon->usage_limit) || $this->couponRules->customerLimitReached($coupon, $request->user()->id)) {
+                return response()->json(['message' => 'Voucher không còn khả dụng.'], 422);
+            }
+            $eligible = $this->couponRules->eligibleSubtotal($coupon, [$variant], fn ($x) => $x->product_id, fn ($x) => $onSale && ! ($coupon->applies_to_sale_items && $coupon->is_stackable) ? 0 : $subtotal);
+            if ($eligible <= 0 || $eligible < (float) $coupon->min_order_amount) {
+                return response()->json(['message' => 'Sản phẩm hoặc giá trị đơn chưa đủ điều kiện Voucher.'], 422);
+            }
+            $discount = $this->couponRules->discountAmount($coupon, $eligible);
+            $code = $coupon->code;
         }
-        return response()->json(['data'=>['items'=>[['id'=>$variant->id,'variant'=>$variant,'quantity'=>$v['quantity'],'price'=>$price]],'subtotal'=>$subtotal,'discount'=>$discount,'total'=>$subtotal-$discount,'couponCode'=>$code]]);
+
+        return response()->json(['data' => ['items' => [['id' => $variant->id, 'variant' => $variant, 'quantity' => $v['quantity'], 'price' => $price]], 'subtotal' => $subtotal, 'discount' => $discount, 'total' => $subtotal - $discount, 'couponCode' => $code]]);
     }
 }

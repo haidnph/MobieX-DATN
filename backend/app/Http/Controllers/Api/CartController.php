@@ -115,7 +115,9 @@ class CartController extends Controller
                     $coupon,
                     $items,
                     static fn (array $item): int => (int) ($item['product_id'] ?? 0),
-                    static fn (array $item): float => ! empty($item['flash_sale']) ? 0.0 : (float) ($item['subtotal'] ?? 0),
+                    fn (array $item): float => ! empty($item['flash_sale']) && ! ($coupon->applies_to_sale_items && $coupon->is_stackable)
+                        ? 0.0
+                        : (float) ($item['subtotal'] ?? 0),
                 );
 
                 if ($eligibleSubtotal <= 0) {
