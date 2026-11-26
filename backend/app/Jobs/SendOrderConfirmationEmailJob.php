@@ -81,13 +81,6 @@ class SendOrderConfirmationEmailJob implements ShouldQueue
             return;
         }
 
-        // Idempotency check: avoid duplicate sends unless forced
-        if (! $this->force && $order->confirmation_email_status === 'sent') {
-            Log::info("[OrderConfirmationEmailJob] Order #{$order->order_code} already has confirmation email sent at {$order->confirmation_email_sent_at}. Skipping duplicate.");
-
-            return;
-        }
-
         if (! $this->force && $order->payment_status === 'paid') {
             $alreadySentPaid = OrderEmailLog::where('order_id', $order->id)
                 ->where('status', 'sent')
@@ -99,6 +92,10 @@ class SendOrderConfirmationEmailJob implements ShouldQueue
 
                 return;
             }
+        } elseif (! $this->force && $order->confirmation_email_status === 'sent') {
+            Log::info("[OrderConfirmationEmailJob] Order #{$order->order_code} already has confirmation email sent at {$order->confirmation_email_sent_at}. Skipping duplicate.");
+
+            return;
         }
 
         $subject = ($order->payment_status === 'paid')

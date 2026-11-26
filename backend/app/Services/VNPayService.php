@@ -32,6 +32,25 @@ class VNPayService
         return $this->tmnCode !== '' && $this->hashSecret !== '';
     }
 
+    public function matchesTmnCode(?string $tmnCode): bool
+    {
+        if (! $this->isConfigured() || ! is_string($tmnCode) || $tmnCode === '') {
+            return false;
+        }
+
+        return hash_equals($this->tmnCode, $tmnCode);
+    }
+
+    private function normalizeIpAddress(?string $ipAddress): string
+    {
+        $candidate = trim((string) ($ipAddress ?? ''));
+        if ($candidate === '' || $candidate === '::1') {
+            return '127.0.0.1';
+        }
+
+        return filter_var($candidate, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) ? $candidate : '127.0.0.1';
+    }
+
     /**
      * Build the secure VNPay payment URL for redirection.
      *
@@ -53,7 +72,7 @@ class VNPayService
         $vnpAmount = (int) round(((float) $data['amount']) * 100);
         $vnpTxnRef = (string) $data['order_code'];
         $vnpOrderInfo = (string) ($data['order_info'] ?? ('Thanh toán đơn hàng '.$vnpTxnRef));
-        $vnpIpAddr = (string) ($data['ip_address'] ?? '127.0.0.1');
+        $vnpIpAddr = $this->normalizeIpAddress($data['ip_address'] ?? null);
         $returnUrl = (string) ($data['return_url'] ?? $this->returnUrl);
 
         $now = now('Asia/Ho_Chi_Minh');
@@ -126,9 +145,13 @@ class VNPayService
 
         $params = [];
         foreach ($inputData as $key => $value) {
-            if (str_starts_with($key, 'vnp_') && $key !== 'vnp_SecureHash' && $key !== 'vnp_SecureHashType') {
-                $params[$key] = (string) $value;
+            if (! is_string($key) || ! str_starts_with($key, 'vnp_') || $key === 'vnp_SecureHash' || $key === 'vnp_SecureHashType') {
+                continue;
             }
+            if (! is_scalar($value) && $value !== null) {
+                return false;
+            }
+            $params[$key] = (string) ($value ?? '');
         }
 
         ksort($params);
@@ -146,7 +169,7 @@ class VNPayService
 
         $secureHash = hash_hmac('sha512', $hashData, $this->hashSecret);
 
-        return hash_equals($secureHash, (string) $vnpSecureHash);
+        return hash_equals($secureHash, strtolower((string) $vnpSecureHash));
     }
 
     /** @return array<string, mixed> */
@@ -168,7 +191,7 @@ class VNPayService
             'vnp_TransactionDate' => $data['transaction_date'],
             'vnp_CreateBy' => mb_substr((string) $data['created_by'], 0, 245),
             'vnp_CreateDate' => now('Asia/Ho_Chi_Minh')->format('YmdHis'),
-            'vnp_IpAddr' => (string) ($data['ip_address'] ?? '127.0.0.1'),
+            'vnp_IpAddr' => $this->normalizeIpAddress($data['ip_address'] ?? null),
             'vnp_OrderInfo' => mb_substr((string) $data['description'], 0, 255),
         ];
         $signed = implode('|', [
@@ -208,8 +231,8 @@ class VNPayService
             'vnp_TxnRef' => $data['transaction_reference'],
             'vnp_TransactionDate' => $data['transaction_date'],
             'vnp_CreateDate' => now('Asia/Ho_Chi_Minh')->format('YmdHis'),
-            'vnp_IpAddr' => (string) ($data['ip_address'] ?? '127.0.0.1'),
-            'vnp_OrderInfo' => mb_substr((string) $data['description'], 0, 255),
+            'vnp_IpAddr' => $this->normalizeIpAddress($data['ip_address'] ?? null),
+            'vnp_OrderInfo' => mb_substr((string) ($data['description'] ?? 'Query transaction'), 0, 255),
         ];
         $signed = implode('|', [
             $params['vnp_RequestId'], $params['vnp_Version'], $params['vnp_Command'], $params['vnp_TmnCode'],
@@ -264,7 +287,7 @@ class VNPayService
     /** @param array<string, mixed> $response */
     public function verifyRefundApiResponse(array $response): bool
     {
-        if (! $this->isConfigured() || ! is_string($response['vnp_SecureHash'] ?? null)) {
+        if (! $this->isConfigured() || ! is_string($response['vnp_SecureHash'] ?? null) || $response['vnp_SecureHash'] === '') {
             return false;
         }
 
@@ -276,6 +299,6 @@ class VNPayService
         $signed = implode('|', array_map(static fn (string $field): string => (string) ($response[$field] ?? ''), $fields));
         $expected = hash_hmac('sha512', $signed, $this->hashSecret);
 
-        return hash_equals($expected, $response['vnp_SecureHash']);
+        return hash_equals($expected, strtolower($response['vnp_SecureHash']));
     }
 }

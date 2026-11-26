@@ -47,6 +47,7 @@ export default function AdminOrderDetailPage() {
   const [nextStatus, setNextStatus] = useState('')
   const [transitionNote, setTransitionNote] = useState('')
   const [updating, setUpdating] = useState(false)
+  const [verifyingGateway, setVerifyingGateway] = useState(false)
   const [simulatingPayment, setSimulatingPayment] = useState(false)
   const [refundDrafts, setRefundDrafts] = useState({})
   const [savingRefundPaymentId, setSavingRefundPaymentId] = useState(null)
@@ -89,6 +90,27 @@ export default function AdminOrderDetailPage() {
       showToast(err.message || 'Không thể cập nhật trạng thái đơn hàng', 'error')
     } finally {
       setUpdating(false)
+    }
+  }
+
+  const handleAdminVerifyGateway = async () => {
+    if (!order?.id || verifyingGateway) return
+    setVerifyingGateway(true)
+    try {
+      const { data } = await axiosClient.post(EP.ADMIN_ORDER_VERIFY_PAYMENT(order.id), {}, { timeout: 15000 })
+      const resData = data.data ?? data
+      if (resData?.payment_status === 'paid') {
+        showToast('Cổng thanh toán đã xác nhận đơn hàng thanh toán thành công!', 'success')
+      } else if (resData?.payment_status === 'failed') {
+        showToast(data.message || 'Cổng thanh toán báo giao dịch không thành công.', 'warning')
+      } else {
+        showToast(data.message || 'Chưa nhận được xác nhận thanh toán từ cổng.', 'info')
+      }
+      fetchOrder()
+    } catch (err) {
+      showToast(err.message || 'Không thể đối soát trạng thái với cổng thanh toán.', 'error')
+    } finally {
+      setVerifyingGateway(false)
     }
   }
 
@@ -212,7 +234,7 @@ export default function AdminOrderDetailPage() {
               </h3>
               <p className="text-sm font-semibold text-on-surface">{order.shipping_name || order.user?.name}</p>
               <p className="text-xs text-on-surface-variant">SĐT: {order.shipping_phone || order.phone}</p>
-              <p className="text-xs text-on-surface-variant">Email: {order.user?.email || '—'}</p>
+              <p className="text-xs text-on-surface-variant">Email: {order.customer_email || order.user?.email || '—'}</p>
               <p>
                  Địa chỉ: {[
                      order.shipping_address_line,
@@ -240,9 +262,40 @@ export default function AdminOrderDetailPage() {
                     ? 'Đã hoàn tiền'
                     : order.payment_status === 'settled' || order.payment_status === 'paid'
                       ? 'Đã thu tiền'
-                      : 'Chưa thu tiền'}
+                      : order.payment_status === 'failed'
+                        ? 'Thanh toán thất bại'
+                        : 'Chưa thu tiền'}
                 </span>
               </div>
+              {['vnpay', 'zalopay', 'momo'].includes(order.payment_method) && order.payment_status !== 'paid' && order.status !== 'cancelled' && (isAdmin() || hasPermission('orders.manage')) && (
+                <div className="pt-2 space-y-2 border-t border-outline-variant/15">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    loading={verifyingGateway}
+                    disabled={verifyingGateway}
+                    onClick={handleAdminVerifyGateway}
+                    className="w-full text-xs"
+                  >
+                    <span className="material-symbols-outlined text-sm">sync</span>
+                    Đối soát trạng thái với cổng {order.payment_method.toUpperCase()}
+                  </Button>
+                </div>
+              )}
+              {(order.payments || []).length > 0 && (
+                <div className="pt-2 border-t border-outline-variant/15 space-y-1.5 text-[11px]">
+                  <p className="font-semibold text-on-surface-variant">Lịch sử giao dịch cổng ({order.payments.length}):</p>
+                  {order.payments.slice(0, 3).map((p) => (
+                    <div key={p.id} className="flex items-center justify-between gap-2 bg-surface-container-low rounded-lg px-2.5 py-1.5">
+                      <span className="font-mono truncate text-on-surface">{p.transaction_code}</span>
+                      <span className="text-outline shrink-0">
+                        {p.status} · {(p.webhook_events || []).length > 0 ? 'Đã có Webhook' : 'Chưa có Webhook'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
               {(order.payments || []).filter((payment) => (
                 payment.refund_required
                 || payment.status === 'refunded'

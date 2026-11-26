@@ -111,8 +111,15 @@ export default function OrderDetailPage() {
     try {
       const { data } = await axiosClient.post(EP.PAYMENT_VERIFY_STATUS(id), {}, { timeout: 15000 })
       const resData = data.data ?? data
+      const vState = resData?.verification_state || ''
       if (resData?.payment_status === 'paid') {
         showToast('Thanh toán đã được xác nhận từ cổng thanh toán!', 'success')
+      } else if (resData?.payment_status === 'failed' || vState === 'verified_failed') {
+        showToast(data.message || 'Giao dịch thanh toán không thành công.', 'error')
+      } else if (vState === 'flagged') {
+        showToast(data.message || 'Giao dịch đang bị cổng thanh toán rà soát bảo mật.', 'warning')
+      } else if (vState === 'gateway_unavailable') {
+        showToast(data.message || 'Tạm thời chưa thể đối soát với cổng thanh toán. Hệ thống đang chờ IPN.', 'warning')
       } else {
         showToast(data.message || 'Đơn hàng vẫn đang chờ xác nhận thanh toán.', 'info')
       }

@@ -199,6 +199,7 @@ class AdminOrderController extends Controller
             'shippingMethod',
             'payments',
             'payments.refunds',
+            'payments.webhookEvents',
             'coupon',
             'emailLogs',
         ])->findOrFail($id);

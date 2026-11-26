@@ -10,5 +10,7 @@ return [
     'hash_secret' => env('VNP_HASH_SECRET', ''),
     'url' => env('VNP_URL', 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html'),
     'transaction_api_url' => env('VNP_TRANSACTION_API_URL', 'https://sandbox.vnpayment.vn/merchant_webapi/api/transaction'),
-    'return_url' => env('VNP_RETURN_URL', 'http://localhost:5173/payment/vnpay/return'),
+    'return_url' => env('VNP_RETURN_URL', rtrim((string) env('FRONTEND_URL', 'http://localhost:5173'), '/').'/payment/vnpay/return'),
+    'ipn_url' => env('VNP_IPN_URL', rtrim((string) env('APP_URL', 'http://127.0.0.1:8000'), '/').'/api/payments/vnpay/ipn'),
+    'allow_verified_return_fallback' => (bool) env('VNP_ALLOW_VERIFIED_RETURN_FALLBACK', false),
 ];

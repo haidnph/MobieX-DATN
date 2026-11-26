@@ -4,6 +4,8 @@ namespace Tests\Feature\Payments;
 
 use App\Models\Order;
 use App\Models\Payment;
+use App\Models\Permission;
+use App\Models\Role;
 use App\Models\ShippingMethod;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -312,5 +314,218 @@ class OrderPaymentVerificationTest extends TestCase
         $this->actingAs($this->customer, 'sanctum')
             ->postJson('/api/payments/momo/create', ['order_id' => $codOrder->id])
             ->assertStatus(422);
+    }
+
+    private function signVNPayQueryResponse(array $overrides = []): array
+    {
+        $body = array_merge([
+            'vnp_ResponseId' => 'RESP-'.uniqid(),
+            'vnp_Command' => 'querydr',
+            'vnp_ResponseCode' => '00',
+            'vnp_Message' => 'Success',
+            'vnp_TmnCode' => 'TEST_TMN',
+            'vnp_TxnRef' => 'PAY-TEST',
+            'vnp_Amount' => '25000000',
+            'vnp_TransactionNo' => '15750030',
+            'vnp_TransactionType' => '01',
+            'vnp_TransactionStatus' => '00',
+        ], $overrides);
+
+        $fields = [
+            'vnp_ResponseId', 'vnp_Command', 'vnp_ResponseCode', 'vnp_Message', 'vnp_TmnCode', 'vnp_TxnRef',
+            'vnp_Amount', 'vnp_BankCode', 'vnp_PayDate', 'vnp_TransactionNo', 'vnp_TransactionType',
+            'vnp_TransactionStatus', 'vnp_OrderInfo', 'vnp_PromotionCode', 'vnp_PromotionAmount',
+        ];
+        $signed = implode('|', array_map(static fn (string $field): string => (string) ($body[$field] ?? ''), $fields));
+        $body['vnp_SecureHash'] = hash_hmac('sha512', $signed, 'TEST_SECRET_KEY_1234567890');
+
+        return $body;
+    }
+
+    public function test_verify_status_classifies_vnpay_querydr_99_as_gateway_unavailable(): void
+    {
+        $order = $this->createOrder('vnpay', 6020000);
+        Payment::create([
+            'order_id' => $order->id,
+            'transaction_code' => 'PAY-WCFMIDZR4ULR7GZX',
+            'idempotency_key' => 'vnp-q99-'.$order->id,
+            'method' => 'vnpay',
+            'amount' => $order->total_amount,
+            'currency_code' => 'VND',
+            'status' => 'pending',
+            'response_data' => ['vnp_CreateDate' => date('YmdHis')],
+        ]);
+
+        Http::fake([
+            'sandbox.vnpayment.vn/*' => Http::response([
+                'vnp_ResponseCode' => '99',
+                'vnp_Message' => 'Unexpected error',
+            ], 200),
+        ]);
+
+        $this->actingAs($this->customer, 'sanctum')
+            ->postJson("/api/payments/orders/{$order->id}/verify-status")
+            ->assertOk()
+            ->assertJsonPath('status', 'pending')
+            ->assertJsonPath('data.gateway_verified', false)
+            ->assertJsonPath('data.verification_state', 'gateway_unavailable')
+            ->assertJsonPath('data.gateway_error_code', '99');
+
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'payment_status' => 'pending']);
+    }
+
+    public function test_verify_status_handles_vnpay_querydr_processing_state(): void
+    {
+        $order = $this->createOrder('vnpay', 250000);
+        $tx = 'PAY-PROC-'.$order->id;
+        Payment::create([
+            'order_id' => $order->id,
+            'transaction_code' => $tx,
+            'idempotency_key' => 'vnp-proc-'.$order->id,
+            'method' => 'vnpay',
+            'amount' => $order->total_amount,
+            'currency_code' => 'VND',
+            'status' => 'pending',
+        ]);
+        Http::fake([
+            'sandbox.vnpayment.vn/*' => Http::response($this->signVNPayQueryResponse([
+                'vnp_TxnRef' => $tx,
+                'vnp_TransactionStatus' => '01',
+            ]), 200),
+        ]);
+        $this->actingAs($this->customer, 'sanctum')
+            ->postJson("/api/payments/orders/{$order->id}/verify-status")
+            ->assertOk()
+            ->assertJsonPath('status', 'pending')
+            ->assertJsonPath('data.verification_state', 'processing');
+        $this->assertEquals('pending', $order->fresh()->payment_status);
+    }
+
+    public function test_verify_status_handles_vnpay_querydr_flagged_fraud_state(): void
+    {
+        $order = $this->createOrder('vnpay', 250000);
+        $tx = 'PAY-FRAUD-'.$order->id;
+        Payment::create([
+            'order_id' => $order->id,
+            'transaction_code' => $tx,
+            'idempotency_key' => 'vnp-fraud-'.$order->id,
+            'method' => 'vnpay',
+            'amount' => $order->total_amount,
+            'currency_code' => 'VND',
+            'status' => 'pending',
+        ]);
+        Http::fake([
+            'sandbox.vnpayment.vn/*' => Http::response($this->signVNPayQueryResponse([
+                'vnp_TxnRef' => $tx,
+                'vnp_TransactionStatus' => '07',
+            ]), 200),
+        ]);
+        $this->actingAs($this->customer, 'sanctum')
+            ->postJson("/api/payments/orders/{$order->id}/verify-status")
+            ->assertOk()
+            ->assertJsonPath('status', 'pending')
+            ->assertJsonPath('data.verification_state', 'flagged');
+        $this->assertEquals('pending', $order->fresh()->payment_status);
+    }
+
+    public function test_verify_status_handles_vnpay_querydr_failed_state(): void
+    {
+        $order = $this->createOrder('vnpay', 250000);
+        $tx = 'PAY-FAIL-'.$order->id;
+        Payment::create([
+            'order_id' => $order->id,
+            'transaction_code' => $tx,
+            'idempotency_key' => 'vnp-fail-'.$order->id,
+            'method' => 'vnpay',
+            'amount' => $order->total_amount,
+            'currency_code' => 'VND',
+            'status' => 'pending',
+        ]);
+        Http::fake([
+            'sandbox.vnpayment.vn/*' => Http::response($this->signVNPayQueryResponse([
+                'vnp_TxnRef' => $tx,
+                'vnp_TransactionStatus' => '02',
+                'vnp_TransactionNo' => '15750099',
+            ]), 200),
+        ]);
+        $this->actingAs($this->customer, 'sanctum')
+            ->postJson("/api/payments/orders/{$order->id}/verify-status")
+            ->assertOk()
+            ->assertJsonPath('status', 'failed')
+            ->assertJsonPath('data.verification_state', 'verified_failed');
+        $this->assertEquals('failed', $order->fresh()->payment_status);
+    }
+
+    public function test_verify_status_rejects_vnpay_querydr_mismatched_tmn_code(): void
+    {
+        $order = $this->createOrder('vnpay', 250000);
+        $tx = 'PAY-TMN-MISMATCH-'.$order->id;
+        Payment::create([
+            'order_id' => $order->id,
+            'transaction_code' => $tx,
+            'idempotency_key' => 'vnp-tmn-'.$order->id,
+            'method' => 'vnpay',
+            'amount' => $order->total_amount,
+            'currency_code' => 'VND',
+            'status' => 'pending',
+        ]);
+
+        Http::fake([
+            'sandbox.vnpayment.vn/*' => Http::response($this->signVNPayQueryResponse([
+                'vnp_TmnCode' => 'OTHER_TMN',
+                'vnp_TxnRef' => $tx,
+                'vnp_TransactionStatus' => '00',
+            ]), 200),
+        ]);
+
+        $this->actingAs($this->customer, 'sanctum')
+            ->postJson("/api/payments/orders/{$order->id}/verify-status")
+            ->assertOk()
+            ->assertJsonPath('status', 'pending')
+            ->assertJsonPath('data.verification_state', 'gateway_unavailable')
+            ->assertJsonPath('data.gateway_error_code', 'payload_mismatch');
+    }
+
+    public function test_admin_verify_payment_requires_permission_and_settles_signed_vnpay_querydr(): void
+    {
+        $order = $this->createOrder('vnpay', 250000);
+        $tx = 'PAY-ADMIN-VRF-'.$order->id;
+        Payment::create([
+            'order_id' => $order->id,
+            'transaction_code' => $tx,
+            'idempotency_key' => 'vnp-admin-'.$order->id,
+            'method' => 'vnpay',
+            'amount' => $order->total_amount,
+            'currency_code' => 'VND',
+            'status' => 'pending',
+        ]);
+
+        // Customer cannot call admin reconciliation endpoint
+        $this->actingAs($this->customer, 'sanctum')
+            ->postJson("/api/admin/orders/{$order->id}/verify-payment")
+            ->assertStatus(403);
+
+        $adminRole = Role::firstOrCreate(['slug' => 'admin'], ['name' => 'Admin']);
+        $perm = Permission::firstOrCreate(['slug' => 'orders.manage'], ['name' => 'Manage Orders']);
+        $adminRole->permissions()->syncWithoutDetaching([$perm->id]);
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->roles()->attach($adminRole->id);
+
+        Http::fake([
+            'sandbox.vnpayment.vn/*' => Http::response($this->signVNPayQueryResponse([
+                'vnp_TxnRef' => $tx,
+                'vnp_TransactionStatus' => '00',
+                'vnp_TransactionNo' => 'VNP-ADMIN-888',
+            ]), 200),
+        ]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/admin/orders/{$order->id}/verify-payment")
+            ->assertOk()
+            ->assertJsonPath('status', 'paid')
+            ->assertJsonPath('data.gateway_verified', true);
+
+        $this->assertEquals('paid', $order->fresh()->payment_status);
+        $this->assertEquals('confirmed', $order->fresh()->status);
     }
 }

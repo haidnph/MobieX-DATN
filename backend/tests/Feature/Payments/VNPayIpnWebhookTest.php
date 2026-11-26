@@ -85,6 +85,7 @@ class VNPayIpnWebhookTest extends TestCase
             'vnp_Locale' => 'vn',
             'vnp_OrderInfo' => 'Thanh toan don hang',
             'vnp_ResponseCode' => '00',
+            'vnp_TransactionStatus' => '00',
             'vnp_TransactionNo' => '14667788',
             'vnp_TxnRef' => 'MX-DEFAULT',
         ], $override);
@@ -315,5 +316,118 @@ class VNPayIpnWebhookTest extends TestCase
                 'RspCode' => '02',
                 'Message' => 'Order already confirmed',
             ]);
+    }
+
+    public function test_ipn_rejects_mismatched_tmn_code(): void
+    {
+        $order = $this->createOrder(5000000);
+
+        $params = $this->buildIpnParams([
+            'vnp_TmnCode' => 'WRONG_TMN',
+            'vnp_TxnRef' => $order->order_code,
+            'vnp_Amount' => '500000000',
+        ]);
+
+        $this->getJson('/api/payments/vnpay/ipn?'.http_build_query($params))
+            ->assertOk()
+            ->assertJson([
+                'RspCode' => '02',
+                'Message' => 'Invalid TmnCode',
+            ]);
+
+        $this->assertEquals('pending', $order->fresh()->payment_status);
+    }
+
+    public function test_ipn_handles_processing_suspected_fraud_and_failed_transaction_statuses_safely(): void
+    {
+        // 1. Processing (vnp_TransactionStatus = 01): keep pending, never paid, never failed
+        $processingOrder = $this->createOrder(5000000);
+        $processingParams = $this->buildIpnParams([
+            'vnp_TxnRef' => $processingOrder->order_code,
+            'vnp_Amount' => '500000000',
+            'vnp_ResponseCode' => '00',
+            'vnp_TransactionStatus' => '01',
+            'vnp_TransactionNo' => 'PROC1001',
+        ]);
+        $this->getJson('/api/payments/vnpay/ipn?'.http_build_query($processingParams))
+            ->assertOk()
+            ->assertJsonPath('RspCode', '00');
+        $this->assertEquals('pending', $processingOrder->fresh()->payment_status);
+
+        // 2. Suspected fraud (vnp_TransactionStatus = 07): never mark paid!
+        $fraudOrder = $this->createOrder(5000000);
+        $fraudParams = $this->buildIpnParams([
+            'vnp_TxnRef' => $fraudOrder->order_code,
+            'vnp_Amount' => '500000000',
+            'vnp_ResponseCode' => '00',
+            'vnp_TransactionStatus' => '07',
+            'vnp_TransactionNo' => 'FRAUD1002',
+        ]);
+        $this->getJson('/api/payments/vnpay/ipn?'.http_build_query($fraudParams))
+            ->assertOk()
+            ->assertJsonPath('RspCode', '00');
+        $this->assertEquals('pending', $fraudOrder->fresh()->payment_status);
+        $this->assertEquals('pending', $fraudOrder->fresh()->status);
+
+        // 3. TransactionStatus 02 with ResponseCode 00: must fail, never paid!
+        $failedOrder = $this->createOrder(5000000);
+        $failedParams = $this->buildIpnParams([
+            'vnp_TxnRef' => $failedOrder->order_code,
+            'vnp_Amount' => '500000000',
+            'vnp_ResponseCode' => '00',
+            'vnp_TransactionStatus' => '02',
+            'vnp_TransactionNo' => 'FAIL1003',
+        ]);
+        $this->getJson('/api/payments/vnpay/ipn?'.http_build_query($failedParams))
+            ->assertOk()
+            ->assertJsonPath('RspCode', '00');
+        $this->assertEquals('failed', $failedOrder->fresh()->payment_status);
+    }
+
+    public function test_late_failed_ipn_never_overwrites_paid_order_and_return_sees_ipn_first(): void
+    {
+        $order = $this->createOrder(5000000);
+        $payment = Payment::create([
+            'order_id' => $order->id,
+            'transaction_code' => 'PAY-IPN-FIRST-'.$order->id,
+            'idempotency_key' => 'vnpay-ipn-first-'.$order->id,
+            'method' => 'vnpay',
+            'amount' => $order->total_amount,
+            'currency_code' => 'VND',
+            'status' => 'pending',
+        ]);
+
+        // IPN arrives BEFORE customer browser hits Return URL
+        $successParams = $this->buildIpnParams([
+            'vnp_TxnRef' => $payment->transaction_code,
+            'vnp_Amount' => '500000000',
+            'vnp_TransactionNo' => 'IPNFIRST001',
+            'vnp_ResponseCode' => '00',
+            'vnp_TransactionStatus' => '00',
+        ]);
+        $this->getJson('/api/payments/vnpay/ipn?'.http_build_query($successParams))
+            ->assertOk()
+            ->assertJsonPath('RspCode', '00');
+
+        // Return URL then confirms success immediately
+        $this->getJson('/api/payments/vnpay/return?'.http_build_query($successParams))
+            ->assertOk()
+            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('data.payment_status', 'paid');
+
+        // Late failed IPN arrives afterwards: must NOT overwrite paid status
+        $lateFailParams = $this->buildIpnParams([
+            'vnp_TxnRef' => $payment->transaction_code,
+            'vnp_Amount' => '500000000',
+            'vnp_TransactionNo' => 'LATEFAIL002',
+            'vnp_ResponseCode' => '24',
+            'vnp_TransactionStatus' => '02',
+        ]);
+        $this->getJson('/api/payments/vnpay/ipn?'.http_build_query($lateFailParams))
+            ->assertOk()
+            ->assertJsonPath('RspCode', '02');
+
+        $this->assertEquals('paid', $order->fresh()->payment_status);
+        $this->assertEquals('confirmed', $order->fresh()->status);
     }
 }

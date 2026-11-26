@@ -37,5 +37,6 @@
         <env name="CLOUDINARY_API_KEY" value=""/>
         <env name="CLOUDINARY_API_SECRET" value=""/>
         <env name="CLOUDINARY_URL" value=""/>
+        <env name="VNP_ALLOW_VERIFIED_RETURN_FALLBACK" value="false"/>
     </php>
 </phpunit>

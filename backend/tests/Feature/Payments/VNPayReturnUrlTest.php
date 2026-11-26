@@ -29,6 +29,7 @@ class VNPayReturnUrlTest extends TestCase
             'vnpay.hash_secret' => 'XNBCJFAKAZQSGTARRLGCHVZWCIOIGSHN',
             'vnpay.url' => 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html',
             'vnpay.return_url' => 'http://localhost:5173/payment/vnpay/return',
+            'vnpay.allow_verified_return_fallback' => false,
         ]);
 
         $this->vnpayService = app(VNPayService::class);
@@ -84,6 +85,7 @@ class VNPayReturnUrlTest extends TestCase
             'vnp_OrderInfo' => 'Thanh toán đơn hàng',
             'vnp_PayDate' => date('YmdHis'),
             'vnp_ResponseCode' => '00',
+            'vnp_TransactionStatus' => '00',
             'vnp_TmnCode' => 'CGXZLS0Z',
             'vnp_TransactionNo' => '14888999',
             'vnp_TxnRef' => $payment->transaction_code,
@@ -143,5 +145,139 @@ class VNPayReturnUrlTest extends TestCase
             ->assertJson([
                 'status' => 'error',
             ]);
+    }
+
+    public function test_vnpay_return_settles_sandbox_order_when_verified_return_fallback_enabled(): void
+    {
+        config(['vnpay.allow_verified_return_fallback' => true]);
+
+        $payment = Payment::create([
+            'order_id' => $this->order->id,
+            'transaction_code' => 'PAY-RETURN-FB-'.uniqid(),
+            'idempotency_key' => 'vnpay-return-fb-'.$this->order->id,
+            'method' => 'vnpay',
+            'amount' => $this->order->total_amount,
+            'currency_code' => 'VND',
+            'status' => 'pending',
+        ]);
+
+        $params = [
+            'vnp_Amount' => (string) (20030000 * 100),
+            'vnp_BankCode' => 'NCB',
+            'vnp_CardType' => 'ATM',
+            'vnp_OrderInfo' => 'Thanh toan don hang',
+            'vnp_PayDate' => date('YmdHis'),
+            'vnp_ResponseCode' => '00',
+            'vnp_TransactionStatus' => '00',
+            'vnp_TmnCode' => 'CGXZLS0Z',
+            'vnp_TransactionNo' => '15750030',
+            'vnp_TxnRef' => $payment->transaction_code,
+        ];
+
+        ksort($params);
+        $hashdata = '';
+        $i = 0;
+        foreach ($params as $k => $v) {
+            if ($i === 1) {
+                $hashdata .= '&'.urlencode((string) $k).'='.urlencode((string) $v);
+            } else {
+                $hashdata .= urlencode((string) $k).'='.urlencode((string) $v);
+                $i = 1;
+            }
+        }
+        $params['vnp_SecureHash'] = hash_hmac('sha512', $hashdata, 'XNBCJFAKAZQSGTARRLGCHVZWCIOIGSHN');
+
+        $response = $this->getJson('/api/payments/vnpay/return?'.http_build_query($params));
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'status' => 'success',
+                'data' => [
+                    'order_id' => $this->order->id,
+                    'order_code' => $this->order->order_code,
+                    'payment_status' => 'paid',
+                    'order_status' => 'confirmed',
+                    'verification_status' => 'success',
+                ],
+            ]);
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $this->order->id,
+            'payment_status' => 'paid',
+            'status' => 'confirmed',
+        ]);
+
+        $this->assertDatabaseHas('payments', [
+            'id' => $payment->id,
+            'status' => 'success',
+            'gateway_transaction_id' => '15750030',
+        ]);
+
+        $this->assertDatabaseHas('payment_webhook_events', [
+            'payment_id' => $payment->id,
+            'method' => 'vnpay',
+            'event_key' => '15750030',
+            'processing_status' => 'processed',
+        ]);
+    }
+
+    public function test_vnpay_return_fallback_is_blocked_in_production_environment(): void
+    {
+        config(['vnpay.allow_verified_return_fallback' => true]);
+        $this->app['env'] = 'production';
+
+        $payment = Payment::create([
+            'order_id' => $this->order->id,
+            'transaction_code' => 'PAY-RETURN-PROD-'.uniqid(),
+            'idempotency_key' => 'vnpay-return-prod-'.$this->order->id,
+            'method' => 'vnpay',
+            'amount' => $this->order->total_amount,
+            'currency_code' => 'VND',
+            'status' => 'pending',
+        ]);
+
+        $params = [
+            'vnp_Amount' => (string) (20030000 * 100),
+            'vnp_BankCode' => 'NCB',
+            'vnp_CardType' => 'ATM',
+            'vnp_OrderInfo' => 'Thanh toan don hang',
+            'vnp_PayDate' => date('YmdHis'),
+            'vnp_ResponseCode' => '00',
+            'vnp_TransactionStatus' => '00',
+            'vnp_TmnCode' => 'CGXZLS0Z',
+            'vnp_TransactionNo' => '15750030',
+            'vnp_TxnRef' => $payment->transaction_code,
+        ];
+
+        ksort($params);
+        $hashdata = '';
+        $i = 0;
+        foreach ($params as $k => $v) {
+            if ($i === 1) {
+                $hashdata .= '&'.urlencode((string) $k).'='.urlencode((string) $v);
+            } else {
+                $hashdata .= urlencode((string) $k).'='.urlencode((string) $v);
+                $i = 1;
+            }
+        }
+        $params['vnp_SecureHash'] = hash_hmac('sha512', $hashdata, 'XNBCJFAKAZQSGTARRLGCHVZWCIOIGSHN');
+
+        $response = $this->getJson('/api/payments/vnpay/return?'.http_build_query($params));
+
+        // In production, fallback must NOT settle the order
+        $response->assertStatus(200)
+            ->assertJson([
+                'status' => 'pending_confirmation',
+                'data' => [
+                    'order_id' => $this->order->id,
+                    'payment_status' => 'pending',
+                ],
+            ]);
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $this->order->id,
+            'payment_status' => 'pending',
+            'status' => 'pending',
+        ]);
     }
 }

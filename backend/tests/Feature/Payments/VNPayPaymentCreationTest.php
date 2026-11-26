@@ -147,6 +147,7 @@ class VNPayPaymentCreationTest extends TestCase
         parse_str($query, $params);
 
         $params['vnp_ResponseCode'] = '00';
+        $params['vnp_TransactionStatus'] = '00';
         $params['vnp_TransactionNo'] = '14552233';
 
         // Recompute hash because we added responseCode & transactionNo

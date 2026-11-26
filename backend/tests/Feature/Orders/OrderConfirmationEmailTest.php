@@ -571,4 +571,47 @@ class OrderConfirmationEmailTest extends TestCase
         $this->assertStringContainsString(e($item1Img), $html);
         $this->assertStringContainsString(e($item2Img), $html);
     }
+
+    /**
+     * Test Case 11: Online payment sends updated paid confirmation email after pending email was sent at checkout.
+     */
+    public function test_online_payment_sends_paid_confirmation_email_after_initial_pending_email(): void
+    {
+        $order = Order::create([
+            'order_code' => 'MX-VNPAY-PAID-EMAIL',
+            'user_id' => $this->customer->id,
+            'customer_email' => 'vnpay.customer@example.com',
+            'shipping_method_id' => $this->shippingMethod->id,
+            'shipping_method_code' => 'standard',
+            'shipping_method_name' => 'Giao hàng tiêu chuẩn',
+            'subtotal' => 28990000,
+            'total_amount' => 28990000,
+            'currency_code' => 'VND',
+            'shipping_name' => 'Khách VNPay',
+            'shipping_phone' => '0900000001',
+            'shipping_address_line' => '123 Đường Test',
+            'shipping_province_code' => 'VN-HN',
+            'shipping_province_name' => 'Hà Nội',
+            'shipping_ward_code' => '001',
+            'shipping_ward_name' => 'Dịch Vọng',
+            'payment_method' => 'vnpay',
+            'payment_status' => 'pending',
+            'status' => 'pending',
+        ]);
+
+        $mailService = app(OrderMailService::class);
+
+        // 1. Initial order-placed email (pending)
+        $mailService->sendOrderConfirmation($order);
+        Mail::assertQueued(OrderConfirmationMail::class, 1);
+
+        // 2. Payment settles via IPN / QueryDR -> must send paid receipt!
+        $order->update(['payment_status' => 'paid', 'status' => 'confirmed']);
+        $mailService->sendOrderConfirmation($order->fresh());
+        Mail::assertQueued(OrderConfirmationMail::class, 2);
+
+        // 3. Duplicate IPN / verify call must NOT send a 3rd email!
+        $mailService->sendOrderConfirmation($order->fresh());
+        Mail::assertQueued(OrderConfirmationMail::class, 2);
+    }
 }

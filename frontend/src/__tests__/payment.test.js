@@ -206,4 +206,39 @@ describe('Separate-Tab Payment Flow & Sync', () => {
     expect(mmCancelled.isCancelled).toBe(true)
     expect(mmCancelled.isConfirmed).toBe(false)
   })
+
+  it('handles VNPay vnp_TransactionStatus processing (01), fraud (07), failed (02), and cancelled (24) accurately', () => {
+    const vnpProcessing = parseVNPayReturnState(
+      new URLSearchParams({ vnp_ResponseCode: '00', vnp_TransactionStatus: '01', vnp_Amount: '602000000' }),
+      { order_id: 15, payment_status: 'pending', verification_status: 'pending_confirmation' },
+      '',
+    )
+    expect(vnpProcessing.gatewaySucceeded).toBe(true)
+    expect(vnpProcessing.isConfirmed).toBe(false)
+
+    const vnpFraud = parseVNPayReturnState(
+      new URLSearchParams({ vnp_ResponseCode: '00', vnp_TransactionStatus: '07', vnp_Amount: '602000000' }),
+      { order_id: 15, payment_status: 'pending', verification_status: 'flagged' },
+      '',
+    )
+    expect(vnpFraud.isFlagged).toBe(true)
+    expect(vnpFraud.gatewaySucceeded).toBe(false)
+    expect(vnpFraud.isConfirmed).toBe(false)
+
+    const vnpFailedTxStatus = parseVNPayReturnState(
+      new URLSearchParams({ vnp_ResponseCode: '00', vnp_TransactionStatus: '02', vnp_Amount: '602000000' }),
+      { order_id: 15, payment_status: 'pending', verification_status: 'failed' },
+      '',
+    )
+    expect(vnpFailedTxStatus.gatewaySucceeded).toBe(false)
+    expect(vnpFailedTxStatus.isConfirmed).toBe(false)
+
+    const vnpCancelled = parseVNPayReturnState(
+      new URLSearchParams({ vnp_ResponseCode: '24', vnp_TransactionStatus: '02', vnp_Amount: '602000000' }),
+      { order_id: 15, payment_status: 'pending', verification_status: 'cancelled' },
+      'Bạn đã hủy giao dịch',
+    )
+    expect(vnpCancelled.isCancelled).toBe(true)
+    expect(vnpCancelled.gatewaySucceeded).toBe(false)
+  })
 })

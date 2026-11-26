@@ -8,6 +8,7 @@ import axiosClient from '../../api/axiosClient'
 import EP from '../../api/endpoints'
 import Button from '../../components/common/Button'
 import Spinner from '../../components/common/Spinner'
+import { useToast } from '../../contexts/ToastContext'
 import storage from '../../utils/storage'
 import { formatCurrencyVND } from '../../utils/formatCurrencyVND'
 import {
@@ -16,6 +17,8 @@ import {
   getGatewayConfig,
 } from '../../utils/paymentTabSync'
 
+const MAX_RETURN_POLLS = 6
+
 export default function PaymentReturnView({
   gateway,
   returnEndpoint,
@@ -23,6 +26,7 @@ export default function PaymentReturnView({
 }) {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
+  const { showToast } = useToast()
   const cfg = getGatewayConfig(gateway)
 
   const [loading, setLoading] = useState(true)
@@ -30,11 +34,23 @@ export default function PaymentReturnView({
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
   const [syncPollCount, setSyncPollCount] = useState(0)
+  const [verifyMeta, setVerifyMeta] = useState({
+    state: '',
+    message: '',
+    gatewayCode: '',
+  })
 
   const verifiedOnceRef = useRef(false)
+  const lastManualCheckAtRef = useRef(0)
 
   const runVerifyWithBackend = useCallback(async (targetOrderId, manual = false) => {
-    if (!targetOrderId || !storage.get('token')) return false
+    if (!targetOrderId) return false
+    if (!storage.get('token')) {
+      if (manual) {
+        showToast('Phiên đăng nhập chưa sẵn sàng trên tab này — đang kiểm tra trạng thái đơn hàng...', 'info')
+      }
+      return false
+    }
     if (manual) setChecking(true)
     try {
       const { data } = await axiosClient.post(
@@ -43,13 +59,18 @@ export default function PaymentReturnView({
         { timeout: 15000 },
       )
       const resData = data.data ?? data
+      const vState = resData?.verification_state || ''
+      const serverMsg = data.message || ''
+
       if (resData?.payment_status === 'paid') {
         setResult((prev) => ({
           ...(prev || {}),
           payment_status: 'paid',
           order_status: resData.order_status ?? prev?.order_status,
           verification_status: 'success',
+          message: serverMsg || 'Thanh toán đã được hệ thống xác nhận.',
         }))
+        setVerifyMeta({ state: 'verified_paid', message: serverMsg, gatewayCode: '' })
         clearActivePaymentSession()
         broadcastPaymentResult({
           orderId: targetOrderId,
@@ -58,20 +79,96 @@ export default function PaymentReturnView({
           status: 'paid',
           message: 'Thanh toán đã được hệ thống xác nhận.',
         })
+        if (manual) {
+          showToast('Thanh toán đã được cổng xác nhận thành công!', 'success')
+        }
         return true
       }
-    } catch {
-      // Keep honest pending_confirmation state if gateway query cannot confirm yet
+
+      if (resData?.payment_status === 'failed' || vState === 'verified_failed') {
+        setResult((prev) => ({
+          ...(prev || {}),
+          payment_status: 'failed',
+          order_status: resData.order_status ?? prev?.order_status,
+          verification_status: 'failed',
+          message: serverMsg || 'Giao dịch thanh toán chưa hoàn tất.',
+        }))
+        setVerifyMeta({
+          state: 'verified_failed',
+          message: serverMsg,
+          gatewayCode: resData?.gateway_error_code || '',
+        })
+        broadcastPaymentResult({
+          orderId: targetOrderId,
+          orderCode: resData.order_code,
+          gateway,
+          status: 'failed',
+          message: serverMsg || 'Giao dịch không thành công.',
+        })
+        if (manual) {
+          showToast(serverMsg || 'Giao dịch chưa hoàn tất trên cổng thanh toán.', 'error')
+        }
+        return false
+      }
+
+      if (vState === 'flagged') {
+        setResult((prev) => ({
+          ...(prev || {}),
+          verification_status: 'flagged',
+          message: serverMsg,
+        }))
+        setVerifyMeta({
+          state: 'flagged',
+          message: serverMsg,
+          gatewayCode: resData?.gateway_error_code || '07',
+        })
+        broadcastPaymentResult({
+          orderId: targetOrderId,
+          orderCode: resData.order_code,
+          gateway,
+          status: 'failed',
+          message: serverMsg,
+        })
+        if (manual) {
+          showToast(serverMsg || 'Giao dịch đang bị cổng thanh toán rà soát.', 'warning')
+        }
+        return false
+      }
+
+      setVerifyMeta({
+        state: vState || 'processing',
+        message: serverMsg,
+        gatewayCode: resData?.gateway_error_code || '',
+      })
+
+      if (manual) {
+        showToast(
+          serverMsg || 'Chưa nhận được xác nhận hoàn tất từ cổng thanh toán.',
+          vState === 'gateway_unavailable' ? 'warning' : 'info',
+        )
+      }
+    } catch (err) {
+      const errMessage = err.response?.data?.message || err.message || 'Không thể kết nối máy chủ MobieX để kiểm tra lúc này.'
+      setVerifyMeta({
+        state: 'backend_unreachable',
+        message: errMessage,
+        gatewayCode: String(err.response?.status || 'network'),
+      })
+      if (manual) {
+        showToast(errMessage, 'error')
+      }
     } finally {
       if (manual) setChecking(false)
     }
     return false
-  }, [gateway])
+  }, [gateway, showToast])
 
-  const fetchReturnVerification = useCallback(async () => {
+  const fetchReturnVerification = useCallback(async ({ silent = false } = {}) => {
     const params = Object.fromEntries(searchParams.entries())
-    setLoading(true)
-    setError('')
+    if (!silent) {
+      setLoading(true)
+      setError('')
+    }
     try {
       const { data } = await axiosClient.get(returnEndpoint, { params })
       const payload = data.data ?? data
@@ -81,10 +178,14 @@ export default function PaymentReturnView({
       const errData = err.response?.data?.data ?? null
       if (errData) setResult(errData)
       const errMsg = err.response?.data?.message || err.message || 'Lỗi xác thực chữ ký dữ liệu từ cổng thanh toán.'
-      setError(errMsg)
+      if (!silent) {
+        setError(errMsg)
+      }
       return { payload: errData, topStatus: 'error', errMsg }
     } finally {
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
     }
   }, [returnEndpoint, searchParams])
 
@@ -152,36 +253,83 @@ export default function PaymentReturnView({
     isConfirmed,
     gatewaySucceeded,
     isCancelled,
+    isFlagged,
     statusMessage,
     details,
   } = parsedState
 
-  // Automatic delayed-callback follow-up polling when awaiting confirmation (max ~28s)
+  const isUnavailableTemp =
+    verifyMeta.state === 'gateway_unavailable' || verifyMeta.state === 'backend_unreachable'
+  const pollingTimedOut = syncPollCount >= MAX_RETURN_POLLS
+
+  // Automatic delayed-callback follow-up polling (bounded, never spams provider when unavailable)
   useEffect(() => {
-    if (loading || !gatewaySucceeded || isConfirmed || error || !orderId || syncPollCount >= 8) {
+    if (
+      loading ||
+      !gatewaySucceeded ||
+      isConfirmed ||
+      error ||
+      !orderId ||
+      syncPollCount >= MAX_RETURN_POLLS
+    ) {
       return undefined
     }
 
+    const delayMs = isUnavailableTemp ? 5000 : 4000
     const timer = window.setTimeout(async () => {
       setSyncPollCount((c) => c + 1)
-      if (storage.get('token')) {
+      if (!isUnavailableTemp && storage.get('token')) {
         await runVerifyWithBackend(orderId, false)
       } else {
-        await fetchReturnVerification()
+        // Lightweight DB-only re-check in case IPN webhook arrived asynchronously
+        const { payload } = await fetchReturnVerification({ silent: true })
+        if (payload?.payment_status === 'paid') {
+          clearActivePaymentSession()
+          broadcastPaymentResult({
+            orderId,
+            orderCode: payload.order_code,
+            gateway,
+            status: 'paid',
+            message: 'Thanh toán đã được hệ thống xác nhận.',
+          })
+        }
       }
-    }, 3500)
+    }, delayMs)
 
     return () => window.clearTimeout(timer)
-  }, [loading, gatewaySucceeded, isConfirmed, error, orderId, syncPollCount, runVerifyWithBackend, fetchReturnVerification])
+  }, [
+    loading,
+    gatewaySucceeded,
+    isConfirmed,
+    error,
+    orderId,
+    syncPollCount,
+    isUnavailableTemp,
+    runVerifyWithBackend,
+    fetchReturnVerification,
+    gateway,
+  ])
 
   const handleManualSync = async () => {
-    if (!orderId) return
+    if (!orderId || checking) return
+    const now = Date.now()
+    if (now - lastManualCheckAtRef.current < 2000) {
+      showToast('Vui lòng đợi giây lát trước khi kiểm tra lại.', 'info')
+      return
+    }
+    lastManualCheckAtRef.current = now
+
     if (storage.get('token')) {
       await runVerifyWithBackend(orderId, true)
     } else {
       setChecking(true)
-      await fetchReturnVerification()
+      const { payload } = await fetchReturnVerification({ silent: true })
       setChecking(false)
+      if (payload?.payment_status === 'paid') {
+        showToast('Thanh toán đã được hệ thống xác nhận!', 'success')
+      } else {
+        showToast('Đơn hàng đang chờ xác nhận thanh toán. Bạn có thể đăng nhập để kiểm tra đối soát trực tiếp.', 'info')
+      }
     }
   }
 
@@ -345,9 +493,14 @@ export default function PaymentReturnView({
               <span className="material-symbols-outlined text-5xl">schedule</span>
             </div>
             <div>
-              <h1 className="text-2xl font-black text-on-surface">Đang Chờ Xác Nhận Thanh Toán</h1>
+              <h1 className="text-2xl font-black text-on-surface">
+                {isUnavailableTemp || pollingTimedOut
+                  ? 'Chưa Thể Xác Minh Kết Quả Tự Động'
+                  : 'Đang Chờ Xác Nhận Thanh Toán'}
+              </h1>
               <p className="text-xs text-on-surface-variant mt-2 max-w-md mx-auto leading-relaxed">
-                Cổng {cfg.label} đã tiếp nhận giao dịch của bạn. Hệ thống MobieX đang đối soát dữ liệu chính thức trước khi chuyển trạng thái sang đã thanh toán.
+                {verifyMeta.message ||
+                  `Cổng ${cfg.label} đã tiếp nhận giao dịch của bạn. Hệ thống MobieX đang đối soát dữ liệu chính thức trước khi chuyển trạng thái sang đã thanh toán.`}
               </p>
             </div>
             {amount > 0 && (
@@ -361,7 +514,10 @@ export default function PaymentReturnView({
           <div className="bg-amber-500/10 border border-amber-500/25 rounded-2xl p-4 text-xs text-amber-800 dark:text-amber-200 leading-relaxed flex items-start gap-2.5">
             <span className="material-symbols-outlined text-base shrink-0 mt-0.5">info</span>
             <p>
-              <strong>Quý khách không cần đặt lại đơn hàng mới.</strong> Kết quả đối soát sẽ tự động cập nhật trong giây lát hoặc khi ngân hàng phản hồi webhook.
+              <strong>Quý khách không cần đặt lại đơn hàng mới.</strong>{' '}
+              {isUnavailableTemp || pollingTimedOut
+                ? 'Đơn hàng vẫn đang được giữ an toàn. Hệ thống sẽ cập nhật tự động ngay khi nhận được IPN từ cổng thanh toán, hoặc bạn có thể bấm kiểm tra lại sau vài phút.'
+                : 'Kết quả đối soát sẽ tự động cập nhật trong giây lát hoặc khi cổng thanh toán phản hồi webhook.'}
             </p>
           </div>
 
@@ -380,10 +536,17 @@ export default function PaymentReturnView({
             ))}
             <div className="flex justify-between items-center pt-2 border-t border-outline-variant/15">
               <span className="text-outline">Trạng thái hiện tại:</span>
-              <span className="inline-flex items-center gap-1.5 text-amber-700 dark:text-amber-300 font-bold bg-amber-500/15 px-2.5 py-0.5 rounded-full">
-                <Spinner size="xs" />
-                Đang đối soát thanh toán
-              </span>
+              {isUnavailableTemp || pollingTimedOut ? (
+                <span className="inline-flex items-center gap-1.5 text-amber-700 dark:text-amber-300 font-bold bg-amber-500/15 px-2.5 py-0.5 rounded-full">
+                  <span className="material-symbols-outlined text-sm">pending_actions</span>
+                  {isUnavailableTemp ? 'Không thể xác minh tạm thời' : 'Đang chờ xác nhận từ cổng'}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-amber-700 dark:text-amber-300 font-bold bg-amber-500/15 px-2.5 py-0.5 rounded-full">
+                  <Spinner size="xs" />
+                  Đang đối soát thanh toán
+                </span>
+              )}
             </div>
           </div>
 
@@ -431,9 +594,11 @@ export default function PaymentReturnView({
               <h1 className="text-2xl font-black text-on-surface">
                 {error && !result
                   ? 'Không Thể Xác Thực Giao Dịch'
-                  : isCancelled
-                    ? 'Giao Dịch Đã Bị Hủy'
-                    : 'Thanh Toán Chưa Hoàn Tất'}
+                  : isFlagged
+                    ? 'Giao Dịch Đang Được Kiểm Tra Bảo Mật'
+                    : isCancelled
+                      ? 'Giao Dịch Đã Bị Hủy'
+                      : 'Thanh Toán Chưa Hoàn Tất'}
               </h1>
               <p className="text-xs text-on-surface-variant mt-1.5 max-w-md mx-auto leading-relaxed">
                 {statusMessage}

@@ -1,9 +1,5 @@
 <?php
 
-
-
-
-
 use App\Http\Controllers\Addresses\AddressController;
 use App\Http\Controllers\Admin\AdminBannerController;
 use App\Http\Controllers\Admin\AdminCouponController;
@@ -32,6 +28,7 @@ use App\Http\Controllers\Api\ProductCompatibilityController;
 use App\Http\Controllers\Api\ProductImageController;
 use App\Http\Controllers\Api\ProductSpecificationController;
 use App\Http\Controllers\Api\ReviewController;
+use App\Http\Controllers\Api\VoucherWalletController;
 use App\Http\Controllers\Auth\CurrentUserController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
@@ -742,7 +739,7 @@ Route::middleware([
 
     Route::post('/payments/orders/{orderId}/verify-status', [PaymentController::class, 'verifyOrderPaymentStatus'])
         ->whereNumber('orderId')
-        ->middleware('throttle:30,1')
+        ->middleware('throttle:60,1')
         ->name('api.payments.orders.verify-status');
 
 });
@@ -946,6 +943,14 @@ Route::prefix('admin')
             )
                 ->whereNumber('id')
                 ->name('orders.confirm-bank-transfer');
+
+            Route::post(
+                '/orders/{orderId}/verify-payment',
+                [PaymentController::class, 'adminVerifyOrderPaymentStatus'],
+            )
+                ->whereNumber('orderId')
+                ->middleware('throttle:30,1')
+                ->name('orders.verify-payment');
 
             Route::post(
                 '/payments/{payment}/confirm-refund',
@@ -1173,9 +1178,9 @@ Route::prefix('admin')
         });
     });
 
-Route::get('/vouchers/public', [\App\Http\Controllers\Api\VoucherWalletController::class, 'available']);
-Route::middleware(['auth:sanctum','active'])->group(function(){
- Route::get('/vouchers/wallet', [\App\Http\Controllers\Api\VoucherWalletController::class, 'wallet']);
- Route::post('/vouchers/{id}/collect', [\App\Http\Controllers\Api\VoucherWalletController::class, 'collect'])->whereNumber('id');
- Route::post('/checkout/buy-now/quote', [\App\Http\Controllers\Api\CouponController::class, 'buyNowQuote']);
+Route::get('/vouchers/public', [VoucherWalletController::class, 'available']);
+Route::middleware(['auth:sanctum', 'active'])->group(function () {
+    Route::get('/vouchers/wallet', [VoucherWalletController::class, 'wallet']);
+    Route::post('/vouchers/{id}/collect', [VoucherWalletController::class, 'collect'])->whereNumber('id');
+    Route::post('/checkout/buy-now/quote', [CouponController::class, 'buyNowQuote']);
 });

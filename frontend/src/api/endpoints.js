@@ -68,6 +68,7 @@ const EP = {
   ADMIN_ORDERS: '/admin/orders',
   ADMIN_ORDER_DETAIL: (id) => `/admin/orders/${id}`,
   ADMIN_ORDER_STATUS: (id) => `/admin/orders/${id}/status`,
+  ADMIN_ORDER_VERIFY_PAYMENT: (id) => `/admin/orders/${id}/verify-payment`,
   ADMIN_CONFIRM_BANK_TRANSFER: (id) => `/admin/orders/${id}/confirm-bank-transfer`,
   ADMIN_CONFIRM_PAYMENT_REFUND: (paymentId) => `/admin/payments/${paymentId}/confirm-refund`,
   ADMIN_REQUEST_PAYMENT_REFUND: (paymentId) => `/admin/payments/${paymentId}/refund`,

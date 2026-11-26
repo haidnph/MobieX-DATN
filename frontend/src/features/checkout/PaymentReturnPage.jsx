@@ -27,10 +27,16 @@ export function formatVNPayDate(dateStr) {
 
 export function parseVNPayReturnState(searchParams, result, error) {
   const responseCode = searchParams.get('vnp_ResponseCode') || '99'
-  const gatewaySucceeded = responseCode === '00' && !error
+  const transactionStatus = searchParams.get('vnp_TransactionStatus') || ''
+  const verificationStatus = result?.verification_status || ''
   const isConfirmed =
-    !error && (result?.payment_status === 'paid' || result?.verification_status === 'success')
-  const isCancelled = responseCode === '24'
+    !error && (result?.payment_status === 'paid' || verificationStatus === 'success')
+  const isCancelled = responseCode === '24' || verificationStatus === 'cancelled'
+  const isFlagged = responseCode === '07' || transactionStatus === '07' || verificationStatus === 'flagged'
+  const backendFailed = result?.payment_status === 'failed' || verificationStatus === 'failed'
+  const txSuccessOrProcessing = !transactionStatus || transactionStatus === '00' || transactionStatus === '01'
+  const gatewaySucceeded =
+    isConfirmed || (responseCode === '00' && txSuccessOrProcessing && !isFlagged && !isCancelled && !backendFailed && !error)
 
   const orderId = result?.order_id || null
   const orderCode = result?.order_code || null
@@ -45,6 +51,7 @@ export function parseVNPayReturnState(searchParams, result, error) {
     { label: 'Mã tham chiếu VNPay', value: txnRef },
     ...(txnNo !== '—' ? [{ label: 'Mã GD tại VNPay', value: txnNo }] : []),
     ...(bankCode !== '—' ? [{ label: 'Kênh thanh toán', value: cardType ? `${bankCode} (${cardType})` : bankCode }] : []),
+    ...(transactionStatus ? [{ label: 'Mã trạng thái GD', value: transactionStatus }] : []),
     ...(payDate !== '—' ? [{ label: 'Thời gian giao dịch', value: payDate }] : []),
   ]
 
@@ -53,10 +60,13 @@ export function parseVNPayReturnState(searchParams, result, error) {
     orderCode,
     amount,
     transactionId: txnNo !== '—' ? txnNo : txnRef,
-    responseCodeLabel: `Mã phản hồi: ${responseCode}`,
+    responseCodeLabel: transactionStatus
+      ? `Mã phản hồi: ${responseCode} · GD: ${transactionStatus}`
+      : `Mã phản hồi: ${responseCode}`,
     gatewaySucceeded,
     isConfirmed,
     isCancelled,
+    isFlagged,
     statusMessage: error || result?.message || VNPAY_RESPONSE_MESSAGES[responseCode] || 'Giao dịch không thành công.',
     details,
   }

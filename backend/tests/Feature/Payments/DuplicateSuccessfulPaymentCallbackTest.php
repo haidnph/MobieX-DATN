@@ -92,6 +92,7 @@ class DuplicateSuccessfulPaymentCallbackTest extends TestCase
             'vnp_Locale' => 'vn',
             'vnp_OrderInfo' => 'duplicate payment',
             'vnp_ResponseCode' => '00',
+            'vnp_TransactionStatus' => '00',
             'vnp_TransactionNo' => 'VNP-DUP-'.$order->id,
             'vnp_TxnRef' => $second->transaction_code,
         ]);
@@ -219,6 +220,7 @@ class DuplicateSuccessfulPaymentCallbackTest extends TestCase
                 'vnp_Locale' => 'vn',
                 'vnp_OrderInfo' => 'cancelled order late success',
                 'vnp_ResponseCode' => '00',
+                'vnp_TransactionStatus' => '00',
                 'vnp_TransactionNo' => $eventKey,
                 'vnp_TxnRef' => $attempt->transaction_code,
             ]);

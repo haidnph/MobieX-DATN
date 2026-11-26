@@ -30,14 +30,8 @@ class OrderMailService
             return false;
         }
 
-        // Idempotency check: avoid duplicate email sends unless forced
-        if (! $force && $order->confirmation_email_status === 'sent') {
-            Log::info("[OrderMailService] Order #{$order->order_code}: Email already sent at {$order->confirmation_email_sent_at}. Skipping.");
-
-            return true;
-        }
-
-        // Avoid duplicate paid confirmations between return redirect and webhook IPN
+        // Avoid duplicate paid confirmations between return redirect, QueryDR, and webhook IPN,
+        // while still sending the paid receipt if only the initial pending email was sent at checkout.
         if ($order->payment_status === 'paid') {
             $alreadySentPaid = OrderEmailLog::where('order_id', $order->id)
                 ->where('status', 'sent')
@@ -49,6 +43,10 @@ class OrderMailService
 
                 return true;
             }
+        } elseif (! $force && $order->confirmation_email_status === 'sent') {
+            Log::info("[OrderMailService] Order #{$order->order_code}: Email already sent at {$order->confirmation_email_sent_at}. Skipping.");
+
+            return true;
         }
 
         try {

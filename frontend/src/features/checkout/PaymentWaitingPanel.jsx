@@ -57,12 +57,15 @@ export default function PaymentWaitingPanel({
   const [tabOpened, setTabOpened] = useState(initialTabOpened)
   const [gatewayTabClosed, setGatewayTabClosed] = useState(false)
   const [gatewayFeedback, setGatewayFeedback] = useState(null) // { status, message, transactionNo }
+  const [verifyState, setVerifyState] = useState('')
+  const [autoPollTimedOut, setAutoPollTimedOut] = useState(false)
   const [qrImage, setQrImage] = useState('')
 
   const internalTabRef = useRef(null)
   const tabRef = externalTabRef || internalTabRef
   const pollCountRef = useRef(0)
   const lastOpenAttemptAtRef = useRef(0)
+  const lastManualCheckAtRef = useRef(0)
   const tabTargetName = getOrderTabName(orderId)
 
   // Keep synced with updated props from Checkout submission
@@ -176,16 +179,30 @@ export default function PaymentWaitingPanel({
     return () => { active = false }
   }, [orderId, cfg.createEndpoint, cfg.label, cfg.fullName, initialPayment, initialCreateError])
 
+  const MAX_WAIT_POLLS = 45
+
   // ── Verify / Poll Payment Status ──────────────────────────────────────────────
   const checkOrderStatus = useCallback(
     async ({ manual = false, verifyGateway = false } = {}) => {
       if (!orderId || isPaid || isOrderCancelled) return
-      if (manual) setVerifying(true)
+      if (manual) {
+        const now = Date.now()
+        if (now - lastManualCheckAtRef.current < 2000) {
+          showToast('Vui lòng đợi giây lát trước khi kiểm tra lại.', 'info')
+          return
+        }
+        lastManualCheckAtRef.current = now
+        pollCountRef.current = 0
+        setAutoPollTimedOut(false)
+        setVerifying(true)
+      }
 
       try {
         if (verifyGateway) {
           const { data } = await axiosClient.post(EP.PAYMENT_VERIFY_STATUS(orderId), {}, { timeout: 15000 })
           const resData = data.data ?? data
+          const vState = resData.verification_state || ''
+          setVerifyState(vState)
           setOrder((prev) => ({
             ...(prev || {}),
             id: Number(orderId),
@@ -201,18 +218,32 @@ export default function PaymentWaitingPanel({
             return
           }
 
-          if (resData.payment_status === 'failed') {
+          if (resData.payment_status === 'failed' || vState === 'verified_failed') {
             setGatewayFeedback({
               status: 'failed',
               message: data.message || 'Giao dịch không thành công. Quý khách có thể thử thanh toán lại.',
             })
+            if (manual) {
+              showToast(data.message || 'Giao dịch thanh toán không thành công.', 'error')
+            }
+            return
+          }
+
+          if (vState === 'flagged') {
+            setGatewayFeedback({
+              status: 'failed',
+              message: data.message || 'Giao dịch đang bị cổng thanh toán rà soát bất thường.',
+            })
+            if (manual) {
+              showToast(data.message || 'Giao dịch đang bị rà soát bảo mật.', 'warning')
+            }
             return
           }
 
           if (manual) {
             showToast(
-              'Chưa nhận được xác nhận hoàn tất từ cổng thanh toán. Hệ thống vẫn giữ đơn cho bạn.',
-              'info',
+              data.message || 'Chưa nhận được xác nhận hoàn tất từ cổng thanh toán. Hệ thống vẫn giữ đơn cho bạn.',
+              vState === 'gateway_unavailable' ? 'warning' : 'info',
             )
           }
           return
@@ -232,9 +263,12 @@ export default function PaymentWaitingPanel({
               : { status: 'failed', message: 'Giao dịch thanh toán chưa hoàn tất. Bạn có thể thử thanh toán lại.' },
           )
         }
-      } catch {
+      } catch (err) {
         if (manual) {
-          showToast('Không thể kiểm tra trạng thái lúc này. Vui lòng thử lại sau vài giây.', 'error')
+          showToast(
+            err.response?.data?.message || 'Không thể kiểm tra trạng thái lúc này. Vui lòng thử lại sau vài giây.',
+            'error',
+          )
         }
       } finally {
         if (manual) setVerifying(false)
@@ -268,12 +302,17 @@ export default function PaymentWaitingPanel({
 
   // ── Background Polling + Tab Visibility & Gateway-Tab-Closed Watchers ─────────
   useEffect(() => {
-    if (!orderId || isPaid || isOrderCancelled || loading || createError) return undefined
+    if (!orderId || isPaid || isOrderCancelled || loading || createError || autoPollTimedOut) return undefined
 
     const pollInterval = window.setInterval(() => {
       pollCountRef.current += 1
+      if (pollCountRef.current >= MAX_WAIT_POLLS) {
+        setAutoPollTimedOut(true)
+        return
+      }
+      const canQueryGateway = verifyState !== 'gateway_unavailable'
       const shouldVerifyGateway =
-        (isPendingConfirmation || pollCountRef.current % 3 === 0) && Boolean(paymentUrl)
+        canQueryGateway && (isPendingConfirmation || pollCountRef.current % 3 === 0) && Boolean(paymentUrl)
       checkOrderStatus({ manual: false, verifyGateway: shouldVerifyGateway })
     }, 4000)
 
@@ -287,7 +326,7 @@ export default function PaymentWaitingPanel({
 
     const handleVisibilityOrFocus = () => {
       if (document.visibilityState === 'visible') {
-        checkOrderStatus({ manual: false, verifyGateway: Boolean(paymentUrl) })
+        checkOrderStatus({ manual: false, verifyGateway: verifyState !== 'gateway_unavailable' && Boolean(paymentUrl) })
       }
     }
 
@@ -306,6 +345,8 @@ export default function PaymentWaitingPanel({
     isOrderCancelled,
     loading,
     createError,
+    autoPollTimedOut,
+    verifyState,
     isPendingConfirmation,
     paymentUrl,
     checkOrderStatus,
@@ -711,10 +752,22 @@ export default function PaymentWaitingPanel({
 
               <div className="flex items-center justify-between pt-2 border-t border-outline-variant/15 text-[11px] text-on-surface-variant">
                 <span>Cập nhật tự động</span>
-                <span className="inline-flex items-center gap-1.5">
-                  <Spinner size="xs" />
-                  Đang lắng nghe kết quả từ hệ thống
-                </span>
+                {autoPollTimedOut ? (
+                  <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-300 font-medium">
+                    <span className="material-symbols-outlined text-sm">pause_circle</span>
+                    Đã tạm dừng — bấm Kiểm tra trạng thái ngay
+                  </span>
+                ) : verifyState === 'gateway_unavailable' ? (
+                  <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-300 font-medium">
+                    <span className="material-symbols-outlined text-sm">schedule</span>
+                    Chờ IPN từ cổng (QueryDR tạm gián đoạn)
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Spinner size="xs" />
+                    Đang lắng nghe kết quả từ hệ thống
+                  </span>
+                )}
               </div>
             </div>
 

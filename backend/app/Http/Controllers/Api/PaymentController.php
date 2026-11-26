@@ -16,7 +16,10 @@ use App\Services\VNPayService;
 use App\Services\ZaloPayService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class PaymentController extends Controller
@@ -73,33 +76,52 @@ class PaymentController extends Controller
             return response()->json(['message' => 'Thời hạn giữ hàng không đủ để bắt đầu thanh toán. Hãy đặt đơn hàng mới.'], 422);
         }
 
-        // Record or find pending payment attempt
-        $payment = Payment::firstOrCreate(
-            [
+        // Record or reuse active pending payment attempt; issue fresh attempt if its VNPay link expired.
+        $payment = Payment::query()
+            ->where('order_id', $order->id)
+            ->where('method', 'vnpay')
+            ->where('status', 'pending')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($payment && ! empty($payment->response_data['vnp_ExpireDate'])) {
+            try {
+                $existingExpire = Carbon::createFromFormat('YmdHis', (string) $payment->response_data['vnp_ExpireDate'], 'Asia/Ho_Chi_Minh');
+                if ($existingExpire->isPast()) {
+                    $payment->update(['status' => 'cancelled']);
+                    $payment = null;
+                }
+            } catch (\Throwable) {
+                // Keep existing payment attempt if stored expiry cannot be parsed
+            }
+        }
+
+        if (! $payment) {
+            $payment = Payment::create([
                 'order_id' => $order->id,
-                'method' => 'vnpay',
-                'status' => 'pending',
-            ],
-            [
                 'transaction_code' => 'PAY-'.Str::upper(Str::random(16)),
-                'idempotency_key' => 'vnpay_order_'.$order->id.'_'.uniqid(),
+                'idempotency_key' => 'vnpay_order_'.$order->id.'_'.Str::uuid(),
+                'method' => 'vnpay',
                 'amount' => $order->total_amount,
                 'currency_code' => 'VND',
-            ]
-        );
+                'status' => 'pending',
+            ]);
+        }
 
         $responseData = $payment->response_data ?? [];
         $createDate = (string) ($responseData['vnp_CreateDate'] ?? now('Asia/Ho_Chi_Minh')->format('YmdHis'));
+        $expiresAt = now()->addSeconds(min(1200, $paymentWindow));
         $paymentUrl = $this->vnpayService->createPaymentUrl([
             'order_code' => $payment->transaction_code,
             'amount' => $order->total_amount,
             'create_date' => $createDate,
-            'expires_at' => now()->addSeconds(min(1200, $paymentWindow)),
+            'expires_at' => $expiresAt,
             'ip_address' => $request->ip() ?? '127.0.0.1',
             'bank_code' => $validated['bank_code'] ?? null,
         ]);
-        if (empty($responseData['vnp_CreateDate'])) {
+        if (empty($responseData['vnp_CreateDate']) || empty($responseData['vnp_ExpireDate'])) {
             $responseData['vnp_CreateDate'] = $createDate;
+            $responseData['vnp_ExpireDate'] = $expiresAt->copy()->setTimezone('Asia/Ho_Chi_Minh')->format('YmdHis');
             $payment->update(['response_data' => $responseData]);
         }
 
@@ -130,18 +152,36 @@ class PaymentController extends Controller
         $queryParams = $request->query();
 
         if (empty($queryParams) || ! $this->vnpayService->verifySignature($queryParams)) {
+            Log::warning('[VNPayReturn] Invalid signature received', [
+                'vnp_TxnRef' => $request->query('vnp_TxnRef'),
+                'vnp_ResponseCode' => $request->query('vnp_ResponseCode'),
+            ]);
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Chữ ký số phản hồi từ VNPay không hợp lệ.',
             ], 400);
         }
 
-        $transactionReference = (string) $request->query('vnp_TxnRef');
-        $responseCode = (string) $request->query('vnp_ResponseCode');
-        $transactionNo = (string) $request->query('vnp_TransactionNo');
-        $amount = ((float) $request->query('vnp_Amount', 0)) / 100;
+        if (! $this->vnpayService->matchesTmnCode((string) $request->query('vnp_TmnCode', ''))) {
+            Log::warning('[VNPayReturn] Mismatched vnp_TmnCode', [
+                'received_tmn' => $request->query('vnp_TmnCode'),
+                'vnp_TxnRef' => $request->query('vnp_TxnRef'),
+            ]);
 
-        $isSuccess = ($responseCode === '00');
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Mã đơn vị kết nối (TmnCode) từ VNPay không khớp hệ thống.',
+            ], 422);
+        }
+
+        $transactionReference = (string) $request->query('vnp_TxnRef');
+        $responseCode = (string) $request->query('vnp_ResponseCode', '');
+        $transactionStatus = (string) $request->query('vnp_TransactionStatus', '');
+        $transactionNo = (string) $request->query('vnp_TransactionNo', '');
+        $rawAmount = (string) $request->query('vnp_Amount', '');
+        $amount = ctype_digit($rawAmount) ? ((float) $rawAmount) / 100 : 0.0;
+
         $payment = Payment::query()
             ->where('method', 'vnpay')
             ->where('transaction_code', $transactionReference)
@@ -152,7 +192,7 @@ class PaymentController extends Controller
         if (! $order) {
             $order = Order::where('order_code', $transactionReference)->first();
             $payment = $order
-                ? Payment::where('order_id', $order->id)->where('method', 'vnpay')->first()
+                ? Payment::where('order_id', $order->id)->where('method', 'vnpay')->orderByDesc('id')->first()
                 : null;
         }
 
@@ -165,33 +205,108 @@ class PaymentController extends Controller
         }
 
         $expectedAmount = (int) round((float) $order->total_amount * 100);
-        if ($order->payment_method !== 'vnpay' || $expectedAmount !== (int) $request->query('vnp_Amount', 0)) {
+        if ($order->payment_method !== 'vnpay' || ! ctype_digit($rawAmount) || $expectedAmount !== (int) $rawAmount) {
             return response()->json(['status' => 'error', 'message' => 'Thông tin thanh toán không khớp đơn hàng.'], 422);
         }
 
-        // Return URLs are browser callbacks. Only the signed server-to-server IPN
-        // is allowed to change the order/payment state.
+        // Return URLs are browser callbacks. In production, only verified IPN or signed QueryDR
+        // is allowed to change order/payment state to paid. In local sandbox environments,
+        // a cryptographically verified Return signature can settle the order when configured.
         $isConfirmed = $order->payment_status === 'paid';
-        $returnStatus = $isSuccess
-            ? ($isConfirmed ? 'success' : 'pending_confirmation')
-            : 'failed';
+        $isSuspectedFraud = ($responseCode === '07' || $transactionStatus === '07');
+        $isCancelled = ($responseCode === '24');
+        $isProcessing = ($responseCode === '00' && $transactionStatus === '01');
+        $gatewayPaid = ($responseCode === '00' && $transactionStatus === '00');
+
+        $allowReturnFallback = ! app()->isProduction()
+            && str_contains((string) config('vnpay.url'), 'sandbox')
+            && (bool) config('vnpay.allow_verified_return_fallback', false);
+
+        if (! $isConfirmed && $gatewayPaid && $allowReturnFallback) {
+            $lock = Cache::lock('payment_verify_order_'.$order->id, 10);
+            $lock->block(5, function () use ($order, $payment, $transactionNo, $queryParams, $request): void {
+                $freshOrder = $order->fresh();
+                $freshPayment = $payment->fresh();
+                if (! $freshOrder || ! $freshPayment || $freshOrder->payment_status === 'paid' || $freshOrder->status === 'cancelled') {
+                    return;
+                }
+
+                // Attempt server-to-server QueryDR reconciliation first
+                $reconcileRes = $this->reconcileOrderWithGateway($freshOrder, (string) ($request->ip() ?? '127.0.0.1'));
+                if (($reconcileRes['verification_state'] ?? '') === 'verified_paid') {
+                    return;
+                }
+
+                $resolvedTxNo = ($transactionNo !== '' && $transactionNo !== '0') ? $transactionNo : $freshPayment->transaction_code;
+                $this->settleVerifiedGatewayPayment(
+                    $freshOrder,
+                    $freshPayment,
+                    'vnpay',
+                    $resolvedTxNo,
+                    $resolvedTxNo,
+                    $resolvedTxNo,
+                    $queryParams,
+                    'Thanh toán VNPay Sandbox thành công (Xác thực chữ ký Return URL - Mã GD: '.$resolvedTxNo.')'
+                );
+            });
+
+            $order = $order->fresh() ?? $order;
+            $payment = $payment->fresh() ?? $payment;
+            $isConfirmed = ($order->payment_status === 'paid');
+        }
+
+        if ($isConfirmed) {
+            $returnStatus = 'success';
+            $message = 'Thanh toán đã được hệ thống xác nhận.';
+            $httpStatus = 200;
+        } elseif ($isSuspectedFraud) {
+            $returnStatus = 'flagged';
+            $message = 'Giao dịch bị VNPay đánh dấu nghi ngờ bất thường (Mã 07). Hệ thống chưa xác nhận thanh toán.';
+            $httpStatus = 400;
+        } elseif ($isCancelled) {
+            $returnStatus = 'cancelled';
+            $message = 'Giao dịch đã bị hủy theo yêu cầu của quý khách.';
+            $httpStatus = 400;
+        } elseif ($isProcessing) {
+            $returnStatus = 'pending_confirmation';
+            $message = 'Giao dịch đang được VNPay xử lý (chưa hoàn tất). Đơn hàng đang chờ đối soát.';
+            $httpStatus = 200;
+        } elseif ($gatewayPaid) {
+            $returnStatus = 'pending_confirmation';
+            $message = 'VNPay đã nhận giao dịch. Đơn hàng đang chờ hệ thống đối soát.';
+            $httpStatus = 200;
+        } else {
+            $returnStatus = 'failed';
+            $message = 'Giao dịch không thành công hoặc bị từ chối bởi ngân hàng.';
+            $httpStatus = 400;
+        }
+
+        Log::info('[VNPayReturn] Processed customer return', [
+            'order_id' => $order->id,
+            'order_code' => $order->order_code,
+            'txn_ref' => $transactionReference,
+            'response_code' => $responseCode,
+            'transaction_status' => $transactionStatus,
+            'transaction_no' => $transactionNo,
+            'db_payment_status' => $order->payment_status,
+            'return_status' => $returnStatus,
+        ]);
 
         return response()->json([
             'status' => $returnStatus,
-            'message' => $isConfirmed
-                ? 'Thanh toán đã được hệ thống xác nhận.'
-                : ($isSuccess ? 'VNPay đã nhận giao dịch. Đơn hàng đang chờ hệ thống đối soát.' : 'Giao dịch không thành công hoặc bị hủy.'),
+            'message' => $message,
             'data' => [
                 'order_id' => $order->id,
                 'order_code' => $order->order_code,
                 'response_code' => $responseCode,
+                'transaction_status' => $transactionStatus,
                 'transaction_no' => $transactionNo,
                 'amount' => $amount,
                 'payment_status' => $order->payment_status,
                 'order_status' => $order->status,
                 'verification_status' => $returnStatus,
             ],
-        ], $isSuccess ? 200 : 400);
+        ], $httpStatus);
     }
 
     /**
@@ -203,18 +318,38 @@ class PaymentController extends Controller
 
         // 1. Verify HMAC-SHA512 Signature
         if (empty($inputData) || ! $this->vnpayService->verifySignature($inputData)) {
+            Log::warning('[VNPayIPN] Rejected IPN: invalid signature', [
+                'vnp_TxnRef' => $request->query('vnp_TxnRef'),
+                'ip' => $request->ip(),
+            ]);
+
             return response()->json([
                 'RspCode' => '97',
                 'Message' => 'Invalid Signature',
             ]);
         }
 
-        $vnpTxnRef = (string) $request->query('vnp_TxnRef');
-        $vnpAmount = (int) $request->query('vnp_Amount', 0);
-        $vnpResponseCode = (string) $request->query('vnp_ResponseCode');
-        $vnpTransactionNo = (string) $request->query('vnp_TransactionNo');
+        // 2. Verify Merchant Code (vnp_TmnCode)
+        $vnpTmnCode = (string) $request->query('vnp_TmnCode', '');
+        if (! $this->vnpayService->matchesTmnCode($vnpTmnCode)) {
+            Log::warning('[VNPayIPN] Rejected IPN: invalid TmnCode', [
+                'received_tmn' => $vnpTmnCode,
+                'vnp_TxnRef' => $request->query('vnp_TxnRef'),
+            ]);
 
-        // 2. Find Order
+            return response()->json([
+                'RspCode' => '02',
+                'Message' => 'Invalid TmnCode',
+            ]);
+        }
+
+        $vnpTxnRef = (string) $request->query('vnp_TxnRef');
+        $vnpAmountRaw = (string) $request->query('vnp_Amount', '');
+        $vnpResponseCode = (string) $request->query('vnp_ResponseCode', '');
+        $vnpTransactionStatus = (string) $request->query('vnp_TransactionStatus', '');
+        $vnpTransactionNo = (string) $request->query('vnp_TransactionNo', '');
+
+        // 3. Find Order & Payment Attempt
         $paymentByReference = Payment::query()
             ->where('method', 'vnpay')
             ->where('transaction_code', $vnpTxnRef)
@@ -230,6 +365,8 @@ class PaymentController extends Controller
                 : null;
         }
         if (! $order) {
+            Log::warning('[VNPayIPN] Order not found', ['vnp_TxnRef' => $vnpTxnRef]);
+
             return response()->json([
                 'RspCode' => '01',
                 'Message' => 'Order not found',
@@ -243,9 +380,15 @@ class PaymentController extends Controller
             ]);
         }
 
-        // 3. Verify Amount
+        // 4. Verify Amount strictly
         $expectedAmount = (int) round(((float) $order->total_amount) * 100);
-        if ($expectedAmount !== $vnpAmount) {
+        if (! ctype_digit($vnpAmountRaw) || $expectedAmount !== (int) $vnpAmountRaw) {
+            Log::warning('[VNPayIPN] Amount mismatch', [
+                'order_code' => $order->order_code,
+                'expected' => $expectedAmount,
+                'received' => $vnpAmountRaw,
+            ]);
+
             return response()->json([
                 'RspCode' => '04',
                 'Message' => 'Invalid Amount',
@@ -253,21 +396,34 @@ class PaymentController extends Controller
         }
 
         // 5. Process Payment Update inside Database Transaction
-        $callbackResult = DB::transaction(function () use ($order, $inputData, $vnpResponseCode, $vnpTransactionNo, $paymentByReference) {
+        $callbackResult = DB::transaction(function () use (
+            $order,
+            $inputData,
+            $vnpTxnRef,
+            $vnpResponseCode,
+            $vnpTransactionStatus,
+            $vnpTransactionNo,
+            $paymentByReference
+        ) {
             $order = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
             $payment = $paymentByReference
                 ? Payment::query()->whereKey($paymentByReference->id)->lockForUpdate()->first()
-                : Payment::query()->where('order_id', $order->id)->where('method', 'vnpay')->lockForUpdate()->first();
+                : Payment::query()->where('order_id', $order->id)->where('method', 'vnpay')->orderByDesc('id')->lockForUpdate()->first();
 
-            $isSuccess = ($vnpResponseCode === '00');
+            // Official VNPay v2.1.0 success requires BOTH vnp_ResponseCode=00 AND vnp_TransactionStatus=00.
+            $isSuccess = ($vnpResponseCode === '00' && $vnpTransactionStatus === '00');
+            $isSuspectedFraud = ($vnpResponseCode === '07' || $vnpTransactionStatus === '07');
+            $isProcessing = (! $isSuccess && ! $isSuspectedFraud && $vnpTransactionStatus === '01');
+            $isCancelled = ($vnpResponseCode === '24');
+
             if ($order->payment_status === 'paid' || $order->status === 'cancelled') {
                 if ($isSuccess && $payment && $payment->status !== 'success') {
                     $this->recordDuplicateGatewaySuccess(
                         $order,
                         $payment,
                         'vnpay',
-                        $vnpTransactionNo ?: $payment->gateway_transaction_id ?: $payment->transaction_code,
-                        $vnpTransactionNo ?: $payment->transaction_code,
+                        ($vnpTransactionNo !== '' && $vnpTransactionNo !== '0') ? $vnpTransactionNo : ($payment->gateway_transaction_id ?: $payment->transaction_code),
+                        ($vnpTransactionNo !== '' && $vnpTransactionNo !== '0') ? $vnpTransactionNo : $payment->transaction_code,
                         $inputData,
                     );
 
@@ -277,19 +433,80 @@ class PaymentController extends Controller
                 return $order->payment_status === 'paid' ? 'already_paid' : 'cancelled';
             }
 
-            $status = $isSuccess ? 'success' : 'failed';
+            $eventKey = ($vnpTransactionNo !== '' && $vnpTransactionNo !== '0')
+                ? $vnpTransactionNo
+                : ($vnpTxnRef.'_'.$vnpResponseCode.'_'.$vnpTransactionStatus);
+
+            if ($isProcessing) {
+                if ($payment) {
+                    $payment->update([
+                        'gateway_transaction_id' => $vnpTransactionNo !== '' ? $vnpTransactionNo : $payment->gateway_transaction_id,
+                        'response_data' => array_merge($payment->response_data ?? [], $inputData),
+                    ]);
+                }
+
+                PaymentWebhookEvent::firstOrCreate(
+                    ['method' => 'vnpay', 'event_key' => $eventKey.'_pending'],
+                    [
+                        'payment_id' => $payment?->id,
+                        'provider_reference' => $vnpTransactionNo !== '' ? $vnpTransactionNo : $vnpTxnRef,
+                        'signature_verified' => true,
+                        'processing_status' => 'ignored',
+                        'event_payload' => $inputData,
+                        'error_message' => 'VNPay transaction still in processing state (vnp_TransactionStatus=01).',
+                        'processed_at' => now(),
+                    ]
+                );
+
+                return 'processing';
+            }
+
+            if ($isSuspectedFraud) {
+                if ($payment) {
+                    $payment->update([
+                        'gateway_transaction_id' => $vnpTransactionNo !== '' ? $vnpTransactionNo : $payment->gateway_transaction_id,
+                        'response_data' => array_merge($payment->response_data ?? [], $inputData),
+                    ]);
+                }
+
+                PaymentWebhookEvent::firstOrCreate(
+                    ['method' => 'vnpay', 'event_key' => $eventKey.'_fraud'],
+                    [
+                        'payment_id' => $payment?->id,
+                        'provider_reference' => $vnpTransactionNo !== '' ? $vnpTransactionNo : $vnpTxnRef,
+                        'signature_verified' => true,
+                        'processing_status' => 'failed',
+                        'event_payload' => $inputData,
+                        'error_message' => 'VNPay flagged suspected fraud transaction (code 07). Order kept pending for manual verification.',
+                        'processed_at' => now(),
+                    ]
+                );
+
+                OrderStatusHistory::create([
+                    'order_id' => $order->id,
+                    'user_id' => null,
+                    'from_status' => $order->status,
+                    'status' => $order->status,
+                    'note' => 'VNPay cảnh báo giao dịch nghi ngờ (Mã 07 - Mã GD: '.$vnpTransactionNo.'). Chưa tự động xác nhận thanh toán.',
+                    'created_at' => now(),
+                ]);
+
+                return 'flagged';
+            }
+
+            $status = $isSuccess ? 'success' : ($isCancelled ? 'cancelled' : 'failed');
 
             if (! $payment) {
                 $payment = Payment::create([
                     'order_id' => $order->id,
                     'transaction_code' => 'PAY-'.Str::upper(Str::random(16)),
-                    'idempotency_key' => 'vnpay_order_'.$order->id.'_'.uniqid(),
+                    'idempotency_key' => 'vnpay_order_'.$order->id.'_'.Str::uuid(),
                     'method' => 'vnpay',
                     'amount' => $order->total_amount,
                     'currency_code' => 'VND',
                     'status' => $status,
                     'gateway_transaction_id' => $vnpTransactionNo,
-                    'response_data' => array_merge($payment->response_data ?? [], $inputData),
+                    'response_data' => $inputData,
                     'paid_at' => $isSuccess ? now() : null,
                 ]);
             } else {
@@ -305,14 +522,15 @@ class PaymentController extends Controller
             PaymentWebhookEvent::firstOrCreate(
                 [
                     'method' => 'vnpay',
-                    'event_key' => $vnpTransactionNo ?: ('tx_'.$order->id.'_'.time()),
+                    'event_key' => $eventKey,
                 ],
                 [
                     'payment_id' => $payment->id,
-                    'provider_reference' => $vnpTransactionNo,
+                    'provider_reference' => $vnpTransactionNo !== '' ? $vnpTransactionNo : $vnpTxnRef,
                     'signature_verified' => true,
                     'processing_status' => $isSuccess ? 'processed' : 'failed',
                     'event_payload' => $inputData,
+                    'error_message' => $isSuccess ? null : "VNPay IPN unsuccessful (ResponseCode={$vnpResponseCode}, TransactionStatus={$vnpTransactionStatus}).",
                     'processed_at' => now(),
                 ]
             );
@@ -348,6 +566,14 @@ class PaymentController extends Controller
 
             return 'processed';
         });
+
+        Log::info('[VNPayIPN] Handled IPN callback', [
+            'order_code' => $order->order_code,
+            'txn_ref' => $vnpTxnRef,
+            'response_code' => $vnpResponseCode,
+            'transaction_status' => $vnpTransactionStatus,
+            'result' => $callbackResult,
+        ]);
 
         // 6. Return response to VNPay
         if ($callbackResult === 'already_paid') {
@@ -1049,16 +1275,73 @@ class PaymentController extends Controller
             ], 403);
         }
 
+        return $this->runLockedGatewayVerification($order, (string) ($request->ip() ?? '127.0.0.1'));
+    }
+
+    /**
+     * Admin-triggered active reconciliation against the Payment Gateway for a pending online order.
+     */
+    public function adminVerifyOrderPaymentStatus(Request $request, int $orderId): JsonResponse
+    {
+        $order = Order::findOrFail($orderId);
+
+        return $this->runLockedGatewayVerification($order, (string) ($request->ip() ?? '127.0.0.1'));
+    }
+
+    private function runLockedGatewayVerification(Order $order, string $ipAddress): JsonResponse
+    {
+        $lock = Cache::lock('payment_verify_order_'.$order->id, 10);
+
+        $result = $lock->block(5, fn (): array => $this->reconcileOrderWithGateway($order->fresh(), $ipAddress));
+
+        return $this->paymentStatusResponse(
+            $result['order'],
+            $result['gateway_verified'],
+            $result['message'],
+            $result['verification_state'],
+            $result['gateway_error_code'],
+        );
+    }
+
+    /**
+     * @return array{
+     *     order: Order,
+     *     gateway_verified: bool,
+     *     verification_state: string,
+     *     gateway_error_code: ?string,
+     *     message: string
+     * }
+     */
+    private function reconcileOrderWithGateway(Order $order, string $ipAddress): array
+    {
         if ($order->payment_status === 'paid') {
-            return $this->paymentStatusResponse($order, true, 'Thanh toán đã được hệ thống xác nhận.');
+            return [
+                'order' => $order,
+                'gateway_verified' => true,
+                'verification_state' => 'verified_paid',
+                'gateway_error_code' => null,
+                'message' => 'Thanh toán đã được hệ thống xác nhận.',
+            ];
         }
 
         if ($order->status === 'cancelled') {
-            return $this->paymentStatusResponse($order, false, 'Đơn hàng đã bị hủy.');
+            return [
+                'order' => $order,
+                'gateway_verified' => false,
+                'verification_state' => 'cancelled',
+                'gateway_error_code' => null,
+                'message' => 'Đơn hàng đã bị hủy.',
+            ];
         }
 
         if (! in_array($order->payment_method, ['vnpay', 'zalopay', 'momo'], true)) {
-            return $this->paymentStatusResponse($order, false, 'Trạng thái đơn hàng hiện tại.');
+            return [
+                'order' => $order,
+                'gateway_verified' => false,
+                'verification_state' => 'non_online',
+                'gateway_error_code' => null,
+                'message' => 'Trạng thái đơn hàng hiện tại.',
+            ];
         }
 
         $payment = Payment::query()
@@ -1069,16 +1352,35 @@ class PaymentController extends Controller
             ->first();
 
         if (! $payment) {
-            return $this->paymentStatusResponse(
-                $order,
-                false,
-                $order->payment_status === 'failed'
-                    ? 'Giao dịch gần nhất không thành công. Bạn có thể thử thanh toán lại.'
-                    : 'Đang chờ xác nhận từ cổng thanh toán.'
-            );
+            $latestAttempt = Payment::query()
+                ->where('order_id', $order->id)
+                ->where('method', $order->payment_method)
+                ->orderByDesc('id')
+                ->first();
+
+            if ($order->payment_status === 'failed' || ($latestAttempt && in_array($latestAttempt->status, ['failed', 'cancelled'], true))) {
+                return [
+                    'order' => $order,
+                    'gateway_verified' => false,
+                    'verification_state' => 'verified_failed',
+                    'gateway_error_code' => null,
+                    'message' => 'Giao dịch gần nhất không thành công. Bạn có thể thử thanh toán lại.',
+                ];
+            }
+
+            return [
+                'order' => $order,
+                'gateway_verified' => false,
+                'verification_state' => 'processing',
+                'gateway_error_code' => null,
+                'message' => 'Đang chờ xác nhận từ cổng thanh toán.',
+            ];
         }
 
         $gatewayVerified = false;
+        $verificationState = 'processing';
+        $gatewayErrorCode = null;
+        $message = 'Chưa nhận được xác nhận hoàn tất từ cổng thanh toán. Hệ thống vẫn đang giữ đơn cho bạn.';
 
         if ($order->payment_method === 'vnpay') {
             $txnDate = (string) (($payment->response_data ?? [])['vnp_CreateDate']
@@ -1086,44 +1388,121 @@ class PaymentController extends Controller
                 ?? now('Asia/Ho_Chi_Minh')->format('YmdHis'));
 
             $res = $this->vnpayService->queryTransactionStatus([
-                'request_id' => 'QDR-'.$payment->id.'-'.Str::upper(Str::random(6)),
+                'request_id' => 'QDR'.$payment->id.'T'.Str::upper(Str::random(8)),
                 'transaction_reference' => $payment->transaction_code,
                 'transaction_date' => $txnDate,
-                'ip_address' => $request->ip() ?? '127.0.0.1',
+                'ip_address' => $ipAddress,
                 'description' => 'Verify payment '.$order->order_code,
             ]);
 
             $expectedAmount = (int) round((float) $order->total_amount * 100);
-            if (
-                empty($res['transport_error'])
-                && $this->vnpayService->verifyTransactionApiResponse($res)
-                && (string) ($res['vnp_ResponseCode'] ?? '') === '00'
-                && (string) ($res['vnp_TransactionStatus'] ?? '') === '00'
-                && (string) ($res['vnp_TxnRef'] ?? '') === (string) $payment->transaction_code
-                && (int) ($res['vnp_Amount'] ?? 0) === $expectedAmount
+            $rawRespCode = (string) ($res['vnp_ResponseCode'] ?? '');
+
+            if (! empty($res['transport_error'])) {
+                $verificationState = 'gateway_unavailable';
+                $gatewayErrorCode = isset($res['http_status']) ? 'http_'.$res['http_status'] : 'transport_error';
+                $message = 'Không thể kết nối tới cổng VNPay để đối soát lúc này. Hệ thống vẫn đang giữ đơn và sẽ tự động cập nhật khi nhận IPN.';
+                Log::warning('[VNPayQueryDR] Transport error during verification', [
+                    'order_code' => $order->order_code,
+                    'txn_ref' => $payment->transaction_code,
+                    'response' => $res,
+                ]);
+            } elseif (! $this->vnpayService->verifyTransactionApiResponse($res)) {
+                if ($rawRespCode === '91') {
+                    $verificationState = 'not_found';
+                    $gatewayErrorCode = '91';
+                    $message = 'VNPay chưa ghi nhận giao dịch cho mã thanh toán này. Nếu bạn chưa hoàn tất, hãy quay lại cổng VNPay.';
+                } else {
+                    $verificationState = 'gateway_unavailable';
+                    $gatewayErrorCode = $rawRespCode !== '' ? $rawRespCode : 'invalid_signature';
+                    $message = 'Cổng VNPay chưa thể hoàn tất đối soát QueryDR lúc này'
+                        .($rawRespCode !== '' ? " (Mã cổng: {$rawRespCode})" : '')
+                        .'. Hệ thống vẫn giữ đơn hàng và sẽ tự cập nhật khi nhận được IPN từ VNPay.';
+                }
+
+                Log::warning('[VNPayQueryDR] Unverified or error QueryDR response', [
+                    'order_code' => $order->order_code,
+                    'txn_ref' => $payment->transaction_code,
+                    'vnp_ResponseCode' => $rawRespCode,
+                    'vnp_Message' => $res['vnp_Message'] ?? null,
+                ]);
+            } elseif (
+                ! $this->vnpayService->matchesTmnCode((string) ($res['vnp_TmnCode'] ?? ''))
+                || (string) ($res['vnp_TxnRef'] ?? '') !== (string) $payment->transaction_code
+                || (int) ($res['vnp_Amount'] ?? 0) !== $expectedAmount
             ) {
-                $vnpTxNo = (string) ($res['vnp_TransactionNo'] ?? $payment->transaction_code);
-                $this->settleVerifiedGatewayPayment(
-                    $order,
-                    $payment,
-                    'vnpay',
-                    $vnpTxNo,
-                    $vnpTxNo,
-                    $vnpTxNo,
-                    $res,
-                    'Thanh toán VNPay thành công (Đối soát cổng - Mã GD: '.$vnpTxNo.')'
-                );
-                $gatewayVerified = true;
+                $verificationState = 'gateway_unavailable';
+                $gatewayErrorCode = 'payload_mismatch';
+                $message = 'Dữ liệu đối soát từ cổng thanh toán không khớp với thông tin đơn hàng.';
+                Log::warning('[VNPayQueryDR] Payload mismatch', [
+                    'order_code' => $order->order_code,
+                    'expected_txn_ref' => $payment->transaction_code,
+                    'received_txn_ref' => $res['vnp_TxnRef'] ?? null,
+                    'expected_amount' => $expectedAmount,
+                    'received_amount' => $res['vnp_Amount'] ?? null,
+                    'received_tmn' => $res['vnp_TmnCode'] ?? null,
+                ]);
+            } else {
+                $txStatus = (string) ($res['vnp_TransactionStatus'] ?? '');
+                $vnpTxNo = (string) ($res['vnp_TransactionNo'] ?? '');
+                $resolvedTxNo = ($vnpTxNo !== '' && $vnpTxNo !== '0') ? $vnpTxNo : $payment->transaction_code;
+
+                if ($rawRespCode === '00' && $txStatus === '00') {
+                    $this->settleVerifiedGatewayPayment(
+                        $order,
+                        $payment,
+                        'vnpay',
+                        $resolvedTxNo,
+                        $resolvedTxNo,
+                        $resolvedTxNo,
+                        $res,
+                        'Thanh toán VNPay thành công (Đối soát QueryDR - Mã GD: '.$resolvedTxNo.')'
+                    );
+                    $gatewayVerified = true;
+                    $verificationState = 'verified_paid';
+                    $message = 'Thanh toán đã được xác nhận từ cổng VNPay.';
+                } elseif ($rawRespCode === '00' && $txStatus === '01') {
+                    $verificationState = 'processing';
+                    $message = 'Giao dịch đang được VNPay xử lý (chưa hoàn tất). Vui lòng kiểm tra lại sau giây lát.';
+                } elseif ($rawRespCode === '00' && $txStatus === '07') {
+                    $verificationState = 'flagged';
+                    $gatewayErrorCode = '07';
+                    $message = 'Giao dịch bị VNPay đánh dấu nghi ngờ bất thường (Mã 07). Đơn hàng tạm chưa xác nhận thanh toán.';
+                    Log::warning('[VNPayQueryDR] Suspected fraud transaction flagged', [
+                        'order_code' => $order->order_code,
+                        'txn_ref' => $payment->transaction_code,
+                        'vnp_TransactionNo' => $resolvedTxNo,
+                    ]);
+                } elseif (($rawRespCode === '00' && in_array($txStatus, ['02', '04'], true)) || $rawRespCode === '24') {
+                    $this->recordFailedGatewayPayment(
+                        $order,
+                        $payment,
+                        'vnpay',
+                        $resolvedTxNo,
+                        $res,
+                        $rawRespCode === '24' ? 'cancelled' : 'failed',
+                        "VNPay QueryDR reported failed/cancelled payment (ResponseCode={$rawRespCode}, TransactionStatus={$txStatus}).",
+                    );
+                    $verificationState = 'verified_failed';
+                    $gatewayErrorCode = $txStatus !== '' ? $txStatus : $rawRespCode;
+                    $message = $rawRespCode === '24'
+                        ? 'Giao dịch đã bị hủy trên cổng VNPay. Bạn có thể thử thanh toán lại.'
+                        : 'Giao dịch thanh toán không thành công trên cổng VNPay. Bạn có thể thử thanh toán lại.';
+                } else {
+                    $verificationState = 'gateway_unavailable';
+                    $gatewayErrorCode = $rawRespCode !== '' ? $rawRespCode : $txStatus;
+                    $message = 'Không thể đối soát trạng thái giao dịch từ VNPay lúc này.';
+                }
             }
         } elseif ($order->payment_method === 'zalopay' && ! empty($payment->gateway_transaction_id)) {
             $res = $this->zalopayService->queryOrderStatus((string) $payment->gateway_transaction_id);
             $expectedAmount = (int) round((float) $order->total_amount);
 
-            if (
-                is_array($res)
-                && (int) ($res['return_code'] ?? 0) === 1
-                && (int) ($res['amount'] ?? 0) === $expectedAmount
-            ) {
+            if (! is_array($res) || ! empty($res['transport_error'])) {
+                $verificationState = 'gateway_unavailable';
+                $gatewayErrorCode = 'transport_error';
+                $message = 'Không thể kết nối tới ZaloPay để đối soát lúc này.';
+            } elseif ((int) ($res['return_code'] ?? 0) === 1 && (int) ($res['amount'] ?? 0) === $expectedAmount) {
                 $zpTxId = (string) ($res['zp_trans_id'] ?? $payment->gateway_transaction_id);
                 $this->settleVerifiedGatewayPayment(
                     $order,
@@ -1136,6 +1515,10 @@ class PaymentController extends Controller
                     'Thanh toán ZaloPay thành công (Đối soát cổng - Mã GD: '.$zpTxId.')'
                 );
                 $gatewayVerified = true;
+                $verificationState = 'verified_paid';
+                $message = 'Thanh toán đã được xác nhận từ cổng ZaloPay.';
+            } elseif ((int) ($res['return_code'] ?? 0) === 3) {
+                $verificationState = 'processing';
             }
         } elseif ($order->payment_method === 'momo' && ! empty($payment->gateway_transaction_id)) {
             $requestId = (string) (($payment->response_data ?? [])['request_id']
@@ -1143,10 +1526,12 @@ class PaymentController extends Controller
 
             $res = $this->momoService->queryOrderStatus((string) $payment->gateway_transaction_id, $requestId);
 
-            if (
-                is_array($res)
-                && empty($res['transport_error'])
-                && (int) ($res['resultCode'] ?? -1) === 0
+            if (! is_array($res) || ! empty($res['transport_error'])) {
+                $verificationState = 'gateway_unavailable';
+                $gatewayErrorCode = isset($res['http_status']) ? 'http_'.$res['http_status'] : 'transport_error';
+                $message = 'Không thể kết nối tới MoMo để đối soát lúc này.';
+            } elseif (
+                (int) ($res['resultCode'] ?? -1) === 0
                 && abs((float) ($res['amount'] ?? 0) - (float) $order->total_amount) < 0.01
                 && (string) ($res['orderId'] ?? $payment->gateway_transaction_id) === (string) $payment->gateway_transaction_id
             ) {
@@ -1162,22 +1547,92 @@ class PaymentController extends Controller
                     'Thanh toán MoMo thành công (Đối soát cổng - Mã GD: '.$momoTxId.')'
                 );
                 $gatewayVerified = true;
+                $verificationState = 'verified_paid';
+                $message = 'Thanh toán đã được xác nhận từ cổng Ví MoMo.';
             }
         }
 
         $order->refresh();
 
-        return $this->paymentStatusResponse(
-            $order,
-            $gatewayVerified || $order->payment_status === 'paid',
-            $order->payment_status === 'paid'
-                ? 'Thanh toán đã được xác nhận từ cổng thanh toán.'
-                : 'Chưa nhận được xác nhận hoàn tất từ cổng thanh toán. Hệ thống vẫn đang giữ đơn cho bạn.'
-        );
+        if ($order->payment_status === 'paid') {
+            $gatewayVerified = true;
+            $verificationState = 'verified_paid';
+            $message = 'Thanh toán đã được xác nhận từ cổng thanh toán.';
+        }
+
+        return [
+            'order' => $order,
+            'gateway_verified' => $gatewayVerified,
+            'verification_state' => $verificationState,
+            'gateway_error_code' => $gatewayErrorCode,
+            'message' => $message,
+        ];
     }
 
-    private function paymentStatusResponse(Order $order, bool $gatewayVerified, string $message): JsonResponse
-    {
+    /**
+     * Atomically record a signed gateway failure/cancellation without overwriting already-paid orders.
+     *
+     * @param  array<string, mixed>  $gatewayPayload
+     */
+    private function recordFailedGatewayPayment(
+        Order $order,
+        Payment $payment,
+        string $method,
+        string $providerReference,
+        array $gatewayPayload,
+        string $paymentStatus,
+        string $errorMessage,
+    ): void {
+        DB::transaction(function () use (
+            $order,
+            $payment,
+            $method,
+            $providerReference,
+            $gatewayPayload,
+            $paymentStatus,
+            $errorMessage
+        ): void {
+            $lockedOrder = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
+            $lockedPayment = Payment::query()->whereKey($payment->id)->lockForUpdate()->firstOrFail();
+
+            if ($lockedOrder->payment_status === 'paid' || $lockedOrder->status === 'cancelled' || $lockedPayment->status === 'success') {
+                return;
+            }
+
+            $lockedPayment->update([
+                'status' => $paymentStatus,
+                'gateway_transaction_id' => $providerReference,
+                'response_data' => array_merge($lockedPayment->response_data ?? [], $gatewayPayload),
+                'paid_at' => null,
+            ]);
+
+            PaymentWebhookEvent::firstOrCreate(
+                [
+                    'method' => $method,
+                    'event_key' => $providerReference.'_query_failed',
+                ],
+                [
+                    'payment_id' => $lockedPayment->id,
+                    'provider_reference' => $providerReference,
+                    'signature_verified' => true,
+                    'processing_status' => 'failed',
+                    'event_payload' => $gatewayPayload,
+                    'error_message' => $errorMessage,
+                    'processed_at' => now(),
+                ]
+            );
+
+            $lockedOrder->update(['payment_status' => 'failed']);
+        });
+    }
+
+    private function paymentStatusResponse(
+        Order $order,
+        bool $gatewayVerified,
+        string $message,
+        string $verificationState = 'processing',
+        ?string $gatewayErrorCode = null,
+    ): JsonResponse {
         return response()->json([
             'status' => $order->payment_status === 'paid'
                 ? 'paid'
@@ -1191,6 +1646,8 @@ class PaymentController extends Controller
                 'order_status' => $order->status,
                 'total_amount' => (float) $order->total_amount,
                 'gateway_verified' => $gatewayVerified,
+                'verification_state' => $verificationState,
+                'gateway_error_code' => $gatewayErrorCode,
             ],
         ]);
     }
