@@ -240,6 +240,28 @@ export default function OrderDetailPage() {
           </div>
         </div>
       )}
+
+      {order.return_requests && order.return_requests.length > 0 && (
+        <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="material-symbols-outlined text-2xl text-primary shrink-0">assignment_return</span>
+            <div>
+              <p className="text-sm font-bold text-on-surface">
+                Đơn hàng có yêu cầu đổi/trả ({order.return_requests.length})
+              </p>
+              <p className="text-xs text-on-surface-variant mt-0.5">
+                Mã yêu cầu: <span className="font-mono font-semibold">{order.return_requests[0].return_code}</span> · Trạng thái: <span className="font-semibold text-primary">{order.return_requests[0].status}</span>
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/returns"
+            className="text-xs font-bold text-primary hover:underline px-3.5 py-2 rounded-xl bg-surface border border-outline-variant/30 flex items-center gap-1"
+          >
+            Theo dõi tiến trình đổi trả →
+          </Link>
+        </div>
+      )}
       {/* Breadcrumb & Actions */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <nav className="flex items-center gap-2 text-sm text-on-surface-variant">
@@ -250,7 +272,13 @@ export default function OrderDetailPage() {
 
         <div className="flex items-center gap-2">
           {['delivered', 'received'].includes(order.status) && (
-            <Link to={`/orders/${id}/return`} className="rounded-xl border border-primary px-3 py-2 text-sm font-semibold text-primary hover:bg-primary/10">Yêu cầu trả hàng</Link>
+            <Link
+              to={`/orders/${id}/return`}
+              className="rounded-xl border border-primary px-3 py-2 text-sm font-semibold text-primary hover:bg-primary/10 transition-colors flex items-center gap-1.5"
+            >
+              <span className="material-symbols-outlined text-base">assignment_return</span>
+              Yêu cầu đổi/trả hàng
+            </Link>
           )}
           {(order.status === 'delivered' || order.status === 'cancelled') && (
             <Button

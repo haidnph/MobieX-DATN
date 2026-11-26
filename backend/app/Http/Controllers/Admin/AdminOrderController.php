@@ -202,6 +202,7 @@ class AdminOrderController extends Controller
             'payments.webhookEvents',
             'coupon',
             'emailLogs',
+            'returnRequests.items.orderItem',
         ])->findOrFail($id);
 
         $order->payments->each(

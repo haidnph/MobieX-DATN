@@ -37,11 +37,13 @@ const MoMoPage          = lazy(() => import('../features/checkout/MoMoPage'))
 const MoMoReturnPage    = lazy(() => import('../features/checkout/MoMoReturnPage'))
 const BankTransferPage  = lazy(() => import('../features/checkout/BankTransferPage'))
 
-// Orders
+// Orders & Returns
 const OrderHistoryPage  = lazy(() => import('../features/orders/OrderHistoryPage'))
 const OrderDetailPage   = lazy(() => import('../features/orders/OrderDetailPage'))
 const OrderInvoicePage  = lazy(() => import('../features/orders/OrderInvoicePage'))
 const OrderTrackingPage = lazy(() => import('../features/orders/OrderTrackingPage'))
+const ReturnCenterPage  = lazy(() => import('../features/orders/ReturnCenterPage'))
+const ReturnRequestPage = lazy(() => import('../features/orders/ReturnRequestPage'))
 
 // Account
 const ProfilePage      = lazy(() => import('../features/account/ProfilePage'))
@@ -206,6 +208,24 @@ export default function AppRoutes() {
             element={
               <ProtectedRoute>
                 <OrderInvoicePage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── Product Returns & Refunds (Customer) ── */}
+          <Route
+            path="returns"
+            element={
+              <ProtectedRoute>
+                <ReturnCenterPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="orders/:id/return"
+            element={
+              <ProtectedRoute>
+                <ReturnRequestPage />
               </ProtectedRoute>
             }
           />

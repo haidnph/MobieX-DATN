@@ -49,6 +49,12 @@ const EP = {
   ORDER_CANCEL: (id) => `/orders/${id}/cancel`,
   ORDER_CONFIRM_RECEIVED: (id) => `/orders/${id}/confirm-received`,
 
+  // ── Returns & Refunds (Customer) ───────────────────────
+  RETURNS: '/returns',
+  RETURN_DETAIL: (id) => `/returns/${id}`,
+  RETURN_SHIPPING: (id) => `/returns/${id}/shipping`,
+  RETURN_CANCEL: (id) => `/returns/${id}/cancel`,
+
   // ── Shipping ──────────────────────────────────────────
   SHIPPING_METHODS: '/shipping-methods',
 

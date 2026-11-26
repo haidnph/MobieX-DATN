@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\AdminHomepageController;
 use App\Http\Controllers\Admin\AdminOmnisearchController;
 use App\Http\Controllers\Admin\AdminOrderController;
 use App\Http\Controllers\Admin\AdminPaymentRefundController;
+use App\Http\Controllers\Admin\AdminReturnController;
 use App\Http\Controllers\Admin\AdminReviewController;
 use App\Http\Controllers\Admin\AdminTrashController;
 use App\Http\Controllers\Admin\PermissionController;
@@ -27,6 +28,7 @@ use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ProductCompatibilityController;
 use App\Http\Controllers\Api\ProductImageController;
 use App\Http\Controllers\Api\ProductSpecificationController;
+use App\Http\Controllers\Api\ReturnController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\VoucherWalletController;
 use App\Http\Controllers\Auth\CurrentUserController;
@@ -721,6 +723,13 @@ Route::middleware([
         ->whereNumber('id')
         ->name('api.products.reviews.store');
 
+    // Customer Return & Refund Requests
+    Route::get('/returns', [ReturnController::class, 'index'])->name('api.returns.index');
+    Route::get('/returns/{id}', [ReturnController::class, 'show'])->whereNumber('id')->name('api.returns.show');
+    Route::post('/returns', [ReturnController::class, 'store'])->name('api.returns.store');
+    Route::patch('/returns/{id}/shipping', [ReturnController::class, 'shippingBack'])->whereNumber('id')->name('api.returns.shipping');
+    Route::patch('/returns/{id}/cancel', [ReturnController::class, 'cancel'])->whereNumber('id')->name('api.returns.cancel');
+
     // Online Payments
     Route::post('/payments/vnpay/create', [PaymentController::class, 'createVNPayPayment'])
         ->name('api.payments.vnpay.create');
@@ -920,6 +929,10 @@ Route::prefix('admin')
             )
                 ->whereNumber('id')
                 ->name('orders.email-logs');
+
+            // Admin Return Management (View)
+            Route::get('/returns', [AdminReturnController::class, 'index'])->name('admin.returns.index');
+            Route::get('/returns/{id}', [AdminReturnController::class, 'show'])->whereNumber('id')->name('admin.returns.show');
         });
 
         Route::middleware('permission:orders.manage')->group(function (): void {
@@ -973,6 +986,13 @@ Route::prefix('admin')
                 ->name('payments.bank-transfer.simulate');
             Route::post('/payments/momo/simulate', [PaymentController::class, 'simulateMoMoPayment'])
                 ->name('payments.momo.simulate');
+
+            // Admin Return Management (Process)
+            Route::patch('/returns/{id}/approve', [AdminReturnController::class, 'approve'])->whereNumber('id')->name('admin.returns.approve');
+            Route::patch('/returns/{id}/reject', [AdminReturnController::class, 'reject'])->whereNumber('id')->name('admin.returns.reject');
+            Route::patch('/returns/{id}/receive', [AdminReturnController::class, 'receive'])->whereNumber('id')->name('admin.returns.receive');
+            Route::patch('/returns/{id}/inspect', [AdminReturnController::class, 'inspect'])->whereNumber('id')->name('admin.returns.inspect');
+            Route::patch('/returns/{id}/complete', [AdminReturnController::class, 'complete'])->whereNumber('id')->name('admin.returns.complete');
         });
 
         // Admin Coupon Management

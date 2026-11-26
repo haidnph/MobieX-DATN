@@ -14,12 +14,20 @@ class ReturnItem extends Model
         'order_item_id',
         'quantity',
         'inspection_condition',
-        'inspection_note'
+        'inspection_note',
+        'is_restocked',
+        'restocked_at',
+        'refund_amount',
     ];
 
     protected function casts(): array
     {
-        return ['quantity' => 'integer'];
+        return [
+            'quantity' => 'integer',
+            'is_restocked' => 'boolean',
+            'restocked_at' => 'datetime',
+            'refund_amount' => 'decimal:2',
+        ];
     }
 
     public function returnRequest(): BelongsTo

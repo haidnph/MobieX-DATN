@@ -11,7 +11,7 @@ const NAV_ITEMS = [
   { to: '/admin/orders',      icon: 'receipt_long',       label: 'Đơn hàng',                     permission: 'orders.view' },
 
   // Quản lý hoàn hàng
-  { to: '/admin/returns',     icon: 'assignment_return',  label: 'Hoàn hàng',                    permission: 'orders.view' },
+  { to: '/admin/returns',     icon: 'assignment_return',  label: 'Đổi trả & Hoàn tiền',   permission: 'orders.view' },
 
   { to: '/admin/products',    icon: 'inventory_2',        label: 'Sản phẩm',                     permission: 'products.view' },
   { to: '/admin/categories',  icon: 'category',           label: 'Danh mục',                     permission: 'categories.view' },

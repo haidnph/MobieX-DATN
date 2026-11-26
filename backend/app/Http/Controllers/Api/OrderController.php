@@ -60,6 +60,7 @@ class OrderController extends Controller
             'shippingMethod',
             'payments',
             'coupon',
+            'returnRequests',
         ])->findOrFail($id);
 
         if ((int) $order->user_id !== (int) $request->user()->id) {

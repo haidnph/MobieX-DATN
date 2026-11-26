@@ -100,6 +100,11 @@ class Order extends Model
         return $this->hasMany(OrderEmailLog::class);
     }
 
+    public function returnRequests(): HasMany
+    {
+        return $this->hasMany(ReturnRequest::class);
+    }
+
     /**
      * Get the effective recipient email (customer_email or user's email).
      */

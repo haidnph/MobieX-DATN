@@ -296,6 +296,21 @@ export default function AdminOrderDetailPage() {
                   ))}
                 </div>
               )}
+              {(order.return_requests || []).length > 0 && (
+                <div className="pt-2 border-t border-outline-variant/15 space-y-1.5 text-[11px]">
+                  <p className="font-semibold text-primary">Yêu cầu đổi/trả ({order.return_requests.length}):</p>
+                  {order.return_requests.map((r) => (
+                    <div key={r.id} className="flex items-center justify-between gap-2 bg-surface-container-low rounded-lg px-2.5 py-1.5">
+                      <span className="font-mono text-on-surface truncate">
+                        {r.return_code} · {r.return_type === 'replacement' ? 'Đổi hàng' : 'Hoàn tiền'}
+                      </span>
+                      <Link to="/admin/returns" className="text-primary font-semibold hover:underline shrink-0">
+                        {r.status} →
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              )}
               {(order.payments || []).filter((payment) => (
                 payment.refund_required
                 || payment.status === 'refunded'
